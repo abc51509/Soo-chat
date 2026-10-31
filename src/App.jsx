@@ -293,7 +293,7 @@ export default function App() {
         reg.showNotification('Soo', {
           body: text,
           icon: 'https://images.plurk.com/7lPN93L87TwPEfErIseop9.jpg',
-          badge: 'https://i.pinimg.com/736x/c8/c3/e6/c8c3e646c47bd83dbeb285393405087a.jpg'
+          badge: 'https://images.plurk.com/7lPN93L87TwPEfErIseop9.jpg'
         });
         return;
       }
@@ -367,7 +367,7 @@ export default function App() {
             <div className="flex items-center space-x-2.5">
               <div className="w-9 h-9 rounded-full bg-slate-700 overflow-hidden ring-1 ring-white/20">
                 <img 
-                  src="https://i.pinimg.com/736x/c8/c3/e6/c8c3e646c47bd83dbeb285393405087a.jpg" 
+                  src="https://images.plurk.com/7lPN93L87TwPEfErIseop9.jpg" 
                   alt="avatar" 
                   className="w-full h-full object-cover" 
                 />
@@ -417,7 +417,7 @@ export default function App() {
                 {!isUser && (
                   <div className="w-8 h-8 rounded-full overflow-hidden shrink-0 mb-1 ring-1 ring-black/10">
                     <img 
-                      src="https://i.pinimg.com/736x/c8/c3/e6/c8c3e646c47bd83dbeb285393405087a.jpg" 
+                      src="https://images.plurk.com/7lPN93L87TwPEfErIseop9.jpg" 
                       alt="avatar" 
                       className="w-full h-full object-cover" 
                     />
@@ -476,7 +476,7 @@ export default function App() {
             <div className="flex items-center space-x-1.5 justify-start">
               <div className="w-8 h-8 rounded-full overflow-hidden shrink-0 ring-1 ring-black/10">
                 <img 
-                  src="https://i.pinimg.com/736x/c8/c3/e6/c8c3e646c47bd83dbeb285393405087a.jpg" 
+                  src="https://images.plurk.com/7lPN93L87TwPEfErIseop9.jpg" 
                   alt="avatar" 
                   className="w-full h-full object-cover" 
                 />
