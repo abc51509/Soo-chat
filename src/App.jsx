@@ -312,7 +312,7 @@ export default function App() {
   const [inputText, setInputText] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [hasNotifPermission, setHasNotifPermission] = useState(false);
-  const [delayCountdown, setDelayCountdown] = useState(null); // 倒數計時狀態
+  const [delayCountdown, setDelayCountdown] = useState(null);
 
   // 晨喚與通話狀態
   const [isAlarmActive, setIsAlarmActive] = useState(true);
@@ -528,23 +528,49 @@ export default function App() {
     });
   };
 
-  // ⏱ 核心功能：一分鐘後發送隨機訊息並推播通知
-  const startOneMinuteNotificationTest = () => {
+  // ⏱ 核心功能：交給 Service Worker 背景倒數 1 分鐘後推播
+  const startOneMinuteNotificationTest = async () => {
     if (!('Notification' in window) || Notification.permission !== 'granted') {
       alert('請先點擊上方綠色「允許推播」按鈕開啟通知權限！');
       return;
     }
 
-    alert('⏱ 倒數 60 秒開始！請現在按 Home 鍵退到主畫面或鎖定關閉螢幕，測試 1 分鐘後能否收到通知。');
     setDelayCountdown(60);
 
+    // 隨機選一則劇本台詞作為推播內容
     const keys = Object.keys(SCRIPT_SCENARIOS);
     const randomKey = keys[Math.floor(Math.random() * keys.length)];
+    const chosenScenario = SCRIPT_SCENARIOS[randomKey];
+    const previewText = chosenScenario?.steps[0]?.notify || 'Soo: 剛結束拍攝，你在幹嘛？';
 
+    // 1. 若 Service Worker 支援，委派給背景倒數
+    if ('serviceWorker' in navigator) {
+      try {
+        const reg = await navigator.serviceWorker.ready;
+        if (reg.active) {
+          reg.active.postMessage({
+            type: 'SCHEDULE_NOTIFICATION',
+            delay: 60000,
+            title: 'Soo',
+            options: {
+              body: previewText,
+              icon: 'https://images.plurk.com/7lPN93L87TwPEfErIseop9.jpg',
+              badge: 'https://images.plurk.com/7lPN93L87TwPEfErIseop9.jpg'
+            }
+          });
+        }
+      } catch (e) {
+        console.error('SW postMessage error:', e);
+      }
+    }
+
+    // 2. 本地前端同步排程（若使用者回前台時補發進聊天室）
     setTimeout(() => {
       playScript(randomKey);
       setDelayCountdown(null);
-    }, 60000); // 60 秒 (1 分鐘)
+    }, 60000);
+
+    alert('⏱ 倒數 60 秒已交給背景！請現在關閉螢幕或退到主畫面測試。');
   };
 
   const requestNotification = async () => {
@@ -864,20 +890,20 @@ export default function App() {
           <div ref={messagesEndRef} />
         </div>
 
-        {/* 劇本控制板（最左側新增 ⏱ 1分後測試） */}
+        {/* 劇本控制板 */}
         <div className="bg-slate-950/60 backdrop-blur-md px-2.5 py-2 flex space-x-2 overflow-x-auto border-t border-white/10 z-10 scrollbar-none shrink-0">
           <button
             onClick={startOneMinuteNotificationTest}
             className="text-[11px] whitespace-nowrap bg-amber-500 hover:bg-amber-400 text-slate-950 font-semibold px-3 py-1.5 rounded-full shadow transition shrink-0 active:scale-95"
           >
-            ⏱ 1分後測試通知
+            ⏱ 1分後測試
           </button>
 
           <button
             onClick={() => setCallStatus('ringing')}
             className="text-[11px] whitespace-nowrap bg-rose-600 hover:bg-rose-500 text-white font-medium px-3 py-1.5 rounded-full shadow transition shrink-0 active:scale-95"
           >
-            📞 測試來電
+            📞
           </button>
 
           {Object.entries(SCRIPT_SCENARIOS).map(([key, item]) => (
@@ -896,7 +922,7 @@ export default function App() {
           <input
             type="text"
             className="flex-1 bg-slate-100 rounded-full px-4 py-2 text-sm text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-400"
-            placeholder="輸入「起床了」解鎖晨喚..."
+            placeholder="輸入..."
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
             onKeyDown={(e) => {
