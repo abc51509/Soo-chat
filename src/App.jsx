@@ -896,14 +896,14 @@ export default function App() {
             onClick={startOneMinuteNotificationTest}
             className="text-[11px] whitespace-nowrap bg-amber-500 hover:bg-amber-400 text-slate-950 font-semibold px-3 py-1.5 rounded-full shadow transition shrink-0 active:scale-95"
           >
-            ⏱ 1分後測試
+            ⏱ 1分後測試通知
           </button>
 
           <button
             onClick={() => setCallStatus('ringing')}
             className="text-[11px] whitespace-nowrap bg-rose-600 hover:bg-rose-500 text-white font-medium px-3 py-1.5 rounded-full shadow transition shrink-0 active:scale-95"
           >
-            📞
+            📞 測試來電
           </button>
 
           {Object.entries(SCRIPT_SCENARIOS).map(([key, item]) => (
@@ -922,7 +922,7 @@ export default function App() {
           <input
             type="text"
             className="flex-1 bg-slate-100 rounded-full px-4 py-2 text-sm text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-400"
-            placeholder="輸入..."
+            placeholder="輸入「起床了」解鎖晨喚..."
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
             onKeyDown={(e) => {
