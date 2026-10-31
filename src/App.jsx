@@ -51,7 +51,7 @@ const SCRIPT_SCENARIOS = {
         type: 'photo',
         imageUrl: 'https://i.pinimg.com/1200x/20/44/c0/2044c08ea9b732d07ef71cb418040a1e.jpg',
         time: '08:00',
-        notify: 'Soo傳了一張照片'
+        notify: 'Soo已傳送照片'
       },
       {
         delay: 1000,
@@ -59,7 +59,7 @@ const SCRIPT_SCENARIOS = {
         audioSrc: '/audio/1_get up_cozy.mp3',
         durationText: '0:03',
         time: '08:00',
-        notify: 'Soo傳了一則語音訊息'
+        notify: 'Soo傳送了語音訊息'
       },
       {
         delay: 6000,
@@ -67,7 +67,7 @@ const SCRIPT_SCENARIOS = {
         audioSrc: '/audio/2_plz_get_up.mp3',
         durationText: '0:04',
         time: '08:01',
-        notify: 'Soo傳了一則語音訊息'
+        notify: 'Soo傳送了語音訊息'
       },
       {
         delay: 11000,
@@ -75,7 +75,7 @@ const SCRIPT_SCENARIOS = {
         audioSrc: '/audio/3_can_u_get_up.mp3',
         durationText: '0:04',
         time: '08:01',
-        notify: 'Soo傳了一則語音訊息'
+        notify: 'Soo傳送了語音訊息'
       },
       {
         delay: 16000,
@@ -83,7 +83,7 @@ const SCRIPT_SCENARIOS = {
         audioSrc: '/audio/4_time_to_get_up_now.mp3',
         durationText: '0:03',
         time: '08:02',
-        notify: 'Soo傳了一則語音訊息'
+        notify: 'Soo傳送了語音訊息'
       },
       {
         delay: 21000,
@@ -91,12 +91,12 @@ const SCRIPT_SCENARIOS = {
         audioSrc: '/audio/5_get_up_yell.mp3',
         durationText: '0:04',
         time: '08:02',
-        notify: 'Soo傳了一則語音訊息'
+        notify: 'Soo傳送了語音訊息'
       }
     ]
   },
   carSelfie4: {
-    label: '🚗 車內四連拍',
+    label: '🚗',
     steps: [
       {
         delay: 400,
@@ -108,7 +108,7 @@ const SCRIPT_SCENARIOS = {
           'https://i.pinimg.com/1200x/98/3d/57/983d579ed770c086cd7e39cf388ec5fe.jpg'
         ],
         time: '14:15',
-        notify: 'Soo傳了四張照片'
+        notify: 'Soo已傳送照片'
       },
       {
         delay: 1500,
@@ -120,14 +120,14 @@ const SCRIPT_SCENARIOS = {
     ]
   },
   mirrorSelfie: {
-    label: '🪞 畫報對鏡自拍',
+    label: '🪞',
     steps: [
       {
         delay: 400,
         type: 'photo',
         imageUrl: 'https://i.pinimg.com/736x/c8/c3/e6/c8c3e646c47bd83dbeb285393405087a.jpg',
         time: '16:40',
-        notify: 'Soo傳了一張照片'
+        notify: 'Soo已傳送照片'
       },
       {
         delay: 1200,
@@ -139,7 +139,7 @@ const SCRIPT_SCENARIOS = {
     ]
   },
   dailySeries: {
-    label: '💬 日常語音三連發',
+    label: '💬',
     steps: [
       {
         delay: 400,
@@ -147,7 +147,7 @@ const SCRIPT_SCENARIOS = {
         audioSrc: '/audio/i_miss_u.mp3',
         durationText: '0:03',
         time: '18:20',
-        notify: 'Soo傳了一則語音訊息'
+        notify: 'Soo傳送了語音訊息'
       },
       {
         delay: 3500,
@@ -155,7 +155,7 @@ const SCRIPT_SCENARIOS = {
         audioSrc: '/audio/i_miss_u_longer.mp3',
         durationText: '0:05',
         time: '18:20',
-        notify: 'Soo傳了一則語音訊息'
+        notify: 'Soo傳送了語音訊息'
       },
       {
         delay: 7000,
@@ -163,12 +163,12 @@ const SCRIPT_SCENARIOS = {
         audioSrc: '/audio/shall_i_go_now.mp3',
         durationText: '0:04',
         time: '18:21',
-        notify: 'Soo傳了一則語音訊息'
+        notify: 'Soo傳送了語音訊息'
       }
     ]
   },
   plotDate: {
-    label: '🎬 劇情：約會邀請',
+    label: '🎬',
     steps: [
       {
         delay: 400,
@@ -176,12 +176,12 @@ const SCRIPT_SCENARIOS = {
         audioSrc: '/audio/lets_date.mp3',
         durationText: '0:04',
         time: '20:10',
-        notify: 'Soo傳了一則語音訊息'
+        notify: 'Soo傳送了語音訊息'
       }
     ]
   },
   plotLove: {
-    label: '❤️ 劇情：告白',
+    label: '❤️',
     steps: [
       {
         delay: 400,
@@ -189,12 +189,12 @@ const SCRIPT_SCENARIOS = {
         audioSrc: '/audio/love_u.mp3',
         durationText: '0:03',
         time: '21:00',
-        notify: 'Soo傳了一則語音訊息'
+        notify: 'Soo傳送了語音訊息'
       }
     ]
   },
   goodNight: {
-    label: '🌙 睡前晚安',
+    label: '🌙💤',
     steps: [
       {
         delay: 400,
@@ -202,7 +202,7 @@ const SCRIPT_SCENARIOS = {
         audioSrc: '/audio/good_night_normal.mp3',
         durationText: '0:05',
         time: '23:30',
-        notify: 'Soo傳了一則語音訊息'
+        notify: 'Soo傳送了語音訊息'
       }
     ]
   }
