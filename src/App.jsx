@@ -232,15 +232,15 @@ export default function App() {
       if (reg && reg.showNotification) {
         reg.showNotification('Soo', {
           body: text,
-          icon: 'https://www.plurk.com/p/3jc4n9v8tm?r=640713971747513',
-          badge: 'https://www.plurk.com/p/3jc4n9v8tm?r=640713971747513'
+          icon: 'https://images.plurk.com/6PooPJr1YbOhrMp5CCFdbl.jpg',
+          badge: 'https://images.plurk.com/6PooPJr1YbOhrMp5CCFdbl.jpg'
         });
         return;
       }
     }
     new Notification('Soo', {
       body: text,
-      icon: 'https://www.plurk.com/p/3jc4n9v8tm?r=640713971747513'
+      icon: 'https://images.plurk.com/6PooPJr1YbOhrMp5CCFdbl.jpg'
     });
   };
 
@@ -428,7 +428,7 @@ export default function App() {
             <div className="flex flex-col items-center mt-12 space-y-3">
               <div className="w-28 h-28 rounded-full overflow-hidden ring-4 ring-emerald-400/40 shadow-2xl animate-pulse">
                 <img 
-                  src="https://www.plurk.com/p/3jc4n9v8tm?r=640713971747513" 
+                  src="https://images.plurk.com/6PooPJr1YbOhrMp5CCFdbl.jpg" 
                   alt="avatar" 
                   className="w-full h-full object-cover" 
                 />
@@ -488,7 +488,7 @@ export default function App() {
             <div className="flex items-center space-x-2.5">
               <div className="w-9 h-9 rounded-full bg-slate-700 overflow-hidden ring-1 ring-white/20">
                 <img 
-                  src="https://www.plurk.com/p/3jc4n9v8tm?r=640713971747513" 
+                  src="https://images.plurk.com/6PooPJr1YbOhrMp5CCFdbl.jpg" 
                   alt="avatar" 
                   className="w-full h-full object-cover" 
                 />
@@ -540,7 +540,7 @@ export default function App() {
                 {!isUser && (
                   <div className="w-8 h-8 rounded-full overflow-hidden shrink-0 mb-1 ring-1 ring-black/10">
                     <img 
-                      src="https://www.plurk.com/p/3jc4n9v8tm?r=640713971747513" 
+                      src="https://images.plurk.com/6PooPJr1YbOhrMp5CCFdbl.jpg" 
                       alt="avatar" 
                       className="w-full h-full object-cover" 
                     />
@@ -599,7 +599,7 @@ export default function App() {
             <div className="flex items-center space-x-1.5 justify-start">
               <div className="w-8 h-8 rounded-full overflow-hidden shrink-0 ring-1 ring-black/10">
                 <img 
-                  src="https://www.plurk.com/p/3jc4n9v8tm?r=640713971747513" 
+                  src="https://images.plurk.com/6PooPJr1YbOhrMp5CCFdbl.jpg" 
                   alt="avatar" 
                   className="w-full h-full object-cover" 
                 />
