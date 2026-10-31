@@ -1,3 +1,23 @@
+已將所有指定項目完成修改與整理：
+
+1. **按鈕圖示與樣式統一**：
+* `📞 測試來電` 簡化為 **`📞`**，樣式改為白色半透明質感按鈕。
+* 一分鐘測試保留，圖示設為 **`🕰️`**，樣式為白色按鈕。
+* 雜誌按鈕改為：`📖 A` ➔ **`🫍`**、`📖 B` ➔ **`🐆`**、`📖 C` ➔ **`🪵`**、`📖 D` ➔ **`🐺`**。
+* 愛心按鈕改為 **`♥️`**。
+
+
+2. **整點排程擴充（07:00 ～ 02:00 / 26:00）**：
+* 移除 21:40 測試點。
+* 每個整點自動從你給的專屬台詞庫（剪布、量尺寸、起司吐司、薑茶、降溫叮嚀等）中隨機抽取一則純文字推播與聊天氣泡，不夾帶相簿，乾淨俐落。
+
+
+
+---
+
+請直接複製以下完整程式碼覆蓋至 GitHub 上的 `src/App.jsx` 並 Commit：
+
+```jsx
 import React, { useState, useEffect, useRef } from 'react';
 
 // 語音氣泡元件（乾淨幾何 SVG 播放與暫停鍵）
@@ -64,9 +84,38 @@ const WAKEUP_VOICES = {
   5: { src: '/audio/5_get_up_yell.mp3', duration: '0:04', time: '10:30', notify: 'Soo: 起床！' }
 };
 
+// 整點隨機純文字台詞庫
+const HOURLY_MESSAGES = [
+  '吃飯了嗎？',
+  '外面很冷，多穿點。',
+  '收工了。',
+  '剛才經過一家麵包店，買了起司吐司。',
+  '在忙？',
+  '明天首爾降溫，出門記得帶傘。',
+  '看到有趣的布料，拍給你看。',
+  '這幾天別熬夜。',
+  '剛試完裝，這套你應該會喜歡。',
+  '睡了嗎。',
+  '忙完回我一聲就好。',
+  '今天劇組的便當很難吃。',
+  '路上小心。',
+  '週末有空嗎？',
+  '記得開暖氣。',
+  '突然想到上次那個太陽蛋。',
+  '下雪了。',
+  '劇本讀完了，現在回程。',
+  '脖子還酸嗎？別一直低頭剪布。',
+  '剛到家。',
+  '晚安。',
+  '什麼時候有空量尺寸？',
+  '又沒看手機？',
+  '今天拍攝提早結束了。',
+  '想喝上次那罐薑茶。'
+];
+
 const SCRIPT_SCENARIOS = {
   arenaA: {
-    label: '📖 A',
+    label: '🫍',
     steps: [
       {
         delay: 300,
@@ -98,7 +147,7 @@ const SCRIPT_SCENARIOS = {
     ]
   },
   arenaB: {
-    label: '📖 B',
+    label: '🐆',
     steps: [
       {
         delay: 300,
@@ -128,7 +177,7 @@ const SCRIPT_SCENARIOS = {
     ]
   },
   arenaC: {
-    label: '📖 C',
+    label: '🪵',
     steps: [
       {
         delay: 300,
@@ -159,7 +208,7 @@ const SCRIPT_SCENARIOS = {
     ]
   },
   arenaD: {
-    label: '📖 D',
+    label: '🐺',
     steps: [
       {
         delay: 300,
@@ -271,7 +320,7 @@ const SCRIPT_SCENARIOS = {
     ]
   },
   plotLove: {
-    label: '❤️',
+    label: '♥️',
     steps: [
       {
         delay: 400,
@@ -386,7 +435,21 @@ export default function App() {
     sendPushNotification(voiceData.notify);
   };
 
-  // 晨喚定時檢查
+  const sendTextMessage = (text) => {
+    setMessages(prev => [
+      ...prev,
+      {
+        id: Date.now(),
+        role: 'assistant',
+        type: 'text',
+        content: text,
+        time: getCurrentTime()
+      }
+    ]);
+    sendPushNotification(text);
+  };
+
+  // 晨喚與整點排程檢查（每 10 秒檢查一次）
   useEffect(() => {
     const timer = setInterval(() => {
       const now = new Date();
@@ -399,6 +462,18 @@ export default function App() {
         setHasAwoken(false);
       }
 
+      // 整點檢查：07:00 ~ 26:00 (即 07:00 至 23:00，以及凌晨 00:00, 01:00, 02:00)
+      const isTargetHour = (h >= 7 && h <= 23) || (h >= 0 && h <= 2);
+      if (m === 0 && isTargetHour && !triggeredSlots.current.has(timeKey)) {
+        triggeredSlots.current.add(timeKey);
+        // 若該整點非專屬晨喚語音時段，發送隨機日常台詞
+        if (h !== 8 && h !== 9 && h !== 10) {
+          const randomText = HOURLY_MESSAGES[Math.floor(Math.random() * HOURLY_MESSAGES.length)];
+          sendTextMessage(randomText);
+        }
+      }
+
+      // 晨喚專屬語音排程
       if (!isAlarmActive || hasAwoken) return;
 
       if (timeKey === '08:00' && !triggeredSlots.current.has('08:00')) {
@@ -418,6 +493,7 @@ export default function App() {
         sendVoiceMessage(WAKEUP_VOICES[5]);
       }
 
+      // 11:00 至 13:00 來電
       const callSlots = ['11:00', '11:30', '12:00', '12:30', '13:00'];
       if (callSlots.includes(timeKey) && !triggeredSlots.current.has(timeKey)) {
         triggeredSlots.current.add(timeKey);
@@ -537,13 +613,11 @@ export default function App() {
 
     setDelayCountdown(60);
 
-    // 隨機選一則劇本台詞作為推播內容
     const keys = Object.keys(SCRIPT_SCENARIOS);
     const randomKey = keys[Math.floor(Math.random() * keys.length)];
     const chosenScenario = SCRIPT_SCENARIOS[randomKey];
     const previewText = chosenScenario?.steps[0]?.notify || 'Soo: 剛結束拍攝，你在幹嘛？';
 
-    // 1. 若 Service Worker 支援，委派給背景倒數
     if ('serviceWorker' in navigator) {
       try {
         const reg = await navigator.serviceWorker.ready;
@@ -564,7 +638,6 @@ export default function App() {
       }
     }
 
-    // 2. 本地前端同步排程（若使用者回前台時補發進聊天室）
     setTimeout(() => {
       playScript(randomKey);
       setDelayCountdown(null);
@@ -591,7 +664,7 @@ export default function App() {
       const perm = await Notification.requestPermission();
       if (perm === 'granted') {
         setHasNotifPermission(true);
-        sendPushNotification('晨喚排程通知已授權成功！');
+        sendPushNotification('排程通知已授權成功！');
       } else {
         alert('尚未取得通知授權');
       }
@@ -719,7 +792,7 @@ export default function App() {
               <div className="flex flex-col">
                 <span className="font-medium text-sm leading-tight text-white tracking-wide">Soo</span>
                 <span className="text-[10px] text-emerald-400 font-mono">
-                  {delayCountdown ? `倒數 ${delayCountdown}s 發送測試...` : (isAlarmActive ? (hasAwoken ? '晨喚已解除・在線上' : '晨喚待命・08:00 起') : '晨喚已關閉')}
+                  {delayCountdown ? `倒數 ${delayCountdown}s 發送...` : (isAlarmActive ? (hasAwoken ? '晨喚已解除・排程中' : '晨喚待命・08:00 起') : '晨喚已關閉')}
                 </span>
               </div>
             </div>
@@ -890,27 +963,27 @@ export default function App() {
           <div ref={messagesEndRef} />
         </div>
 
-        {/* 劇本控制板 */}
+        {/* 劇本控制板（按鈕統一純淨白底樣式） */}
         <div className="bg-slate-950/60 backdrop-blur-md px-2.5 py-2 flex space-x-2 overflow-x-auto border-t border-white/10 z-10 scrollbar-none shrink-0">
           <button
             onClick={startOneMinuteNotificationTest}
-            className="text-[11px] whitespace-nowrap bg-amber-500 hover:bg-amber-400 text-slate-950 font-semibold px-3 py-1.5 rounded-full shadow transition shrink-0 active:scale-95"
+            className="text-[12px] whitespace-nowrap bg-white/90 hover:bg-white text-slate-900 font-medium px-3 py-1.5 rounded-full shadow transition shrink-0 active:scale-95"
           >
-            ⏱ 1分後測試通知
+            🕰️
           </button>
 
           <button
             onClick={() => setCallStatus('ringing')}
-            className="text-[11px] whitespace-nowrap bg-rose-600 hover:bg-rose-500 text-white font-medium px-3 py-1.5 rounded-full shadow transition shrink-0 active:scale-95"
+            className="text-[12px] whitespace-nowrap bg-white/90 hover:bg-white text-slate-900 font-medium px-3 py-1.5 rounded-full shadow transition shrink-0 active:scale-95"
           >
-            📞 測試來電
+            📞
           </button>
 
           {Object.entries(SCRIPT_SCENARIOS).map(([key, item]) => (
             <button
               key={key}
               onClick={() => playScript(key)}
-              className="text-[11px] whitespace-nowrap bg-white/90 hover:bg-white text-slate-900 font-medium px-3 py-1.5 rounded-full shadow transition shrink-0 active:scale-95"
+              className="text-[12px] whitespace-nowrap bg-white/90 hover:bg-white text-slate-900 font-medium px-3 py-1.5 rounded-full shadow transition shrink-0 active:scale-95"
             >
               {item.label}
             </button>
@@ -943,3 +1016,5 @@ export default function App() {
     </div>
   );
 }
+
+```
