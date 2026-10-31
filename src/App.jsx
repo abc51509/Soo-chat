@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 
-// 語音氣泡元件（乾淨幾何 SVG 播放與暫停鍵）
+// 語音氣泡元件
 const AudioBubble = ({ audioSrc, durationText = "0:04" }) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const audioRef = useRef(null);
@@ -55,7 +55,7 @@ const AudioBubble = ({ audioSrc, durationText = "0:04" }) => {
   );
 };
 
-// 晨間劇本資料（依時間序發送）
+// 晨間劇本資料
 const WAKEUP_VOICES = {
   1: { src: '/audio/1_get up_cozy.mp3', duration: '0:03', time: '08:00', notify: 'Soo: 起床囉...' },
   2: { src: '/audio/2_plz_get_up.mp3', duration: '0:04', time: '09:00', notify: 'Soo: 該起來了。' },
@@ -93,9 +93,107 @@ const HOURLY_MESSAGES = [
   '想喝上次那罐薑茶。'
 ];
 
+// 全域語音列表清單
+const ALL_VOICE_LIST = [
+  { id: 'v1', title: '晨喚 1: 輕柔喚醒', src: '/audio/1_get up_cozy.mp3', duration: '0:03' },
+  { id: 'v2', title: '晨喚 2: 該起來了', src: '/audio/2_plz_get_up.mp3', duration: '0:04' },
+  { id: 'v3', title: '晨喚 3: 還在睡？', src: '/audio/3_can_u_get_up.mp3', duration: '0:04' },
+  { id: 'v4', title: '晨喚 4: 真的該起了', src: '/audio/4_time_to_get_up_now.mp3', duration: '0:03' },
+  { id: 'v5', title: '晨喚 5: 低音威脅', src: '/audio/5_get_up_yell.mp3', duration: '0:04' },
+  { id: 'v6', title: '日常 1: 有點想你', src: '/audio/i_miss_u.mp3', duration: '0:03' },
+  { id: 'v7', title: '日常 2: 真的很想你', src: '/audio/i_miss_u_longer.mp3', duration: '0:05' },
+  { id: 'v8', title: '日常 3: 我現在過去？', src: '/audio/shall_i_go_now.mp3', duration: '0:04' },
+  { id: 'v9', title: '約會: 我們去約會吧', src: '/audio/lets_date.mp3', duration: '0:04' },
+  { id: 'v10', title: '心意: 我愛你', src: '/audio/love_u.mp3', duration: '0:03' },
+  { id: 'v11', title: '夜間: 晚安', src: '/audio/good_night_normal.mp3', duration: '0:05' }
+];
+
+// 雜誌相簿資源庫
+const ARENA_ALBUM_DATA = {
+  title: 'Arena Homme+ Nov 2026',
+  cover: 'https://images.plurk.com/wGRATa3N4kmnXq7NfNW5q.jpg',
+  sections: [
+    {
+      name: 'Series A',
+      images: [
+        'https://images.plurk.com/wGRATa3N4kmnXq7NfNW5q.jpg',
+        'https://images.plurk.com/5pOLToEI89ynuGrE6eK9zq.jpg',
+        'https://images.plurk.com/5DIYnEc7OkB0r2uZrbzqMG.jpg',
+        'https://images.plurk.com/58Nq6HrxGPCmyZzHktHoFy.jpg',
+        'https://images.plurk.com/64jHhSpoLD822nCyYCljBy.jpg',
+        'https://images.plurk.com/4CxfUdZPwicx2nAexupmmO.jpg',
+        'https://images.plurk.com/3ON8QsrUTo2pikbQyzu2eg.jpg',
+        'https://images.plurk.com/6VnlsUSawBjpCsBIydEfrF.jpg',
+        'https://images.plurk.com/1UfiKKHq4ERIEZL71Y6F1V.jpg',
+        'https://images.plurk.com/3ItocRDa26XftRnU4T6uXG.jpg',
+        'https://images.plurk.com/2wjClatGTHOUvkarLndUdd.jpg'
+      ]
+    },
+    {
+      name: 'Series B',
+      images: [
+        'https://images.plurk.com/1bnwQH13WysGOJEtJx6mYe.jpg',
+        'https://images.plurk.com/2AlpC6TZhdoHNFdJP3lT0S.jpg',
+        'https://images.plurk.com/715OD2VMRcb4WZjU7de0gJ.jpg',
+        'https://images.plurk.com/6KKkGCEc3PzRdbNJUTMOQX.jpg',
+        'https://images.plurk.com/58TqJuM6A29M9Cq5zixonR.jpg',
+        'https://images.plurk.com/5fThm7mB8H6dZrhuYDrFPi.jpg',
+        'https://images.plurk.com/104j819u68SShG4KXnyzqq.jpg',
+        'https://images.plurk.com/5QiSNfu8ZKCUehIl6wdvNc.jpg',
+        'https://images.plurk.com/40N6r4TAKpFI2OAm9vBEhN.jpg'
+      ]
+    },
+    {
+      name: 'Series C',
+      images: [
+        'https://images.plurk.com/5rm10dsKniWoBb2PkZN4Uu.jpg',
+        'https://images.plurk.com/AWRZm7cRQCYhfdF7bjt6b.jpg',
+        'https://images.plurk.com/3Fz6oSG8e9DFFfGD9DNyad.jpg',
+        'https://images.plurk.com/1Vym7DK4MQRXZmDh99U7XF.jpg',
+        'https://images.plurk.com/7j84ubGTuTntVQeYaetFPb.jpg',
+        'https://images.plurk.com/5DiLSX3e07URHIMiOBGI2O.jpg',
+        'https://images.plurk.com/58TvjYyco5RWn1g6T6Wgj6.jpg',
+        'https://images.plurk.com/3wMYWsQ2JWVUmrhN2kLJsC.jpg',
+        'https://images.plurk.com/5i8mACDd9E43FW8mw9yeGS.jpg',
+        'https://images.plurk.com/TmHDiq3he1rBiBW8boa2R.jpg'
+      ]
+    },
+    {
+      name: 'Series D',
+      images: [
+        'https://images.plurk.com/2W5EnleU58XmoB8Eny9om4.jpg',
+        'https://images.plurk.com/1tZohQJKEcdPUP6pAvGETA.jpg',
+        'https://images.plurk.com/3WG7SIMPNqk6oCZMzzEvP9.jpg',
+        'https://images.plurk.com/5CGlBr6dT7HZPuY7LZTLjo.jpg',
+        'https://images.plurk.com/WsElSvRJRnnJy4u0HiQ4J.jpg',
+        'https://images.plurk.com/6F2dPLa67VN6EhGBoaR1MN.jpg'
+      ]
+    }
+  ]
+};
+
+// 未分類照片歸檔
+const UNCATEGORIZED_PHOTOS = [
+  'https://i.pinimg.com/736x/17/b6/1e/17b61e7e3cfb485941687fb05647a3fe.jpg',
+  'https://i.pinimg.com/1200x/59/67/d1/5967d1cd4f2c5523a27d5913a66271fa.jpg',
+  'https://i.pinimg.com/736x/53/42/e7/5342e7ed2ea38ed256fe6c18438ff942.jpg',
+  'https://i.pinimg.com/1200x/98/3d/57/983d579ed770c086cd7e39cf388ec5fe.jpg',
+  'https://i.pinimg.com/736x/c8/c3/e6/c8c3e646c47bd83dbeb285393405087a.jpg'
+];
+
+// 新聞與推播資料
+const NEWS_ITEMS = [
+  { tag: '新劇動態', title: '確定出演漫改動作懸疑新作，預計年底投入拍攝', date: '2026.10.28' },
+  { tag: '紅毯現場', title: '出席米蘭時裝週開幕晚宴，冷冽黑西裝造型引發討論', date: '2026.10.15' },
+  { tag: '官方劇照', title: '電影《Project Wolf》最新劇照公開，眼神戲張力十足', date: '2026.09.30' },
+  { tag: '站姐推播', title: '今日仁川機場出境預覽：長大衣搭耳機，狀態極佳', date: '2026.09.22' },
+  { tag: '品牌代言', title: '續約全球高奢腕錶形象大使，全新冬日形象畫報公開', date: '2026.09.05' },
+  { tag: '拍攝花絮', title: '短劇拍攝正式殺青，感謝全體劇組同仁辛苦配合', date: '2026.08.18' }
+];
+
 const SCRIPT_SCENARIOS = {
   arenaA: {
-    label: '🫍',
+    label: '🐈‍⬛',
     steps: [
       {
         delay: 300,
@@ -108,19 +206,7 @@ const SCRIPT_SCENARIOS = {
         delay: 1200,
         type: 'album_grid',
         title: 'Arena Homme+ Nov 2026 - Series A',
-        images: [
-          'https://images.plurk.com/wGRATa3N4kmnXq7NfNW5q.jpg',
-          'https://images.plurk.com/5pOLToEI89ynuGrE6eK9zq.jpg',
-          'https://images.plurk.com/5DIYnEc7OkB0r2uZrbzqMG.jpg',
-          'https://images.plurk.com/58Nq6HrxGPCmyZzHktHoFy.jpg',
-          'https://images.plurk.com/64jHhSpoLD822nCyYCljBy.jpg',
-          'https://images.plurk.com/4CxfUdZPwicx2nAexupmmO.jpg',
-          'https://images.plurk.com/3ON8QsrUTo2pikbQyzu2eg.jpg',
-          'https://images.plurk.com/6VnlsUSawBjpCsBIydEfrF.jpg',
-          'https://images.plurk.com/1UfiKKHq4ERIEZL71Y6F1V.jpg',
-          'https://images.plurk.com/3ItocRDa26XftRnU4T6uXG.jpg',
-          'https://images.plurk.com/2wjClatGTHOUvkarLndUdd.jpg'
-        ],
+        images: ARENA_ALBUM_DATA.sections[0].images,
         time: '15:20',
         notify: 'Soo 已傳送照片相簿 (11張)'
       }
@@ -140,17 +226,7 @@ const SCRIPT_SCENARIOS = {
         delay: 1200,
         type: 'album_grid',
         title: 'Arena Homme+ Nov 2026 - Series B',
-        images: [
-          'https://images.plurk.com/1bnwQH13WysGOJEtJx6mYe.jpg',
-          'https://images.plurk.com/2AlpC6TZhdoHNFdJP3lT0S.jpg',
-          'https://images.plurk.com/715OD2VMRcb4WZjU7de0gJ.jpg',
-          'https://images.plurk.com/6KKkGCEc3PzRdbNJUTMOQX.jpg',
-          'https://images.plurk.com/58TqJuM6A29M9Cq5zixonR.jpg',
-          'https://images.plurk.com/5fThm7mB8H6dZrhuYDrFPi.jpg',
-          'https://images.plurk.com/104j819u68SShG4KXnyzqq.jpg',
-          'https://images.plurk.com/5QiSNfu8ZKCUehIl6wdvNc.jpg',
-          'https://images.plurk.com/40N6r4TAKpFI2OAm9vBEhN.jpg'
-        ],
+        images: ARENA_ALBUM_DATA.sections[1].images,
         time: '15:22',
         notify: 'Soo 已傳送照片相簿 (9張)'
       }
@@ -170,18 +246,7 @@ const SCRIPT_SCENARIOS = {
         delay: 1200,
         type: 'album_grid',
         title: 'Arena Homme+ Nov 2026 - Series C',
-        images: [
-          'https://images.plurk.com/5rm10dsKniWoBb2PkZN4Uu.jpg',
-          'https://images.plurk.com/AWRZm7cRQCYhfdF7bjt6b.jpg',
-          'https://images.plurk.com/3Fz6oSG8e9DFFfGD9DNyad.jpg',
-          'https://images.plurk.com/1Vym7DK4MQRXZmDh99U7XF.jpg',
-          'https://images.plurk.com/7j84ubGTuTntVQeYaetFPb.jpg',
-          'https://images.plurk.com/5DiLSX3e07URHIMiOBGI2O.jpg',
-          'https://images.plurk.com/58TvjYyco5RWn1g6T6Wgj6.jpg',
-          'https://images.plurk.com/3wMYWsQ2JWVUmrhN2kLJsC.jpg',
-          'https://images.plurk.com/5i8mACDd9E43FW8mw9yeGS.jpg',
-          'https://images.plurk.com/TmHDiq3he1rBiBW8boa2R.jpg'
-        ],
+        images: ARENA_ALBUM_DATA.sections[2].images,
         time: '15:25',
         notify: 'Soo 已傳送照片相簿 (10張)'
       }
@@ -201,14 +266,7 @@ const SCRIPT_SCENARIOS = {
         delay: 1200,
         type: 'album_grid',
         title: 'Arena Homme+ Nov 2026 - Series D',
-        images: [
-          'https://images.plurk.com/2W5EnleU58XmoB8Eny9om4.jpg',
-          'https://images.plurk.com/1tZohQJKEcdPUP6pAvGETA.jpg',
-          'https://images.plurk.com/3WG7SIMPNqk6oCZMzzEvP9.jpg',
-          'https://images.plurk.com/5CGlBr6dT7HZPuY7LZTLjo.jpg',
-          'https://images.plurk.com/WsElSvRJRnnJy4u0HiQ4J.jpg',
-          'https://images.plurk.com/6F2dPLa67VN6EhGBoaR1MN.jpg'
-        ],
+        images: ARENA_ALBUM_DATA.sections[3].images,
         time: '15:28',
         notify: 'Soo 已傳送照片相簿 (6張)'
       }
@@ -346,8 +404,17 @@ export default function App() {
   // 晨喚與通話狀態
   const [isAlarmActive, setIsAlarmActive] = useState(true);
   const [hasAwoken, setHasAwoken] = useState(false);
-  const [callStatus, setCallStatus] = useState('idle');
+  const [callStatus, setCallStatus] = useState('idle'); // 'idle' | 'ringing' | 'connected'
   const [callDuration, setCallDuration] = useState(0);
+
+  // 視訊通話狀態
+  const [isVideoCalling, setIsVideoCalling] = useState(false);
+  const [videoDuration, setVideoDuration] = useState(0);
+
+  // ➕ 擴展功能模組面板狀態 ('none' | 'album' | 'calendar' | 'voices' | 'news')
+  const [isPlusMenuOpen, setIsPlusMenuOpen] = useState(false);
+  const [activeModal, setActiveModal] = useState(null);
+  const [activeAlbumTab, setActiveAlbumTab] = useState('arena'); // 'arena' | 'uncategorized'
 
   // 音訊參照
   const ringAudioRef = useRef(null);
@@ -429,7 +496,7 @@ export default function App() {
     sendPushNotification(text);
   };
 
-  // 晨喚與整點排程檢查（每 10 秒檢查一次）
+  // 晨喚與整點定時排程檢查
   useEffect(() => {
     const timer = setInterval(() => {
       const now = new Date();
@@ -442,18 +509,15 @@ export default function App() {
         setHasAwoken(false);
       }
 
-      // 整點檢查：07:00 ~ 26:00 (即 07:00 至 23:00，以及凌晨 00:00, 01:00, 02:00)
       const isTargetHour = (h >= 7 && h <= 23) || (h >= 0 && h <= 2);
       if (m === 0 && isTargetHour && !triggeredSlots.current.has(timeKey)) {
         triggeredSlots.current.add(timeKey);
-        // 若該整點非專屬晨喚語音時段，發送隨機日常台詞
         if (h !== 8 && h !== 9 && h !== 10) {
           const randomText = HOURLY_MESSAGES[Math.floor(Math.random() * HOURLY_MESSAGES.length)];
           sendTextMessage(randomText);
         }
       }
 
-      // 晨喚專屬語音排程
       if (!isAlarmActive || hasAwoken) return;
 
       if (timeKey === '08:00' && !triggeredSlots.current.has('08:00')) {
@@ -473,7 +537,6 @@ export default function App() {
         sendVoiceMessage(WAKEUP_VOICES[5]);
       }
 
-      // 11:00 至 13:00 來電
       const callSlots = ['11:00', '11:30', '12:00', '12:30', '13:00'];
       if (callSlots.includes(timeKey) && !triggeredSlots.current.has(timeKey)) {
         triggeredSlots.current.add(timeKey);
@@ -485,7 +548,7 @@ export default function App() {
     return () => clearInterval(timer);
   }, [isAlarmActive, hasAwoken]);
 
-  // 來電鈴聲控制（73秒）
+  // 來電鈴聲控制
   useEffect(() => {
     if (callStatus === 'ringing') {
       if (ringAudioRef.current) {
@@ -526,6 +589,20 @@ export default function App() {
       clearTimeout(voiceIntervalTimerRef.current);
     };
   }, [callStatus]);
+
+  // 視訊通話計時
+  useEffect(() => {
+    let videoTimer = null;
+    if (isVideoCalling) {
+      setVideoDuration(0);
+      videoTimer = setInterval(() => {
+        setVideoDuration(prev => prev + 1);
+      }, 1000);
+    } else {
+      clearInterval(videoTimer);
+    }
+    return () => clearInterval(videoTimer);
+  }, [isVideoCalling]);
 
   const handleVoice5Ended = () => {
     if (callStatus !== 'connected') return;
@@ -584,7 +661,6 @@ export default function App() {
     });
   };
 
-  // ⏱ 核心功能：交給 Service Worker 背景倒數 1 分鐘後推播
   const startOneMinuteNotificationTest = async () => {
     if (!('Notification' in window) || Notification.permission !== 'granted') {
       alert('請先點擊上方綠色「允許推播」按鈕開啟通知權限！');
@@ -702,7 +778,7 @@ export default function App() {
 
       <div className="w-full sm:max-w-[420px] h-[100dvh] sm:h-[92vh] sm:max-h-[880px] bg-[#849EB9] sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden relative border-0 sm:border sm:border-slate-700">
         
-        {/* 全螢幕通話介面 */}
+        {/* 全螢幕語音通話介面 */}
         {callStatus !== 'idle' && (
           <div className="absolute inset-0 bg-slate-950/95 z-50 flex flex-col justify-between items-center py-16 px-6 text-white backdrop-blur-md animate-fade-in">
             <div className="flex flex-col items-center mt-10 space-y-4">
@@ -757,7 +833,60 @@ export default function App() {
           </div>
         )}
 
-        {/* 頂部導航列 */}
+        {/* 📹 全螢幕視訊通話模擬介面 */}
+        {isVideoCalling && (
+          <div className="absolute inset-0 bg-black z-50 flex flex-col justify-between items-center py-12 px-6 text-white animate-fade-in">
+            {/* 背景動態視訊模擬畫面 */}
+            <div className="absolute inset-0 z-0 overflow-hidden">
+              <img 
+                src="https://images.plurk.com/wGRATa3N4kmnXq7NfNW5q.jpg" 
+                alt="Video stream" 
+                className="w-full h-full object-cover scale-105 filter brightness-95" 
+              />
+              <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-transparent to-black/80" />
+            </div>
+
+            {/* 頂部資訊與計時 */}
+            <div className="z-10 flex flex-col items-center mt-4 space-y-1">
+              <span className="text-xl font-medium tracking-wide">Soo</span>
+              <span className="text-xs text-emerald-400 font-mono tracking-widest">{formatSeconds(videoDuration)}</span>
+            </div>
+
+            {/* 右上角使用者自身鏡頭縮圖 */}
+            <div className="z-10 absolute top-16 right-5 w-24 h-36 rounded-2xl overflow-hidden border-2 border-white/40 shadow-2xl bg-slate-800">
+              <div className="w-full h-full bg-slate-700 flex items-center justify-center text-xs text-white/50">
+                鏡頭
+              </div>
+            </div>
+
+            {/* 底部掛斷按鈕 */}
+            <div className="z-10 mb-6">
+              <button
+                onClick={() => {
+                  setIsVideoCalling(false);
+                  setMessages(prev => [
+                    ...prev,
+                    {
+                      id: Date.now(),
+                      role: 'assistant',
+                      type: 'call_record',
+                      durationText: formatSeconds(videoDuration),
+                      statusText: `視訊通話 ${formatSeconds(videoDuration)}`,
+                      time: getCurrentTime()
+                    }
+                  ]);
+                }}
+                className="w-16 h-16 rounded-full bg-rose-600 hover:bg-rose-500 active:scale-95 transition flex items-center justify-center shadow-2xl"
+              >
+                <svg className="w-7 h-7 fill-white rotate-[135deg]" viewBox="0 0 24 24">
+                  <path d="M6.62 10.79a15.05 15.05 0 006.59 6.59l2.2-2.2a1 1 0 011.02-.24 11.72 11.72 0 003.68.59 1 1 0 011 1v3.5a1 1 0 01-1 1A17 17 0 013 4a1 1 0 011-1h3.5a1 1 0 011 1c0 1.25.2 2.48.59 3.68a1 1 0 01-.24 1.02l-2.23 2.09z" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* 頂部導航列（新增電話 📞 與視訊 📹 圖示） */}
         <div className="pt-10 pb-3 bg-[#212E3E] text-white flex items-center justify-between px-4 z-20 shrink-0 shadow-sm">
           <div className="flex items-center space-x-3">
             <span className="text-xl opacity-70">‹</span>
@@ -778,7 +907,29 @@ export default function App() {
             </div>
           </div>
 
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-2.5">
+            {/* 語音通話圖示 */}
+            <button
+              onClick={() => setCallStatus('ringing')}
+              title="語音通話"
+              className="w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 active:scale-95 flex items-center justify-center transition"
+            >
+              <svg className="w-3.5 h-3.5 fill-white" viewBox="0 0 24 24">
+                <path d="M6.62 10.79a15.05 15.05 0 006.59 6.59l2.2-2.2a1 1 0 011.02-.24 11.72 11.72 0 003.68.59 1 1 0 011 1v3.5a1 1 0 01-1 1A17 17 0 013 4a1 1 0 011-1h3.5a1 1 0 011 1c0 1.25.2 2.48.59 3.68a1 1 0 01-.24 1.02l-2.23 2.09z" />
+              </svg>
+            </button>
+
+            {/* 視訊通話圖示 */}
+            <button
+              onClick={() => setIsVideoCalling(true)}
+              title="視訊通話"
+              className="w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 active:scale-95 flex items-center justify-center transition"
+            >
+              <svg className="w-4 h-4 fill-white" viewBox="0 0 24 24">
+                <path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z" />
+              </svg>
+            </button>
+
             <button
               onClick={() => setIsAlarmActive(!isAlarmActive)}
               title="晨喚開關"
@@ -788,13 +939,6 @@ export default function App() {
             >
               <span>鬧鐘</span>
               <span>{isAlarmActive ? 'ON' : 'OFF'}</span>
-            </button>
-
-            <button 
-              onClick={() => setMessages([])} 
-              className="text-[11px] bg-white/10 hover:bg-white/20 px-2.5 py-1 rounded-md text-slate-300 transition"
-            >
-              清空
             </button>
           </div>
         </div>
@@ -856,7 +1000,7 @@ export default function App() {
                     </div>
                     <div className="flex flex-col">
                       <span className="text-xs font-medium text-slate-800">{msg.statusText}</span>
-                      <span className="text-[9px] text-slate-400">語音通話</span>
+                      <span className="text-[9px] text-slate-400">通話紀錄</span>
                     </div>
                   </div>
                 ) : msg.type === 'audio' ? (
@@ -943,7 +1087,7 @@ export default function App() {
           <div ref={messagesEndRef} />
         </div>
 
-        {/* 劇本控制板（按鈕統一純淨白底樣式） */}
+        {/* 劇本控制板（🫍 已改為 🐈‍⬛） */}
         <div className="bg-slate-950/60 backdrop-blur-md px-2.5 py-2 flex space-x-2 overflow-x-auto border-t border-white/10 z-10 scrollbar-none shrink-0">
           <button
             onClick={startOneMinuteNotificationTest}
@@ -970,12 +1114,66 @@ export default function App() {
           ))}
         </div>
 
-        {/* 底部輸入列 */}
+        {/* ➕ 彈出擴充選單面板 */}
+        {isPlusMenuOpen && (
+          <div className="bg-[#212E3E]/95 backdrop-blur-md px-4 py-3 flex justify-around border-t border-white/10 z-20 animate-fade-in shadow-xl">
+            <button
+              onClick={() => { setActiveModal('album'); setIsPlusMenuOpen(false); }}
+              className="flex flex-col items-center space-y-1 text-white active:scale-90 transition"
+            >
+              <div className="w-11 h-11 rounded-2xl bg-white/10 flex items-center justify-center text-lg shadow-sm">
+                🖼️
+              </div>
+              <span className="text-[11px] text-slate-300">相簿</span>
+            </button>
+
+            <button
+              onClick={() => { setActiveModal('calendar'); setIsPlusMenuOpen(false); }}
+              className="flex flex-col items-center space-y-1 text-white active:scale-90 transition"
+            >
+              <div className="w-11 h-11 rounded-2xl bg-white/10 flex items-center justify-center text-lg shadow-sm">
+                📅
+              </div>
+              <span className="text-[11px] text-slate-300">行事曆</span>
+            </button>
+
+            <button
+              onClick={() => { setActiveModal('voices'); setIsPlusMenuOpen(false); }}
+              className="flex flex-col items-center space-y-1 text-white active:scale-90 transition"
+            >
+              <div className="w-11 h-11 rounded-2xl bg-white/10 flex items-center justify-center text-lg shadow-sm">
+                🎙️
+              </div>
+              <span className="text-[11px] text-slate-300">語音列表</span>
+            </button>
+
+            <button
+              onClick={() => { setActiveModal('news'); setIsPlusMenuOpen(false); }}
+              className="flex flex-col items-center space-y-1 text-white active:scale-90 transition"
+            >
+              <div className="w-11 h-11 rounded-2xl bg-white/10 flex items-center justify-center text-lg shadow-sm">
+                📰
+              </div>
+              <span className="text-[11px] text-slate-300">情報</span>
+            </button>
+          </div>
+        )}
+
+        {/* 底部輸入列（左側加入同色系 ➕ 按鈕） */}
         <div className="bg-white p-2.5 flex items-center space-x-2 border-t border-slate-200 z-20 shrink-0 pb-6">
+          <button
+            onClick={() => setIsPlusMenuOpen(!isPlusMenuOpen)}
+            className={`w-9 h-9 rounded-full flex items-center justify-center transition shrink-0 ${
+              isPlusMenuOpen ? 'bg-[#212E3E] text-white rotate-45' : 'bg-slate-100 text-[#212E3E] hover:bg-slate-200'
+            }`}
+          >
+            <span className="text-xl font-light leading-none">＋</span>
+          </button>
+
           <input
             type="text"
             className="flex-1 bg-slate-100 rounded-full px-4 py-2 text-sm text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-400"
-            placeholder="輸入「起床了」解鎖晨喚..."
+            placeholder="輸入..."
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
             onKeyDown={(e) => {
@@ -991,6 +1189,170 @@ export default function App() {
             傳送
           </button>
         </div>
+
+        {/* 彈出視窗 1️⃣：相簿功能（Arena Homme+ 完整順序排列 + 未分類歸檔） */}
+        {activeModal === 'album' && (
+          <div className="absolute inset-0 bg-slate-950/90 z-50 flex flex-col text-white backdrop-blur-md animate-fade-in">
+            <div className="pt-10 pb-3 px-4 bg-[#212E3E] flex items-center justify-between shadow">
+              <span className="font-medium text-base tracking-wide">照片庫 (Albums)</span>
+              <button onClick={() => setActiveModal(null)} className="text-sm text-slate-400 hover:text-white px-2 py-1">關閉</button>
+            </div>
+
+            {/* 相簿標籤分頁 */}
+            <div className="flex border-b border-white/10 px-4 pt-2 bg-slate-900/50">
+              <button
+                onClick={() => setActiveAlbumTab('arena')}
+                className={`pb-2 mr-4 text-xs font-medium tracking-wide border-b-2 transition ${
+                  activeAlbumTab === 'arena' ? 'border-emerald-400 text-emerald-400' : 'border-transparent text-slate-400'
+                }`}
+              >
+                Arena Homme+ Nov 2026
+              </button>
+              <button
+                onClick={() => setActiveAlbumTab('uncategorized')}
+                className={`pb-2 text-xs font-medium tracking-wide border-b-2 transition ${
+                  activeAlbumTab === 'uncategorized' ? 'border-emerald-400 text-emerald-400' : 'border-transparent text-slate-400'
+                }`}
+              >
+                未分類歸檔 (Uncategorized)
+              </button>
+            </div>
+
+            {/* 相簿內容清單 */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-6">
+              {activeAlbumTab === 'arena' ? (
+                ARENA_ALBUM_DATA.sections.map((sec, idx) => (
+                  <div key={idx} className="space-y-2">
+                    <div className="flex justify-between items-center px-1">
+                      <span className="text-xs font-semibold text-slate-300 tracking-wider">{sec.name}</span>
+                      <span className="text-[10px] text-slate-500 font-mono">{sec.images.length} 張</span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-1.5 rounded-xl overflow-hidden">
+                      {sec.images.map((img, i) => (
+                        <a key={i} href={img} target="_blank" rel="noreferrer" className="block aspect-[3/4] bg-slate-800 overflow-hidden">
+                          <img src={img} alt="cut" loading="lazy" className="w-full h-full object-cover hover:scale-105 transition" />
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center px-1">
+                    <span className="text-xs font-semibold text-slate-300 tracking-wider">日常與未分類寫真</span>
+                    <span className="text-[10px] text-slate-500 font-mono">{UNCATEGORIZED_PHOTOS.length} 張</span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-1.5 rounded-xl overflow-hidden">
+                    {UNCATEGORIZED_PHOTOS.map((img, i) => (
+                      <a key={i} href={img} target="_blank" rel="noreferrer" className="block aspect-[3/4] bg-slate-800 overflow-hidden">
+                        <img src={img} alt="snap" loading="lazy" className="w-full h-full object-cover hover:scale-105 transition" />
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* 彈出視窗 2️⃣：行事曆功能（7x5 格子框架） */}
+        {activeModal === 'calendar' && (
+          <div className="absolute inset-0 bg-slate-950/90 z-50 flex flex-col text-white backdrop-blur-md animate-fade-in">
+            <div className="pt-10 pb-3 px-4 bg-[#212E3E] flex items-center justify-between shadow">
+              <span className="font-medium text-base tracking-wide">行程日曆 (Calendar)</span>
+              <button onClick={() => setActiveModal(null)} className="text-sm text-slate-400 hover:text-white px-2 py-1">關閉</button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-4 flex flex-col justify-between">
+              <div>
+                <div className="text-center mb-4">
+                  <span className="text-sm font-semibold tracking-widest text-emerald-400">NOVEMBER 2026</span>
+                </div>
+
+                {/* 星期標頭 */}
+                <div className="grid grid-cols-7 gap-1 text-center text-[11px] text-slate-400 mb-2">
+                  <span>SUN</span><span>MON</span><span>TUE</span><span>WED</span><span>THU</span><span>FRI</span><span>SAT</span>
+                </div>
+
+                {/* 7 x 5 日曆格子 */}
+                <div className="grid grid-cols-7 gap-1.5">
+                  {Array.from({ length: 35 }).map((_, i) => {
+                    const dayNum = i + 1;
+                    const isSchedule = [4, 11, 15, 20, 27].includes(dayNum);
+                    return (
+                      <div 
+                        key={i} 
+                        className={`aspect-square rounded-lg p-1.5 flex flex-col justify-between border ${
+                          dayNum <= 30 
+                            ? 'bg-slate-900/60 border-white/5 hover:border-emerald-400/40 transition' 
+                            : 'bg-transparent border-transparent opacity-10'
+                        }`}
+                      >
+                        <span className="text-[10px] font-mono text-slate-400">{dayNum <= 30 ? dayNum : ''}</span>
+                        {isSchedule && dayNum <= 30 && (
+                          <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 self-end"></div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* 近期行程預覽提示 */}
+              <div className="bg-white/5 rounded-2xl p-3.5 space-y-1.5 border border-white/10 mt-4">
+                <span className="text-xs font-semibold text-emerald-300">近期重點行程</span>
+                <p className="text-[11px] text-slate-300">11/15 米蘭時裝週冬日特企拍攝</p>
+                <p className="text-[11px] text-slate-300">11/20 新戲劇本二次圍讀會議</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 彈出視窗 3️⃣：語音列表全集 */}
+        {activeModal === 'voices' && (
+          <div className="absolute inset-0 bg-slate-950/90 z-50 flex flex-col text-white backdrop-blur-md animate-fade-in">
+            <div className="pt-10 pb-3 px-4 bg-[#212E3E] flex items-center justify-between shadow">
+              <span className="font-medium text-base tracking-wide">語音原聲帶 (Voice Memos)</span>
+              <button onClick={() => setActiveModal(null)} className="text-sm text-slate-400 hover:text-white px-2 py-1">關閉</button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-4 space-y-2.5">
+              {ALL_VOICE_LIST.map((item) => (
+                <div key={item.id} className="bg-slate-900/80 p-3 rounded-2xl border border-white/5 flex items-center justify-between">
+                  <div className="flex flex-col space-y-0.5">
+                    <span className="text-xs font-medium text-slate-200">{item.title}</span>
+                    <span className="text-[10px] text-slate-500 font-mono">{item.duration}</span>
+                  </div>
+                  <AudioBubble audioSrc={item.src} durationText={item.duration} />
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* 彈出視窗 4️⃣：情報與動態 */}
+        {activeModal === 'news' && (
+          <div className="absolute inset-0 bg-slate-950/90 z-50 flex flex-col text-white backdrop-blur-md animate-fade-in">
+            <div className="pt-10 pb-3 px-4 bg-[#212E3E] flex items-center justify-between shadow">
+              <span className="font-medium text-base tracking-wide">官方與站姐情報 (News)</span>
+              <button onClick={() => setActiveModal(null)} className="text-sm text-slate-400 hover:text-white px-2 py-1">關閉</button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+              {NEWS_ITEMS.map((news, idx) => (
+                <div key={idx} className="bg-slate-900/80 p-3.5 rounded-2xl border border-white/5 space-y-1.5 shadow-sm">
+                  <div className="flex justify-between items-center">
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 font-medium">
+                      {news.tag}
+                    </span>
+                    <span className="text-[9px] text-slate-500 font-mono">{news.date}</span>
+                  </div>
+                  <p className="text-xs text-slate-200 leading-snug">{news.title}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
       </div>
     </div>
