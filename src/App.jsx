@@ -65,6 +65,126 @@ const WAKEUP_VOICES = {
 };
 
 const SCRIPT_SCENARIOS = {
+  arenaA: {
+    label: '📖 A',
+    steps: [
+      {
+        delay: 300,
+        type: 'text',
+        content: '《Arena Homme+》A cut 樣片出來了。',
+        time: '15:20',
+        notify: 'Soo: 《Arena Homme+》A cut 樣片出來了。'
+      },
+      {
+        delay: 1200,
+        type: 'album_grid',
+        title: 'Arena Homme+ Nov 2026 - Series A',
+        images: [
+          'https://images.plurk.com/wGRATa3N4kmnXq7NfNW5q.jpg',
+          'https://images.plurk.com/5pOLToEI89ynuGrE6eK9zq.jpg',
+          'https://images.plurk.com/5DIYnEc7OkB0r2uZrbzqMG.jpg',
+          'https://images.plurk.com/58Nq6HrxGPCmyZzHktHoFy.jpg',
+          'https://images.plurk.com/64jHhSpoLD822nCyYCljBy.jpg',
+          'https://images.plurk.com/4CxfUdZPwicx2nAexupmmO.jpg',
+          'https://images.plurk.com/3ON8QsrUTo2pikbQyzu2eg.jpg',
+          'https://images.plurk.com/6VnlsUSawBjpCsBIydEfrF.jpg',
+          'https://images.plurk.com/1UfiKKHq4ERIEZL71Y6F1V.jpg',
+          'https://images.plurk.com/3ItocRDa26XftRnU4T6uXG.jpg',
+          'https://images.plurk.com/2wjClatGTHOUvkarLndUdd.jpg'
+        ],
+        time: '15:20',
+        notify: 'Soo 已傳送照片相簿 (11張)'
+      }
+    ]
+  },
+  arenaB: {
+    label: '📖 B',
+    steps: [
+      {
+        delay: 300,
+        type: 'text',
+        content: 'B 組色調稍微暗一點，看合不合你胃口。',
+        time: '15:22',
+        notify: 'Soo: B 組色調稍微暗一點...'
+      },
+      {
+        delay: 1200,
+        type: 'album_grid',
+        title: 'Arena Homme+ Nov 2026 - Series B',
+        images: [
+          'https://images.plurk.com/1bnwQH13WysGOJEtJx6mYe.jpg',
+          'https://images.plurk.com/2AlpC6TZhdoHNFdJP3lT0S.jpg',
+          'https://images.plurk.com/715OD2VMRcb4WZjU7de0gJ.jpg',
+          'https://images.plurk.com/6KKkGCEc3PzRdbNJUTMOQX.jpg',
+          'https://images.plurk.com/58TqJuM6A29M9Cq5zixonR.jpg',
+          'https://images.plurk.com/5fThm7mB8H6dZrhuYDrFPi.jpg',
+          'https://images.plurk.com/104j819u68SShG4KXnyzqq.jpg',
+          'https://images.plurk.com/5QiSNfu8ZKCUehIl6wdvNc.jpg',
+          'https://images.plurk.com/40N6r4TAKpFI2OAm9vBEhN.jpg'
+        ],
+        time: '15:22',
+        notify: 'Soo 已傳送照片相簿 (9張)'
+      }
+    ]
+  },
+  arenaC: {
+    label: '📖 C',
+    steps: [
+      {
+        delay: 300,
+        type: 'text',
+        content: 'C cut 拍得比較隨性。',
+        time: '15:25',
+        notify: 'Soo: C cut 拍得比較隨性。'
+      },
+      {
+        delay: 1200,
+        type: 'album_grid',
+        title: 'Arena Homme+ Nov 2026 - Series C',
+        images: [
+          'https://images.plurk.com/5rm10dsKniWoBb2PkZN4Uu.jpg',
+          'https://images.plurk.com/AWRZm7cRQCYhfdF7bjt6b.jpg',
+          'https://images.plurk.com/3Fz6oSG8e9DFFfGD9DNyad.jpg',
+          'https://images.plurk.com/1Vym7DK4MQRXZmDh99U7XF.jpg',
+          'https://images.plurk.com/7j84ubGTuTntVQeYaetFPb.jpg',
+          'https://images.plurk.com/5DiLSX3e07URHIMiOBGI2O.jpg',
+          'https://images.plurk.com/58TvjYyco5RWn1g6T6Wgj6.jpg',
+          'https://images.plurk.com/3wMYWsQ2JWVUmrhN2kLJsC.jpg',
+          'https://images.plurk.com/5i8mACDd9E43FW8mw9yeGS.jpg',
+          'https://images.plurk.com/TmHDiq3he1rBiBW8boa2R.jpg'
+        ],
+        time: '15:25',
+        notify: 'Soo 已傳送照片相簿 (10張)'
+      }
+    ]
+  },
+  arenaD: {
+    label: '📖 D',
+    steps: [
+      {
+        delay: 300,
+        type: 'text',
+        content: '最後一組特寫。',
+        time: '15:28',
+        notify: 'Soo: 最後一組特寫。'
+      },
+      {
+        delay: 1200,
+        type: 'album_grid',
+        title: 'Arena Homme+ Nov 2026 - Series D',
+        images: [
+          'https://images.plurk.com/2W5EnleU58XmoB8Eny9om4.jpg',
+          'https://images.plurk.com/1tZohQJKEcdPUP6pAvGETA.jpg',
+          'https://images.plurk.com/3WG7SIMPNqk6oCZMzzEvP9.jpg',
+          'https://images.plurk.com/5CGlBr6dT7HZPuY7LZTLjo.jpg',
+          'https://images.plurk.com/WsElSvRJRnnJy4u0HiQ4J.jpg',
+          'https://images.plurk.com/6F2dPLa67VN6EhGBoaR1MN.jpg'
+        ],
+        time: '15:28',
+        notify: 'Soo 已傳送照片相簿 (6張)'
+      }
+    ]
+  },
   carSelfie4: {
     label: '🚗',
     steps: [
@@ -196,7 +316,7 @@ export default function App() {
   // 晨喚與通話狀態
   const [isAlarmActive, setIsAlarmActive] = useState(true);
   const [hasAwoken, setHasAwoken] = useState(false);
-  const [callStatus, setCallStatus] = useState('idle'); // 'idle' | 'ringing' | 'connected'
+  const [callStatus, setCallStatus] = useState('idle');
   const [callDuration, setCallDuration] = useState(0);
 
   // 音訊參照
@@ -360,7 +480,6 @@ export default function App() {
     }, 2000);
   };
 
-  // 掛斷電話處理（寫入聊天室通話紀錄）
   const handleEndCall = () => {
     const isConnected = (callStatus === 'connected');
     const finalSeconds = callDuration;
@@ -368,7 +487,6 @@ export default function App() {
 
     setCallStatus('idle');
 
-    // 寫入通話記錄卡片
     setMessages(prev => [
       ...prev,
       {
@@ -462,252 +580,4 @@ export default function App() {
         {callStatus !== 'idle' && (
           <div className="absolute inset-0 bg-slate-950/95 z-50 flex flex-col justify-between items-center py-16 px-6 text-white backdrop-blur-md animate-fade-in">
             <div className="flex flex-col items-center mt-10 space-y-4">
-              {/* 大尺寸通話頭貼（w-40 h-40，半徑 160px） */}
               <div className="w-40 h-40 rounded-full overflow-hidden ring-4 ring-emerald-400/40 shadow-2xl animate-pulse">
-                <img 
-                  src="https://images.plurk.com/6PooPJr1YbOhrMp5CCFdbl.jpg" 
-                  alt="avatar" 
-                  className="w-full h-full object-cover" 
-                />
-              </div>
-              <span className="text-2xl font-semibold tracking-wider">Soo</span>
-              
-              {/* 狀態切換 */}
-              {callStatus === 'ringing' ? (
-                <span className="text-xs text-slate-400 font-light tracking-wide">來電...</span>
-              ) : (
-                <span className="text-sm text-emerald-400 font-mono tracking-wider">{formatSeconds(callDuration)}</span>
-              )}
-            </div>
-
-            {/* 底部按鈕區 */}
-            {callStatus === 'ringing' ? (
-              <div className="w-full flex justify-around items-center px-6 mb-8">
-                <button 
-                  onClick={handleEndCall}
-                  className="w-16 h-16 rounded-full bg-rose-600 hover:bg-rose-500 active:scale-95 transition flex items-center justify-center shadow-lg"
-                >
-                  <svg className="w-7 h-7 fill-white rotate-[135deg]" viewBox="0 0 24 24">
-                    <path d="M6.62 10.79a15.05 15.05 0 006.59 6.59l2.2-2.2a1 1 0 011.02-.24 11.72 11.72 0 003.68.59 1 1 0 011 1v3.5a1 1 0 01-1 1A17 17 0 013 4a1 1 0 011-1h3.5a1 1 0 011 1c0 1.25.2 2.48.59 3.68a1 1 0 01-.24 1.02l-2.23 2.09z" />
-                  </svg>
-                </button>
-
-                <button 
-                  onClick={handleAcceptCall}
-                  className="w-16 h-16 rounded-full bg-emerald-500 hover:bg-emerald-400 active:scale-95 transition flex items-center justify-center shadow-lg animate-bounce"
-                >
-                  <svg className="w-7 h-7 fill-white" viewBox="0 0 24 24">
-                    <path d="M6.62 10.79a15.05 15.05 0 006.59 6.59l2.2-2.2a1 1 0 011.02-.24 11.72 11.72 0 003.68.59 1 1 0 011 1v3.5a1 1 0 01-1 1A17 17 0 013 4a1 1 0 011-1h3.5a1 1 0 011 1c0 1.25.2 2.48.59 3.68a1 1 0 01-.24 1.02l-2.23 2.09z" />
-                  </svg>
-                </button>
-              </div>
-            ) : (
-              <div className="w-full flex justify-center items-center mb-8">
-                <button 
-                  onClick={handleEndCall}
-                  className="w-16 h-16 rounded-full bg-rose-600 hover:bg-rose-500 active:scale-95 transition flex items-center justify-center shadow-lg"
-                >
-                  <svg className="w-7 h-7 fill-white rotate-[135deg]" viewBox="0 0 24 24">
-                    <path d="M6.62 10.79a15.05 15.05 0 006.59 6.59l2.2-2.2a1 1 0 011.02-.24 11.72 11.72 0 003.68.59 1 1 0 011 1v3.5a1 1 0 01-1 1A17 17 0 013 4a1 1 0 011-1h3.5a1 1 0 011 1c0 1.25.2 2.48.59 3.68a1 1 0 01-.24 1.02l-2.23 2.09z" />
-                  </svg>
-                </button>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* 頂部導航列 */}
-        <div className="pt-10 pb-3 bg-[#212E3E] text-white flex items-center justify-between px-4 z-20 shrink-0 shadow-sm">
-          <div className="flex items-center space-x-3">
-            <span className="text-xl opacity-70">‹</span>
-            <div className="flex items-center space-x-2.5">
-              <div className="w-9 h-9 rounded-full bg-slate-700 overflow-hidden ring-1 ring-white/20">
-                <img 
-                  src="https://images.plurk.com/6PooPJr1YbOhrMp5CCFdbl.jpg" 
-                  alt="avatar" 
-                  className="w-full h-full object-cover" 
-                />
-              </div>
-              <div className="flex flex-col">
-                <span className="font-medium text-sm leading-tight text-white tracking-wide">Soo</span>
-                <span className="text-[10px] text-emerald-400 font-mono">
-                  {isAlarmActive 
-                    ? (hasAwoken ? '晨喚已解除・在線上' : '晨喚待命・08:00 起') 
-                    : '晨喚已關閉'}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex items-center space-x-2">
-            <button
-              onClick={() => setIsAlarmActive(!isAlarmActive)}
-              title="晨喚開關"
-              className={`text-[11px] px-2.5 py-1 rounded-full font-medium transition flex items-center space-x-1 ${
-                isAlarmActive ? 'bg-emerald-600/90 text-white' : 'bg-slate-700 text-slate-400'
-              }`}
-            >
-              <span>鬧鐘</span>
-              <span>{isAlarmActive ? 'ON' : 'OFF'}</span>
-            </button>
-
-            <button 
-              onClick={() => setMessages([])} 
-              className="text-[11px] bg-white/10 hover:bg-white/20 px-2.5 py-1 rounded-md text-slate-300 transition"
-            >
-              清空
-            </button>
-          </div>
-        </div>
-
-        {/* 對話區 */}
-        <div className="flex-1 overflow-y-auto px-3.5 py-4 space-y-3.5 scroll-smooth">
-          <div className="text-center my-1">
-            <span className="bg-black/20 text-white/90 text-[10px] px-2.5 py-0.5 rounded-full font-light">
-              今天
-            </span>
-          </div>
-
-          {messages.map((msg) => {
-            const isUser = msg.role === 'user';
-            return (
-              <div key={msg.id} className={`flex items-end ${isUser ? 'justify-end' : 'justify-start'} space-x-1.5`}>
-                {!isUser && (
-                  <div className="w-8 h-8 rounded-full overflow-hidden shrink-0 mb-1 ring-1 ring-black/10">
-                    <img 
-                      src="https://images.plurk.com/6PooPJr1YbOhrMp5CCFdbl.jpg" 
-                      alt="avatar" 
-                      className="w-full h-full object-cover" 
-                    />
-                  </div>
-                )}
-
-                {isUser && (
-                  <div className="flex flex-col items-end text-[9px] text-white/80 pr-1 leading-tight font-light">
-                    <span className="text-emerald-200">已讀</span>
-                    <span>{msg.time}</span>
-                  </div>
-                )}
-
-                {/* 通話記錄氣泡 */}
-                {msg.type === 'call_record' ? (
-                  <div className="flex items-center space-x-2.5 bg-white px-3.5 py-2.5 rounded-2xl rounded-tl-none shadow-sm border border-slate-100">
-                    <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 ${
-                      msg.durationText ? 'bg-emerald-100 text-emerald-600' : 'bg-rose-100 text-rose-600'
-                    }`}>
-                      <svg className="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24">
-                        <path d="M6.62 10.79a15.05 15.05 0 006.59 6.59l2.2-2.2a1 1 0 011.02-.24 11.72 11.72 0 003.68.59 1 1 0 011 1v3.5a1 1 0 01-1 1A17 17 0 013 4a1 1 0 011-1h3.5a1 1 0 011 1c0 1.25.2 2.48.59 3.68a1 1 0 01-.24 1.02l-2.23 2.09z" />
-                      </svg>
-                    </div>
-                    <div className="flex flex-col">
-                      <span className="text-xs font-medium text-slate-800">{msg.statusText}</span>
-                      <span className="text-[9px] text-slate-400">語音通話</span>
-                    </div>
-                  </div>
-                ) : msg.type === 'audio' ? (
-                  <div className="flex flex-col space-y-1">
-                    <AudioBubble audioSrc={msg.audioSrc} durationText={msg.durationText} />
-                    {msg.content && (
-                      <span className="text-[11px] text-white/90 pl-1 font-light italic">
-                        {msg.content}
-                      </span>
-                    )}
-                  </div>
-                ) : msg.type === 'grid4' ? (
-                  <div className="grid grid-cols-2 gap-1 max-w-[240px] rounded-2xl overflow-hidden p-1 bg-white/20 backdrop-blur-sm shadow-sm">
-                    {msg.images.map((img, i) => (
-                      <img 
-                        key={i} 
-                        src={img} 
-                        alt="car selfie" 
-                        className="w-full h-28 object-cover rounded-lg hover:opacity-95 transition cursor-pointer" 
-                      />
-                    ))}
-                  </div>
-                ) : msg.type === 'photo' ? (
-                  <div className="max-w-[70%] rounded-2xl overflow-hidden shadow-md">
-                    <img src={msg.imageUrl} alt="selfie" className="w-full max-h-72 object-cover" />
-                  </div>
-                ) : (
-                  <div className={`max-w-[72%] rounded-2xl px-3.5 py-2 text-[13.5px] leading-relaxed shadow-sm ${
-                    isUser ? 'bg-[#58D68D] text-slate-950 rounded-tr-none' : 'bg-white text-slate-900 rounded-tl-none'
-                  }`}>
-                    <p className="whitespace-pre-wrap">{msg.content}</p>
-                  </div>
-                )}
-
-                {!isUser && (
-                  <span className="text-[9px] text-white/80 pl-1 leading-tight font-light">
-                    {msg.time}
-                  </span>
-                )}
-              </div>
-            );
-          })}
-
-          {isTyping && (
-            <div className="flex items-center space-x-1.5 justify-start">
-              <div className="w-8 h-8 rounded-full overflow-hidden shrink-0 ring-1 ring-black/10">
-                <img 
-                  src="https://images.plurk.com/6PooPJr1YbOhrMp5CCFdbl.jpg" 
-                  alt="avatar" 
-                  className="w-full h-full object-cover" 
-                />
-              </div>
-              <div className="bg-white/95 px-3 py-2.5 rounded-2xl rounded-tl-none shadow-sm flex space-x-1 items-center">
-                <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce"></span>
-                <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce [animation-delay:0.2s]"></span>
-                <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce [animation-delay:0.4s]"></span>
-              </div>
-            </div>
-          )}
-
-          <div ref={messagesEndRef} />
-        </div>
-
-        {/* 劇本控制板 */}
-        <div className="bg-slate-950/60 backdrop-blur-md px-2.5 py-2 flex space-x-2 overflow-x-auto border-t border-white/10 z-10 scrollbar-none shrink-0">
-          <button
-            onClick={() => setCallStatus('ringing')}
-            className="text-[11px] whitespace-nowrap bg-rose-600 hover:bg-rose-500 text-white font-medium px-3 py-1.5 rounded-full shadow transition shrink-0 active:scale-95"
-          >
-            📞 測試來電
-          </button>
-
-          {Object.entries(SCRIPT_SCENARIOS).map(([key, item]) => (
-            <button
-              key={key}
-              onClick={() => playScript(key)}
-              className="text-[11px] whitespace-nowrap bg-white/90 hover:bg-white text-slate-900 font-medium px-3 py-1.5 rounded-full shadow transition shrink-0 active:scale-95"
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
-
-        {/* 底部輸入列 */}
-        <div className="bg-white p-2.5 flex items-center space-x-2 border-t border-slate-200 z-20 shrink-0 pb-6">
-          <input
-            type="text"
-            className="flex-1 bg-slate-100 rounded-full px-4 py-2 text-sm text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-400"
-            placeholder="輸入「起床了」解鎖晨喚..."
-            value={inputText}
-            onChange={(e) => setInputText(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
-                handleSend();
-              }
-            }}
-          />
-          <button
-            onClick={handleSend}
-            className="bg-[#212E3E] hover:bg-slate-800 active:scale-95 text-white text-xs font-medium px-4 py-2 rounded-full transition"
-          >
-            傳送
-          </button>
-        </div>
-
-      </div>
-    </div>
-  );
-}
