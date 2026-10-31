@@ -44,7 +44,7 @@ const AudioBubble = ({ audioSrc, durationText = "0:04" }) => {
 
 const SCRIPT_SCENARIOS = {
   wakeupSeries: {
-    label: '⏰ 08:00 叫起床連發 (5秒/則)',
+    label: '☀️ 起床',
     steps: [
       {
         delay: 200,
