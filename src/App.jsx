@@ -303,11 +303,11 @@ export default function App() {
     return () => clearInterval(timer);
   }, [isAlarmActive, hasAwoken]);
 
-  // 來電鈴聲控制（telepathy 2025 從 01:04 開始播）
+  // 來電鈴聲控制（telepathy 2025 從 01:13 開始播）
   useEffect(() => {
     if (callStatus === 'ringing') {
       if (ringAudioRef.current) {
-        ringAudioRef.current.currentTime = 64; // 1分04秒
+        ringAudioRef.current.currentTime = 73; // 1分13秒
         ringAudioRef.current.play().catch(e => console.log('Ring audio play prevented:', e));
       }
     } else {
@@ -391,7 +391,7 @@ export default function App() {
       setHasAwoken(true);
       setCallStatus('idle');
       setTimeout(() => {
-        const awakeReply = '終於醒了？聽話，去喝杯溫水。';
+        const awakeReply = '終於醒了？';
         setMessages(prev => [
           ...prev,
           { id: Date.now() + 1, role: 'assistant', type: 'text', content: awakeReply, time: getCurrentTime() }
@@ -621,7 +621,7 @@ export default function App() {
             onClick={() => setCallStatus('ringing')}
             className="text-[11px] whitespace-nowrap bg-rose-600 hover:bg-rose-500 text-white font-medium px-3 py-1.5 rounded-full shadow transition shrink-0 active:scale-95"
           >
-            📞 測試來電
+            📞
           </button>
 
           {Object.entries(SCRIPT_SCENARIOS).map(([key, item]) => (
@@ -640,7 +640,7 @@ export default function App() {
           <input
             type="text"
             className="flex-1 bg-slate-100 rounded-full px-4 py-2 text-sm text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-400"
-            placeholder="輸入「起床了」解鎖晨喚..."
+            placeholder="輸入..."
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
             onKeyDown={(e) => {
