@@ -312,6 +312,7 @@ export default function App() {
   const [inputText, setInputText] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [hasNotifPermission, setHasNotifPermission] = useState(false);
+  const [delayCountdown, setDelayCountdown] = useState(null); // 倒數計時狀態
 
   // 晨喚與通話狀態
   const [isAlarmActive, setIsAlarmActive] = useState(true);
@@ -358,15 +359,15 @@ export default function App() {
       if (reg && reg.showNotification) {
         reg.showNotification('Soo', {
           body: text,
-          icon: 'https://images.plurk.com/6PooPJr1YbOhrMp5CCFdbl.jpg',
-          badge: 'https://images.plurk.com/6PooPJr1YbOhrMp5CCFdbl.jpg'
+          icon: 'https://images.plurk.com/7lPN93L87TwPEfErIseop9.jpg',
+          badge: 'https://images.plurk.com/7lPN93L87TwPEfErIseop9.jpg'
         });
         return;
       }
     }
     new Notification('Soo', {
       body: text,
-      icon: 'https://images.plurk.com/6PooPJr1YbOhrMp5CCFdbl.jpg'
+      icon: 'https://images.plurk.com/7lPN93L87TwPEfErIseop9.jpg'
     });
   };
 
@@ -428,11 +429,11 @@ export default function App() {
     return () => clearInterval(timer);
   }, [isAlarmActive, hasAwoken]);
 
-  // 來電鈴聲控制（從 73 秒開始播放）
+  // 來電鈴聲控制（73秒）
   useEffect(() => {
     if (callStatus === 'ringing') {
       if (ringAudioRef.current) {
-        ringAudioRef.current.currentTime = 73; // 73 秒起播
+        ringAudioRef.current.currentTime = 73;
         ringAudioRef.current.play().catch(e => console.log('Ring audio play prevented:', e));
       }
     } else {
@@ -527,6 +528,52 @@ export default function App() {
     });
   };
 
+  // ⏱ 核心功能：一分鐘後發送隨機訊息並推播通知
+  const startOneMinuteNotificationTest = () => {
+    if (!('Notification' in window) || Notification.permission !== 'granted') {
+      alert('請先點擊上方綠色「允許推播」按鈕開啟通知權限！');
+      return;
+    }
+
+    alert('⏱ 倒數 60 秒開始！請現在按 Home 鍵退到主畫面或鎖定關閉螢幕，測試 1 分鐘後能否收到通知。');
+    setDelayCountdown(60);
+
+    const keys = Object.keys(SCRIPT_SCENARIOS);
+    const randomKey = keys[Math.floor(Math.random() * keys.length)];
+
+    setTimeout(() => {
+      playScript(randomKey);
+      setDelayCountdown(null);
+    }, 60000); // 60 秒 (1 分鐘)
+  };
+
+  const requestNotification = async () => {
+    const isStandalone = window.navigator.standalone || window.matchMedia('(display-mode: standalone)').matches;
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+
+    if (isIOS && !isStandalone) {
+      alert('【重要提醒】\niPhone 必須先點擊 Safari 底部的「分享」按鈕，選擇「加入主畫面」，然後「從桌面打開 App」才能開啟通知喔！');
+      return;
+    }
+
+    if (!('Notification' in window)) {
+      alert('此環境不支援通知，請確認已加入主畫面並從桌面開啟。');
+      return;
+    }
+
+    try {
+      const perm = await Notification.requestPermission();
+      if (perm === 'granted') {
+        setHasNotifPermission(true);
+        sendPushNotification('晨喚排程通知已授權成功！');
+      } else {
+        alert('尚未取得通知授權');
+      }
+    } catch (e) {
+      alert('請求通知授權失敗: ' + e.message);
+    }
+  };
+
   const handleSend = () => {
     if (!inputText.trim() || isTyping) return;
     const currentInput = inputText.trim();
@@ -545,7 +592,7 @@ export default function App() {
       setHasAwoken(true);
       setCallStatus('idle');
       setTimeout(() => {
-        const awakeReply = '終於醒了？聽話，去喝杯溫水。';
+        const awakeReply = '終於醒了？';
         setMessages(prev => [
           ...prev,
           { id: Date.now() + 1, role: 'assistant', type: 'text', content: awakeReply, time: getCurrentTime() }
@@ -646,9 +693,7 @@ export default function App() {
               <div className="flex flex-col">
                 <span className="font-medium text-sm leading-tight text-white tracking-wide">Soo</span>
                 <span className="text-[10px] text-emerald-400 font-mono">
-                  {isAlarmActive 
-                    ? (hasAwoken ? '晨喚已解除・在線上' : '晨喚待命・08:00 起') 
-                    : '晨喚已關閉'}
+                  {delayCountdown ? `倒數 ${delayCountdown}s 發送測試...` : (isAlarmActive ? (hasAwoken ? '晨喚已解除・在線上' : '晨喚待命・08:00 起') : '晨喚已關閉')}
                 </span>
               </div>
             </div>
@@ -674,6 +719,22 @@ export default function App() {
             </button>
           </div>
         </div>
+
+        {/* 🔔 通知按鈕橫幅 */}
+        {!hasNotifPermission && (
+          <div className="bg-emerald-600/95 text-white px-4 py-2.5 flex items-center justify-between shadow-md z-10">
+            <div className="flex items-center space-x-2">
+              <span className="text-base">🔔</span>
+              <span className="text-xs font-medium tracking-wide">開啟通知接收 08:00 起床提醒</span>
+            </div>
+            <button
+              onClick={requestNotification}
+              className="bg-white text-emerald-800 text-xs font-semibold px-3 py-1.5 rounded-full shadow active:scale-95 transition"
+            >
+              允許推播
+            </button>
+          </div>
+        )}
 
         {/* 對話區 */}
         <div className="flex-1 overflow-y-auto px-3.5 py-4 space-y-3.5 scroll-smooth">
@@ -803,13 +864,20 @@ export default function App() {
           <div ref={messagesEndRef} />
         </div>
 
-        {/* 劇本控制板 */}
+        {/* 劇本控制板（最左側新增 ⏱ 1分後測試） */}
         <div className="bg-slate-950/60 backdrop-blur-md px-2.5 py-2 flex space-x-2 overflow-x-auto border-t border-white/10 z-10 scrollbar-none shrink-0">
+          <button
+            onClick={startOneMinuteNotificationTest}
+            className="text-[11px] whitespace-nowrap bg-amber-500 hover:bg-amber-400 text-slate-950 font-semibold px-3 py-1.5 rounded-full shadow transition shrink-0 active:scale-95"
+          >
+            ⏱ 1分後測試通知
+          </button>
+
           <button
             onClick={() => setCallStatus('ringing')}
             className="text-[11px] whitespace-nowrap bg-rose-600 hover:bg-rose-500 text-white font-medium px-3 py-1.5 rounded-full shadow transition shrink-0 active:scale-95"
           >
-            📞 
+            📞 測試來電
           </button>
 
           {Object.entries(SCRIPT_SCENARIOS).map(([key, item]) => (
@@ -828,7 +896,7 @@ export default function App() {
           <input
             type="text"
             className="flex-1 bg-slate-100 rounded-full px-4 py-2 text-sm text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-400"
-            placeholder="輸入..."
+            placeholder="輸入「起床了」解鎖晨喚..."
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
             onKeyDown={(e) => {
