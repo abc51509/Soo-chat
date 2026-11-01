@@ -3,27 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 // Google 試算表設定 (綁定 Soo_Master_Database)
 const SPREADSHEET_ID = '11P8tG-MhZiwrBcGf9TyFirQNwPxKC2YPVbv4XHMEV-A';
 
-// 健全解析連續逗號與空白格的 CSV 工具
-const parseRow = (rowStr) => {
-  const result = [];
-  let current = '';
-  let inQuotes = false;
-  for (let i = 0; i < rowStr.length; i++) {
-    const char = rowStr[i];
-    if (char === '"') {
-      inQuotes = !inQuotes;
-    } else if (char === ',' && !inQuotes) {
-      result.push(current.trim().replace(/^"|"$/g, ''));
-      current = '';
-    } else {
-      current += char;
-    }
-  }
-  result.push(current.trim().replace(/^"|"$/g, ''));
-  return result;
-};
-
-// 治本方案：直接按表格 A 到 L 欄位置精確對齊（空白不填也完全不會移位）
+// 原始 CSV 解析
 const fetchSheetData = async (sheetName) => {
   try {
     const url = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheetName)}&t=${Date.now()}`;
@@ -34,51 +14,75 @@ const fetchSheetData = async (sheetName) => {
     const lines = text.split('\n').filter(l => l.trim().length > 0);
     if (lines.length <= 1) return [];
 
+    const parseRow = (rowStr) => {
+      const result = [];
+      let current = '';
+      let inQuotes = false;
+      for (let i = 0; i < rowStr.length; i++) {
+        const char = rowStr[i];
+        if (char === '"') {
+          inQuotes = !inQuotes;
+        } else if (char === ',' && !inQuotes) {
+          result.push(current.trim().replace(/^"|"$/g, ''));
+          current = '';
+        } else {
+          current += char;
+        }
+      }
+      result.push(current.trim().replace(/^"|"$/g, ''));
+      return result;
+    };
+
     const rawHeaders = parseRow(lines[0]);
     const headers = rawHeaders.map(h => h.toLowerCase().replace(/[^a-z0-9_]/g, ''));
 
-    // 檢查欄位是否存在
-    const catIdx = headers.indexOf('category');
-    const imgIdx = headers.indexOf('images');
-
     return lines.slice(1).map(line => {
       const values = parseRow(line);
-      const entry = {};
-
-      // 1. 優先用 header 名稱綁定
+      const entry = { _rawValues: values };
       headers.forEach((h, idx) => {
         entry[h] = values[idx] ? values[idx].trim() : '';
       });
-
-      // 2. 治本防呆：若 header 位置偏移，強制鎖定 D 欄 (Index 3) 與 G 欄 (Index 6)
-      if (!entry.category && values[3]) {
-        entry.category = values[3].trim();
-      }
-      if (!entry.images && values[6]) {
-        entry.images = values[6].trim();
-      }
-      if (!entry.caption && values[7]) {
-        entry.caption = values[7].trim();
-      }
-      if (!entry.audio_after && values[8]) {
-        entry.audio_after = values[8].trim();
-      }
-      if (!entry.follow_up_1 && values[9]) {
-        entry.follow_up_1 = values[9].trim();
-      }
-      if (!entry.follow_up_2 && values[10]) {
-        entry.follow_up_2 = values[10].trim();
-      }
-      if (!entry.follow_up_3 && values[11]) {
-        entry.follow_up_3 = values[11].trim();
-      }
-
       return entry;
     });
   } catch (err) {
     console.error(`讀取試算表 [${sheetName}] 失敗:`, err);
     return [];
   }
+};
+
+// 音訊解析
+const formatAudioUrl = (raw) => {
+  if (!raw) return '';
+  let clean = raw.trim().replace(/^["']|["']$/g, '');
+  if (!clean) return '';
+
+  const lower = clean.toLowerCase();
+
+  if (lower === 'random_like' || lower.includes('random')) {
+    const likeOptions = [
+      '/audio/Do_u_like_it.mp3',
+      '/audio/How_is_it.mp3',
+      '/audio/How_is_it_Do_u_like_it.mp3'
+    ];
+    return likeOptions[Math.floor(Math.random() * likeOptions.length)];
+  }
+
+  if (lower === 'do_u_like_it' || lower === 'do_u_like_it.mp3') return '/audio/Do_u_like_it.mp3';
+  if (lower === 'how_is_it' || lower === 'how_is_it.mp3') return '/audio/How_is_it.mp3';
+  if (lower === 'how_is_it_do_u_like_it' || lower === 'how_is_it_do_u_like_it.mp3') return '/audio/How_is_it_Do_u_like_it.mp3';
+  if (lower === 'can_u_b_my_gf' || lower === 'can_u_b_my_gf.mp3') return '/audio/Can_u_b_my_gf.mp3';
+  if (lower === 'eat' || lower === 'eat.mp3') return '/audio/eat.mp3';
+  if (lower === 'lets_get_engaged' || lower === "let's_get_engaged.mp3") return "/audio/Let's_get_engaged.mp3";
+
+  if (!clean.endsWith('.mp3') && !clean.endsWith('.wav') && !clean.endsWith('.m4a')) {
+    clean += '.mp3';
+  }
+  if (clean.startsWith('http')) return clean;
+  clean = clean.replace(/^\/+/, '');
+  if (!clean.startsWith('audio/')) {
+    clean = 'audio/' + clean;
+  }
+  return '/' + clean;
 };
 
 // 語音氣泡元件
@@ -317,7 +321,7 @@ export default function App() {
         role: 'assistant',
         type: 'audio',
         audioSrc: cleanSrc,
-        durationText: voiceData.duration || '0:03',
+        durationText: voiceData.duration || '0:04',
         time: getCurrentTime()
       }
     ]);
@@ -343,7 +347,7 @@ export default function App() {
     let spentIds = JSON.parse(localStorage.getItem(storageKey) || '[]');
 
     let available = items.filter(item => {
-      const id = item.id || item.images || JSON.stringify(item);
+      const id = item.id || JSON.stringify(item);
       return !spentIds.includes(id);
     });
 
@@ -354,31 +358,47 @@ export default function App() {
     }
 
     const chosen = available[Math.floor(Math.random() * available.length)];
-    const chosenId = chosen.id || chosen.images || JSON.stringify(chosen);
+    const chosenId = chosen.id || JSON.stringify(chosen);
     spentIds.push(chosenId);
     localStorage.setItem(storageKey, JSON.stringify(spentIds));
 
     return chosen;
   };
 
-  // 點擊分類：精準按照對應好的 category 與欄位發送
-  const triggerCategoryRandom = (catKey) => {
-    const normalizedKey = catKey.toLowerCase().trim();
-    const pool = sheetMedia.filter(m => {
-      const itemCat = (m.category || m.category_name || '').toLowerCase().trim();
-      return itemCat === normalizedKey || itemCat.includes(normalizedKey);
-    });
-
-    if (pool.length === 0) {
-      alert(`試算表 media 標籤中尚未找到分類為 "${catKey}" 的資料`);
+  // 診斷列印彈窗（點擊 🏋️ 直接寫出抓到的內容）
+  const triggerGymDiagnostic = () => {
+    const totalCount = sheetMedia.length;
+    if (totalCount === 0) {
+      alert('【診斷報告】sheetMedia 是空的 (長度 0)。完全沒有抓到任何列！請檢查試算表分頁名稱是否為 media。');
       return;
     }
 
-    const item = pickRandomUnspent(catKey, pool);
+    // 收集所有出現過的欄位名稱與 category 值
+    const allCategories = Array.from(new Set(sheetMedia.map(m => m.category || '(空)')));
+    const sampleRows = sheetMedia.slice(0, 3).map((m, idx) => {
+      const keys = Object.keys(m).filter(k => k !== '_rawValues');
+      const details = keys.map(k => `${k}: "${m[k]}"`).join('\n   ');
+      return `第 ${idx + 1} 筆:\n   ${details}`;
+    }).join('\n\n');
+
+    const message = `【診斷報告 - media 抓取現況】\n` +
+      `總筆數: ${totalCount} 筆\n` +
+      `所有 category 值: [${allCategories.join(', ')}]\n\n` +
+      `前 3 筆真實解析資料如下:\n${sampleRows}`;
+
+    alert(message);
+
+    // 檢查是否有 gym
+    const pool = sheetMedia.filter(m => (m.category || '').toLowerCase().trim() === 'gym');
+    if (pool.length === 0) {
+      return;
+    }
+
+    // 若有抓到則正常發送
+    const item = pickRandomUnspent('gym', pool);
     if (!item) return;
 
-    // 抓取圖片網址（Index 6 / images 欄）
-    const rawImgs = (item.images || item.image_url || item.image || '').trim();
+    const rawImgs = (item.images || '').trim();
     const imgList = rawImgs.split(/[\s,]+/).filter(url => url.startsWith('http'));
 
     if (imgList.length === 1) {
@@ -406,7 +426,69 @@ export default function App() {
       ]);
     }
 
-    // 抓取 caption（Index 7 / caption 欄）
+    const textToSend = (item.caption || '').trim();
+    if (textToSend) {
+      setTimeout(() => {
+        setMessages(prev => [
+          ...prev,
+          {
+            id: Date.now() + Math.random(),
+            role: 'assistant',
+            type: 'text',
+            content: textToSend,
+            time: getCurrentTime()
+          }
+        ]);
+      }, 700);
+    }
+  };
+
+  // 其他分類維持原本觸發
+  const triggerCategoryRandom = (catKey) => {
+    if (catKey === 'gym') {
+      triggerGymDiagnostic();
+      return;
+    }
+
+    const target = catKey.toLowerCase().trim();
+    const pool = sheetMedia.filter(m => (m.category || '').toLowerCase().trim() === target);
+
+    if (pool.length === 0) {
+      alert(`找不到分類為 "${catKey}" 的資料`);
+      return;
+    }
+
+    const item = pickRandomUnspent(catKey, pool);
+    if (!item) return;
+
+    const rawImgs = (item.images || '').trim();
+    const imgList = rawImgs.split(/[\s,]+/).filter(url => url.startsWith('http'));
+
+    if (imgList.length === 1) {
+      setMessages(prev => [
+        ...prev,
+        {
+          id: Date.now() + Math.random(),
+          role: 'assistant',
+          type: 'photo',
+          imageUrl: imgList[0],
+          time: getCurrentTime()
+        }
+      ]);
+    } else if (imgList.length > 1) {
+      setMessages(prev => [
+        ...prev,
+        {
+          id: Date.now() + Math.random(),
+          role: 'assistant',
+          type: 'album_grid',
+          title: '',
+          images: imgList,
+          time: getCurrentTime()
+        }
+      ]);
+    }
+
     const textToSend = (item.caption || '').trim();
     if (textToSend) {
       setTimeout(() => {
@@ -423,18 +505,9 @@ export default function App() {
       }, 700);
     }
 
-    // 抓取 audio_after（Index 8 / audio_after 欄）
     const audioAfter = (item.audio_after || '').trim();
     if (audioAfter) {
-      let finalAudio = audioAfter;
-      if (audioAfter.toLowerCase().includes('random')) {
-        const likeList = ['/audio/Do_u_like_it.mp3', '/audio/How_is_it.mp3', '/audio/How_is_it_Do_u_like_it.mp3'];
-        finalAudio = likeList[Math.floor(Math.random() * likeList.length)];
-      } else if (!finalAudio.startsWith('http') && !finalAudio.startsWith('/')) {
-        finalAudio = finalAudio.startsWith('audio/') ? `/${finalAudio}` : `/audio/${finalAudio}`;
-        if (!finalAudio.endsWith('.mp3')) finalAudio += '.mp3';
-      }
-
+      let finalAudio = formatAudioUrl(audioAfter);
       setTimeout(() => {
         sendVoiceMessage({
           src: finalAudio,
@@ -443,13 +516,14 @@ export default function App() {
       }, textToSend ? 1400 : 800);
     }
 
-    // 抓取 follow_up 1, 2, 3（Index 9, 10, 11 欄）
     const newFollowUps = [];
     if (item.follow_up_1 && item.follow_up_1.trim()) newFollowUps.push(item.follow_up_1.trim());
     if (item.follow_up_2 && item.follow_up_2.trim()) newFollowUps.push(item.follow_up_2.trim());
     if (item.follow_up_3 && item.follow_up_3.trim()) newFollowUps.push(item.follow_up_3.trim());
 
-    setFollowUpQueue(newFollowUps);
+    if (newFollowUps.length > 0) {
+      setFollowUpQueue(newFollowUps);
+    }
   };
 
   // 1. 上方通話按鈕：我主動打給他
@@ -506,7 +580,6 @@ export default function App() {
     setIsVideoCalling(true);
   };
 
-  // 使用者傳訊
   const handleSend = () => {
     if (!inputText.trim() || isTyping) return;
     const currentInput = inputText.trim();
@@ -638,7 +711,7 @@ export default function App() {
     sheetMedia.forEach(m => {
       const albumKey = m.album_name ? m.album_name.trim() : '未分類歸檔 (Uncategorized)';
       if (!groups[albumKey]) groups[albumKey] = [];
-      const raw = (m.images || m.image_url || m.image || '').trim();
+      const raw = (m.images || '').trim();
       const imgs = raw.split(/[\s,]+/).filter(u => u.startsWith('http'));
       groups[albumKey].push(...imgs);
     });
@@ -849,6 +922,7 @@ export default function App() {
 
         {/* 劇本控制板 */}
         <div className="bg-slate-900/10 px-2.5 py-2 flex space-x-2 overflow-x-auto border-t border-slate-200/80 z-10 scrollbar-none shrink-0">
+          {/* 🏋️ 專門負責寫出診斷報告 */}
           <button onClick={() => triggerCategoryRandom('gym')} title="試算表類別: 健身" className="text-[12px] whitespace-nowrap bg-white hover:bg-slate-50 text-slate-800 font-medium px-3 py-1.5 rounded-full shadow-sm border border-slate-200 transition shrink-0 active:scale-95">
             🏋️
           </button>
