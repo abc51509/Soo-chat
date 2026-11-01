@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 
-// Google 試算表設定 (已綁定你的 Soo_Master_Database)
+// Google 試算表設定 (綁定 Soo_Master_Database)
 const SPREADSHEET_ID = '11P8tG-MhZiwrBcGf9TyFirQNwPxKC2YPVbv4XHMEV-A';
 
 // 試算表 CSV 解析工具
 const fetchSheetData = async (sheetName) => {
   try {
-    const url = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheetName)}`;
+    const url = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheetName)}&t=${Date.now()}`;
     const res = await fetch(url);
     if (!res.ok) return [];
     const text = await res.text();
@@ -141,19 +141,25 @@ const HOURLY_MESSAGES = [
   '想喝上次那罐薑茶。'
 ];
 
-// 語音列表全集
+// 語音列表全集（已擴充全新音檔）
 const ALL_VOICE_LIST = [
   { id: 'v1', title: '晨喚 1: 輕柔喚醒', src: '/audio/1_get up_cozy.mp3', duration: '0:03' },
   { id: 'v2', title: '晨喚 2: 該起來了', src: '/audio/2_plz_get_up.mp3', duration: '0:04' },
   { id: 'v3', title: '晨喚 3: 還在睡？', src: '/audio/3_can_u_get_up.mp3', duration: '0:04' },
   { id: 'v4', title: '晨喚 4: 真的該起了', src: '/audio/4_time_to_get_up_now.mp3', duration: '0:03' },
   { id: 'v5', title: '晨喚 5: 低音威脅', src: '/audio/5_get_up_yell.mp3', duration: '0:04' },
-  { id: 'v6', title: '日常 1: 有點想你', src: '/audio/i_miss_u.mp3', duration: '0:03' },
-  { id: 'v7', title: '日常 2: 真的很想你', src: '/audio/i_miss_u_longer.mp3', duration: '0:05' },
-  { id: 'v8', title: '日常 3: 我現在過去？', src: '/audio/shall_i_go_now.mp3', duration: '0:04' },
-  { id: 'v9', title: '約會: 我們去約會吧', src: '/audio/lets_date.mp3', duration: '0:04' },
-  { id: 'v10', title: '心意: 我愛你', src: '/audio/love_u.mp3', duration: '0:03' },
-  { id: 'v11', title: '夜間: 晚安', src: '/audio/good_night_normal.mp3', duration: '0:05' }
+  { id: 'v6', title: '告白: Can you be my girlfriend', src: '/audio/Can_u_b_my_gf.mp3', duration: '0:04' },
+  { id: 'v7', title: '喜歡嗎: Do you like it?', src: '/audio/Do_u_like_it.mp3', duration: '0:03' },
+  { id: 'v8', title: '日常: 吃飯了嗎？', src: '/audio/eat.mp3', duration: '0:03' },
+  { id: 'v9', title: '詢問: 覺得如何？喜歡嗎？', src: '/audio/How_is_it_Do_u_like_it.mp3', duration: '0:04' },
+  { id: 'v10', title: '詢問: 覺得怎麼樣？', src: '/audio/How_is_it.mp3', duration: '0:03' },
+  { id: 'v11', title: '求婚: Let’s get engaged', src: '/audio/Let\'s_get_engaged.mp3', duration: '0:04' },
+  { id: 'v12', title: '日常: 有點想你', src: '/audio/i_miss_u.mp3', duration: '0:03' },
+  { id: 'v13', title: '日常: 真的很想你', src: '/audio/i_miss_u_longer.mp3', duration: '0:05' },
+  { id: 'v14', title: '日常: 我現在過去？', src: '/audio/shall_i_go_now.mp3', duration: '0:04' },
+  { id: 'v15', title: '約會: 我們去約會吧', src: '/audio/lets_date.mp3', duration: '0:04' },
+  { id: 'v16', title: '心意: 我愛你', src: '/audio/love_u.mp3', duration: '0:03' },
+  { id: 'v17', title: '夜間: 晚安', src: '/audio/good_night_normal.mp3', duration: '0:05' }
 ];
 
 // 語音劇本組合
@@ -214,7 +220,7 @@ export default function App() {
   // 晨喚與通話狀態
   const [isAlarmActive, setIsAlarmActive] = useState(true);
   const [hasAwoken, setHasAwoken] = useState(false);
-  const [callStatus, setCallStatus] = useState('idle');
+  const [callStatus, setCallStatus] = useState('idle'); // 'idle' | 'ringing' | 'connected'
   const [callDuration, setCallDuration] = useState(0);
 
   // 視訊通話狀態
@@ -226,11 +232,25 @@ export default function App() {
   const [activeModal, setActiveModal] = useState(null);
   const [activeAlbumTab, setActiveAlbumTab] = useState('all');
 
+  // 音訊與視訊參照
   const ringAudioRef = useRef(null);
-  const voice5AudioRef = useRef(null);
+  const phoneCallAudioRef = useRef(null);
+  const videoPlayerRef = useRef(null);
   const voiceIntervalTimerRef = useRef(null);
   const triggeredSlots = useRef(new Set());
   const messagesEndRef = useRef(null);
+
+  // 初始化與載入 Google 試算表
+  const loadAllSheets = async () => {
+    const [eventsData, mediaData, newsData] = await Promise.all([
+      fetchSheetData('events'),
+      fetchSheetData('media'),
+      fetchSheetData('news')
+    ]);
+    setSheetEvents(eventsData);
+    setSheetMedia(mediaData);
+    setSheetNews(newsData);
+  };
 
   useEffect(() => {
     if ('serviceWorker' in navigator) {
@@ -239,18 +259,6 @@ export default function App() {
     if ('Notification' in window && Notification.permission === 'granted') {
       setHasNotifPermission(true);
     }
-
-    const loadAllSheets = async () => {
-      const [eventsData, mediaData, newsData] = await Promise.all([
-        fetchSheetData('events'),
-        fetchSheetData('media'),
-        fetchSheetData('news')
-      ]);
-      setSheetEvents(eventsData);
-      setSheetMedia(mediaData);
-      setSheetNews(newsData);
-    };
-
     loadAllSheets();
   }, []);
 
@@ -416,7 +424,7 @@ export default function App() {
 
   const startOneMinuteNotificationTest = async () => {
     if (!('Notification' in window) || Notification.permission !== 'granted') {
-      alert('請先點擊上方綠色「允許推播」按鈕開啟通知權限！');
+      alert('請先點擊上方「允許推播」按鈕開啟通知權限！');
       return;
     }
 
@@ -447,6 +455,7 @@ export default function App() {
     alert('⏱ 倒數 60 秒已交給背景！請現在關閉螢幕或退到主畫面測試。');
   };
 
+  // 定時檢測
   useEffect(() => {
     const timer = setInterval(() => {
       const now = new Date();
@@ -505,6 +514,7 @@ export default function App() {
     return () => clearInterval(timer);
   }, [isAlarmActive, hasAwoken, sheetEvents]);
 
+  // 來電鈴聲控制（維持原本經典鈴聲 telepathy 2025）
   useEffect(() => {
     if (callStatus === 'ringing') {
       if (ringAudioRef.current) {
@@ -516,19 +526,20 @@ export default function App() {
     }
   }, [callStatus]);
 
+  // 語音通話接通控制（串接 phone_call.mp3）
   useEffect(() => {
     let durationTimer = null;
     if (callStatus === 'connected') {
       setCallDuration(0);
       durationTimer = setInterval(() => setCallDuration(prev => prev + 1), 1000);
-      if (voice5AudioRef.current) {
-        voice5AudioRef.current.currentTime = 0;
-        voice5AudioRef.current.play().catch(e => console.log('Voice5 error:', e));
+      if (phoneCallAudioRef.current) {
+        phoneCallAudioRef.current.currentTime = 0;
+        phoneCallAudioRef.current.play().catch(e => console.log('phone_call.mp3 play error:', e));
       }
     } else {
       clearInterval(durationTimer);
       clearTimeout(voiceIntervalTimerRef.current);
-      if (voice5AudioRef.current) voice5AudioRef.current.pause();
+      if (phoneCallAudioRef.current) phoneCallAudioRef.current.pause();
     }
     return () => {
       clearInterval(durationTimer);
@@ -536,26 +547,33 @@ export default function App() {
     };
   }, [callStatus]);
 
+  // phone_call.mp3 播放結束後循環
+  const handlePhoneCallEnded = () => {
+    if (callStatus !== 'connected') return;
+    voiceIntervalTimerRef.current = setTimeout(() => {
+      if (phoneCallAudioRef.current && callStatus === 'connected') {
+        phoneCallAudioRef.current.currentTime = 0;
+        phoneCallAudioRef.current.play().catch(e => console.log('phone_call replay error:', e));
+      }
+    }, 2000);
+  };
+
+  // 視訊通話計時與影片控制（串接 video_call.mp4）
   useEffect(() => {
     let videoTimer = null;
     if (isVideoCalling) {
       setVideoDuration(0);
       videoTimer = setInterval(() => setVideoDuration(prev => prev + 1), 1000);
+      if (videoPlayerRef.current) {
+        videoPlayerRef.current.currentTime = 0;
+        videoPlayerRef.current.play().catch(e => console.log('video_call play error:', e));
+      }
     } else {
       clearInterval(videoTimer);
+      if (videoPlayerRef.current) videoPlayerRef.current.pause();
     }
     return () => clearInterval(videoTimer);
   }, [isVideoCalling]);
-
-  const handleVoice5Ended = () => {
-    if (callStatus !== 'connected') return;
-    voiceIntervalTimerRef.current = setTimeout(() => {
-      if (voice5AudioRef.current && callStatus === 'connected') {
-        voice5AudioRef.current.currentTime = 0;
-        voice5AudioRef.current.play().catch(e => console.log('Voice5 replay:', e));
-      }
-    }, 2000);
-  };
 
   const handleEndCall = () => {
     const isConnected = (callStatus === 'connected');
@@ -638,7 +656,7 @@ export default function App() {
     }, 1000);
   };
 
-  // 相簿資料動態群組化
+  // 相簿群組化
   const albumGroups = React.useMemo(() => {
     const groups = {};
     sheetMedia.forEach(m => {
@@ -653,11 +671,12 @@ export default function App() {
 
   return (
     <div className="flex h-[100dvh] w-screen bg-slate-900 justify-center items-center select-none overflow-hidden sm:p-3">
-      {/* 鈴聲與音訊 */}
+      {/* 來電鈴聲（維持原樣） */}
       <audio ref={ringAudioRef} src="/audio/telepathy 2025.mp3" loop preload="auto" />
-      <audio ref={voice5AudioRef} src="/audio/5_get_up_yell.mp3" onEnded={handleVoice5Ended} preload="auto" />
+      {/* 通話接聽後串接 phone_call.mp3 */}
+      <audio ref={phoneCallAudioRef} src="/audio/phone_call.mp3" onEnded={handlePhoneCallEnded} preload="auto" />
 
-      {/* 主聊天容器：20~30% 乾淨灰白底色 */}
+      {/* 主聊天容器 */}
       <div className="w-full sm:max-w-[420px] h-[100dvh] sm:h-[92vh] sm:max-h-[880px] bg-[#ECEEF1] sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden relative border-0 sm:border sm:border-slate-700">
         
         {/* 全螢幕語音通話介面 */}
@@ -694,12 +713,19 @@ export default function App() {
           </div>
         )}
 
-        {/* 📹 全螢幕視訊通話介面 */}
+        {/* 📹 全螢幕視訊通話介面（串接 /video/video_call.mp4） */}
         {isVideoCalling && (
           <div className="absolute inset-0 bg-black z-50 flex flex-col justify-between items-center py-12 px-6 text-white animate-fade-in">
             <div className="absolute inset-0 z-0 overflow-hidden">
-              <img src="https://images.plurk.com/wGRATa3N4kmnXq7NfNW5q.jpg" alt="Video stream" className="w-full h-full object-cover scale-105 filter brightness-95" />
-              <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-transparent to-black/85" />
+              <video
+                ref={videoPlayerRef}
+                src="/video/video_call.mp4"
+                loop
+                playsInline
+                autoPlay
+                className="w-full h-full object-cover scale-105 filter brightness-95"
+              />
+              <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-transparent to-black/85 pointer-events-none" />
             </div>
 
             <div className="z-10 flex flex-col items-center mt-4 space-y-1">
@@ -737,7 +763,7 @@ export default function App() {
           </div>
         )}
 
-        {/* 頂部導航列：莫蘭迪灰調土耳其藍 (#4E727A)，整體下移，頭貼放大對齊置中 */}
+        {/* 頂部導航列 */}
         <div className="pt-12 pb-3.5 bg-[#4E727A] text-white flex items-center justify-between px-4 z-20 shrink-0 shadow-sm border-b border-[#3D5C63]">
           <div className="flex items-center space-x-3">
             <div className="w-12 h-12 rounded-full bg-slate-800/30 overflow-hidden ring-2 ring-white/25 shadow-inner shrink-0">
@@ -747,9 +773,11 @@ export default function App() {
           </div>
 
           <div className="flex items-center space-x-2.5">
-            <button onClick={() => setCallStatus('ringing')} title="語音通話" className="w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 active:scale-95 flex items-center justify-center transition">
+            {/* 上方通話按鈕：串接 phone_call */}
+            <button onClick={() => setCallStatus('connected')} title="直接通話" className="w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 active:scale-95 flex items-center justify-center transition">
               <svg className="w-3.5 h-3.5 fill-white" viewBox="0 0 24 24"><path d="M6.62 10.79a15.05 15.05 0 006.59 6.59l2.2-2.2a1 1 0 011.02-.24 11.72 11.72 0 003.68.59 1 1 0 011 1v3.5a1 1 0 01-1 1A17 17 0 013 4a1 1 0 011-1h3.5a1 1 0 011 1c0 1.25.2 2.48.59 3.68a1 1 0 01-.24 1.02l-2.23 2.09z" /></svg>
             </button>
+            {/* 上方視訊按鈕：串接 video_call */}
             <button onClick={() => setIsVideoCalling(true)} title="視訊通話" className="w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 active:scale-95 flex items-center justify-center transition">
               <svg className="w-4 h-4 fill-white" viewBox="0 0 24 24"><path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z" /></svg>
             </button>
@@ -922,7 +950,7 @@ export default function App() {
           </div>
         )}
 
-        {/* 底部輸入列：莫蘭迪灰調土耳其藍 (#4E727A) */}
+        {/* 底部輸入列 */}
         <div className="bg-[#4E727A] p-2.5 flex items-center space-x-2 border-t border-[#3D5C63] z-20 shrink-0 pb-6">
           <button
             onClick={() => setIsPlusMenuOpen(!isPlusMenuOpen)}
