@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 // Google 試算表設定 (綁定 Soo_Master_Database)
 const SPREADSHEET_ID = '11P8tG-MhZiwrBcGf9TyFirQNwPxKC2YPVbv4XHMEV-A';
 
-// 健全的 CSV 解析工具（自動去除空白、容錯雙引號與大小寫）
+// 健全的 CSV 解析工具（支援欄位正規化）
 const fetchSheetData = async (sheetName) => {
   try {
     const url = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheetName)}&t=${Date.now()}`;
@@ -33,7 +33,6 @@ const fetchSheetData = async (sheetName) => {
       return result;
     };
 
-    // 欄位標題正規化（全部轉小寫並去除前後空白）
     const rawHeaders = parseRow(lines[0]);
     const headers = rawHeaders.map(h => h.toLowerCase().replace(/[^a-z0-9_]/g, ''));
 
@@ -109,14 +108,11 @@ const AudioBubble = ({ audioSrc, durationText = "0:04" }) => {
 // 晨間劇本語音
 const WAKEUP_VOICES = {
   1: { src: '/audio/1_get up_cozy.mp3', duration: '0:03', notify: 'Soo: 起床囉...' },
-  2: { src: '/audio/2_plz_get_up.mp3', duration: '0:04', notify: 'Soo: 該起來了。' },
-  3: { src: '/audio/3_can_u_get_up.mp3', duration: '0:04', notify: 'Soo: 還在睡？' },
-  4: { src: '/audio/4_time_to_get_up_now.mp3', duration: '0:03', notify: 'Soo: 真的該起了。' },
   5: { src: '/audio/5_get_up_yell.mp3', duration: '0:04', notify: 'Soo: 起床！' }
 };
 
-// 整點日常台詞
-const HOURLY_MESSAGES = [
+// 整點隨機純文字台詞
+const HOURLY_TEXT_MESSAGES = [
   '吃飯了嗎？',
   '外面很冷，多穿點。',
   '收工了。',
@@ -144,6 +140,15 @@ const HOURLY_MESSAGES = [
   '想喝上次那罐薑茶。'
 ];
 
+// 整點隨機語音台詞
+const HOURLY_VOICE_MESSAGES = [
+  { type: 'audio', src: '/audio/i_miss_u.mp3', duration: '0:03', notify: 'Soo: 我想你。' },
+  { type: 'audio', src: '/audio/i_miss_u_longer.mp3', duration: '0:05', notify: 'Soo: 真的好想你...' },
+  { type: 'audio', src: '/audio/love_u.mp3', duration: '0:03', notify: 'Soo: 我愛你。' },
+  { type: 'audio', src: '/audio/shall_i_go_now.mp3', duration: '0:04', notify: 'Soo: 我現在過去？' },
+  { type: 'audio', src: '/audio/lets_date.mp3', duration: '0:04', notify: 'Soo: 吃飽飯我們去約會吧。' }
+];
+
 // 語音列表全集
 const ALL_VOICE_LIST = [
   { id: 'v1', title: '晨喚 1: 輕柔喚醒', src: '/audio/1_get up_cozy.mp3', duration: '0:03' },
@@ -160,40 +165,10 @@ const ALL_VOICE_LIST = [
   { id: 'v12', title: '日常: 有點想你', src: '/audio/i_miss_u.mp3', duration: '0:03' },
   { id: 'v13', title: '日常: 真的很想你', src: '/audio/i_miss_u_longer.mp3', duration: '0:05' },
   { id: 'v14', title: '日常: 我現在過去？', src: '/audio/shall_i_go_now.mp3', duration: '0:04' },
-  { id: 'v15', title: '約會: 我們去約會吧', src: '/audio/lets_date.mp3', duration: '0:04' },
+  { id: 'v15', title: '約會: 吃飽飯我們去約會吧', src: '/audio/lets_date.mp3', duration: '0:04' },
   { id: 'v16', title: '心意: 我愛你', src: '/audio/love_u.mp3', duration: '0:03' },
   { id: 'v17', title: '夜間: 晚安', src: '/audio/good_night_normal.mp3', duration: '0:05' }
 ];
-
-// 語音劇本組合
-const SCRIPT_SCENARIOS = {
-  dailySeries: {
-    label: '💬',
-    steps: [
-      { delay: 400, type: 'audio', audioSrc: '/audio/i_miss_u.mp3', durationText: '0:03', notify: 'Soo傳送了語音訊息' },
-      { delay: 3500, type: 'audio', audioSrc: '/audio/i_miss_u_longer.mp3', durationText: '0:05', notify: 'Soo傳送了語音訊息' },
-      { delay: 7000, type: 'audio', audioSrc: '/audio/shall_i_go_now.mp3', durationText: '0:04', notify: 'Soo傳送了語音訊息' }
-    ]
-  },
-  plotDate: {
-    label: '🎬',
-    steps: [
-      { delay: 400, type: 'audio', audioSrc: '/audio/lets_date.mp3', durationText: '0:04', notify: 'Soo傳送了語音訊息' }
-    ]
-  },
-  plotLove: {
-    label: '♥️',
-    steps: [
-      { delay: 400, type: 'audio', audioSrc: '/audio/love_u.mp3', durationText: '0:03', notify: 'Soo傳送了語音訊息' }
-    ]
-  },
-  goodNight: {
-    label: '🌙💤',
-    steps: [
-      { delay: 400, type: 'audio', audioSrc: '/audio/good_night_normal.mp3', durationText: '0:05', notify: 'Soo傳送了語音訊息' }
-    ]
-  }
-};
 
 const USER_MOCK_REPLIES = [
   '好，我聽到了～',
@@ -208,25 +183,49 @@ export default function App() {
     return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
   };
 
-  const [messages, setMessages] = useState([
-    { id: 1, role: 'assistant', type: 'text', content: '今天有好好吃飯嗎？', time: getCurrentTime() }
-  ]);
+  const getTodayDateStr = () => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  };
+
+  // 從 LocalStorage 載入訊息歷史，若無則使用初始問候
+  const [messages, setMessages] = useState(() => {
+    try {
+      const saved = localStorage.getItem('soo_chat_messages');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {
+      console.error(e);
+    }
+    return [{ id: 1, role: 'assistant', type: 'text', content: '今天有好好吃飯嗎？', time: getCurrentTime() }];
+  });
+
   const [inputText, setInputText] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [hasNotifPermission, setHasNotifPermission] = useState(false);
 
-  // 雲端資料庫狀態
+  // 試算表動態資料
   const [sheetMedia, setSheetMedia] = useState([]);
   const [sheetEvents, setSheetEvents] = useState([]);
   const [sheetNews, setSheetNews] = useState([]);
 
-  // 晨喚與通話狀態
-  const [isAlarmActive, setIsAlarmActive] = useState(true);
-  const [hasAwoken, setHasAwoken] = useState(false);
-  const [callStatus, setCallStatus] = useState('idle'); // 'idle' | 'ringing' | 'connected'
-  const [callDuration, setCallDuration] = useState(0);
+  // 追問對話隊列 (follow_up_1, follow_up_2, follow_up_3)
+  const [followUpQueue, setFollowUpQueue] = useState(() => {
+    try {
+      const saved = localStorage.getItem('soo_follow_up_queue');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
 
-  // 視訊通話狀態
+  // 晨喚狀態追蹤 (以天為單位保存在 LocalStorage)
+  const [awokenDate, setAwokenDate] = useState(() => {
+    return localStorage.getItem('soo_awoken_date') || '';
+  });
+
+  // 通話與視訊狀態
+  const [callStatus, setCallStatus] = useState('idle');
+  const [callDuration, setCallDuration] = useState(0);
   const [isVideoCalling, setIsVideoCalling] = useState(false);
   const [videoDuration, setVideoDuration] = useState(0);
 
@@ -240,6 +239,23 @@ export default function App() {
   const videoPlayerRef = useRef(null);
   const triggeredSlots = useRef(new Set());
   const messagesEndRef = useRef(null);
+
+  // 儲存訊息與追問隊列至 LocalStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem('soo_chat_messages', JSON.stringify(messages));
+    } catch (e) {
+      console.error('儲存訊息失敗:', e);
+    }
+  }, [messages]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('soo_follow_up_queue', JSON.stringify(followUpQueue));
+    } catch (e) {
+      console.error('儲存追問隊列失敗:', e);
+    }
+  }, [followUpQueue]);
 
   // 載入 Google 試算表資料
   const loadAllSheets = async () => {
@@ -296,22 +312,22 @@ export default function App() {
     setMessages(prev => [
       ...prev,
       {
-        id: Date.now(),
+        id: Date.now() + Math.random(),
         role: 'assistant',
         type: 'audio',
         audioSrc: voiceData.src,
-        durationText: voiceData.duration,
+        durationText: voiceData.duration || '0:04',
         time: getCurrentTime()
       }
     ]);
-    sendPushNotification(voiceData.notify);
+    if (voiceData.notify) sendPushNotification(voiceData.notify);
   };
 
   const sendTextMessage = (text) => {
     setMessages(prev => [
       ...prev,
       {
-        id: Date.now(),
+        id: Date.now() + Math.random(),
         role: 'assistant',
         type: 'text',
         content: text,
@@ -321,6 +337,104 @@ export default function App() {
     sendPushNotification(text);
   };
 
+  const addMissedCallRecord = (timeStr) => {
+    setMessages(prev => [
+      ...prev,
+      {
+        id: Date.now() + Math.random(),
+        role: 'assistant',
+        type: 'call_record',
+        durationText: null,
+        statusText: '未接來電',
+        time: timeStr || getCurrentTime()
+      }
+    ]);
+  };
+
+  // 原始時間點晨喚邏輯（打開即時判定 + 每 10 秒檢查）
+  useEffect(() => {
+    const checkMorningSchedule = () => {
+      const now = new Date();
+      const todayStr = getTodayDateStr();
+      const isTodayAwoken = (awokenDate === todayStr);
+      if (isTodayAwoken) return; // 今天已起床，終止所有晨喚
+
+      const h = now.getHours();
+      const m = now.getMinutes();
+      const totalMinutes = h * 60 + m;
+
+      // 1. 08:00 ～ 10:59 打開 App：若尚未觸發 8 點晨喚，補發未接來電與第 1 個晨喚語音
+      if (totalMinutes >= 8 * 60 && totalMinutes < 11 * 60) {
+        if (!triggeredSlots.current.has('slot_08_00')) {
+          triggeredSlots.current.add('slot_08_00');
+          addMissedCallRecord('08:00');
+          sendVoiceMessage(WAKEUP_VOICES[1]);
+        }
+      }
+
+      // 2. 11:00 ～ 11:29：觸發第 5 個晨喚語音 (5_get_up_yell)
+      if (totalMinutes >= 11 * 60) {
+        if (!triggeredSlots.current.has('slot_11_00')) {
+          triggeredSlots.current.add('slot_11_00');
+          addMissedCallRecord('11:00');
+          sendVoiceMessage(WAKEUP_VOICES[5]);
+        }
+      }
+
+      // 3. 11:30 ～ 13:00 每半小時 (11:30, 12:00, 12:30, 13:00)：持續第 5 個晨喚，直到回覆「起床了」
+      const halfHourSlots = [
+        { key: 'slot_11_30', time: 11 * 60 + 30, label: '11:30' },
+        { key: 'slot_12_00', time: 12 * 60, label: '12:00' },
+        { key: 'slot_12_30', time: 12 * 60 + 30, label: '12:30' },
+        { key: 'slot_13_00', time: 13 * 60, label: '13:00' }
+      ];
+
+      halfHourSlots.forEach(slot => {
+        if (totalMinutes >= slot.time && !triggeredSlots.current.has(slot.key)) {
+          triggeredSlots.current.add(slot.key);
+          addMissedCallRecord(slot.label);
+          sendVoiceMessage(WAKEUP_VOICES[5]);
+        }
+      });
+    };
+
+    // 進入時立刻判定一次
+    checkMorningSchedule();
+    const timer = setInterval(checkMorningSchedule, 10000);
+    return () => clearInterval(timer);
+  }, [awokenDate]);
+
+  // 整點日常訊息隨機發送
+  useEffect(() => {
+    const timer = setInterval(() => {
+      const now = new Date();
+      const h = now.getHours();
+      const m = now.getMinutes();
+      const timeKey = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+
+      if (h === 0 && m === 0) {
+        triggeredSlots.current.clear();
+      }
+
+      const isTargetHour = (h >= 7 && h <= 23) || (h >= 0 && h <= 2);
+      if (m === 0 && isTargetHour && !triggeredSlots.current.has(timeKey)) {
+        triggeredSlots.current.add(timeKey);
+        if (h !== 8 && h !== 11) {
+          const isVoice = Math.random() < 0.3;
+          if (isVoice) {
+            const chosenVoice = HOURLY_VOICE_MESSAGES[Math.floor(Math.random() * HOURLY_VOICE_MESSAGES.length)];
+            sendVoiceMessage(chosenVoice);
+          } else {
+            const randomText = HOURLY_TEXT_MESSAGES[Math.floor(Math.random() * HOURLY_TEXT_MESSAGES.length)];
+            sendTextMessage(randomText);
+          }
+        }
+      }
+    }, 10000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // 隨機不重複抽選
   const pickRandomUnspent = (poolKey, items) => {
     if (!items || items.length === 0) return null;
     const storageKey = `soo_spent_${poolKey}`;
@@ -345,7 +459,7 @@ export default function App() {
     return chosen;
   };
 
-  // 修正後的動態類別抽取（自動模糊匹配 category）
+  // 點擊底部按鈕：發送照片 ＋ 觸發 audio_after ＋ 裝載 follow_up_1,2,3
   const triggerCategoryRandom = (catKey, defaultCaption = '看我拍了什麼。') => {
     const normalizedKey = catKey.toLowerCase().trim();
     const pool = sheetMedia.filter(m => {
@@ -354,7 +468,7 @@ export default function App() {
     });
 
     if (pool.length === 0) {
-      alert(`試算表 media 標籤中尚未找到分類為 "${catKey}" 的資料，請確認試算表 media 頁面的 category 欄位拼字。`);
+      alert(`試算表 media 標籤中尚未找到分類為 "${catKey}" 的資料，請確認試算表 media 頁面的 category 欄位。`);
       return;
     }
 
@@ -364,11 +478,12 @@ export default function App() {
     const rawImgs = (item.images || item.image_url || item.image || '').trim();
     const imgList = rawImgs.split(/[\s,]+/).filter(url => url.startsWith('http'));
 
+    // 1. 發送照片
     if (imgList.length === 1) {
       setMessages(prev => [
         ...prev,
         {
-          id: Date.now(),
+          id: Date.now() + Math.random(),
           role: 'assistant',
           type: 'photo',
           imageUrl: imgList[0],
@@ -379,7 +494,7 @@ export default function App() {
       setMessages(prev => [
         ...prev,
         {
-          id: Date.now(),
+          id: Date.now() + Math.random(),
           role: 'assistant',
           type: 'album_grid',
           title: item.album_name || item.caption || '隨手記錄',
@@ -389,13 +504,14 @@ export default function App() {
       ]);
     }
 
+    // 2. 發送 caption
     const textToSend = item.caption || defaultCaption;
     if (textToSend) {
       setTimeout(() => {
         setMessages(prev => [
           ...prev,
           {
-            id: Date.now() + 1,
+            id: Date.now() + Math.random(),
             role: 'assistant',
             type: 'text',
             content: textToSend,
@@ -404,125 +520,105 @@ export default function App() {
         ]);
         sendPushNotification(`Soo: ${textToSend}`);
       }, 700);
-    } else {
-      sendPushNotification('Soo 傳送了照片');
+    }
+
+    // 3. 處理 audio_after (如填寫了 /audio/Do_u_like_it.mp3 或指定音檔)
+    const audioAfter = (item.audio_after || '').trim();
+    if (audioAfter) {
+      setTimeout(() => {
+        sendVoiceMessage({
+          src: audioAfter.startsWith('/') ? audioAfter : `/audio/${audioAfter}`,
+          duration: '0:03',
+          notify: 'Soo 傳送了語音訊息'
+        });
+      }, 1500);
+    }
+
+    // 4. 裝載 follow_up_1, follow_up_2, follow_up_3 至隊列
+    const newFollowUps = [];
+    if (item.follow_up_1 && item.follow_up_1.trim()) newFollowUps.push(item.follow_up_1.trim());
+    if (item.follow_up_2 && item.follow_up_2.trim()) newFollowUps.push(item.follow_up_2.trim());
+    if (item.follow_up_3 && item.follow_up_3.trim()) newFollowUps.push(item.follow_up_3.trim());
+
+    if (newFollowUps.length > 0) {
+      setFollowUpQueue(newFollowUps);
     }
   };
 
-  const playScript = (key) => {
-    const scenario = SCRIPT_SCENARIOS[key];
-    if (!scenario) return;
+  // 使用者傳送訊息處理（優先消耗 follow_up 對話鏈）
+  const handleSend = () => {
+    if (!inputText.trim() || isTyping) return;
+    const currentInput = inputText.trim();
+    const userMsg = {
+      id: Date.now(),
+      role: 'user',
+      type: 'text',
+      content: currentInput,
+      time: getCurrentTime()
+    };
+    setMessages(prev => [...prev, userMsg]);
+    setInputText('');
+    setIsTyping(true);
 
-    scenario.steps.forEach((step, idx) => {
+    // 判定是否解除晨喚
+    if (currentInput.includes('起床')) {
+      const todayStr = getTodayDateStr();
+      setAwokenDate(todayStr);
+      localStorage.setItem('soo_awoken_date', todayStr);
+      setCallStatus('idle');
+
       setTimeout(() => {
+        const awakeReply = '終於醒了？';
         setMessages(prev => [
           ...prev,
-          {
-            id: Date.now() + idx,
-            role: 'assistant',
-            ...step,
-            time: getCurrentTime()
-          }
+          { id: Date.now() + 1, role: 'assistant', type: 'text', content: awakeReply, time: getCurrentTime() }
         ]);
-        if (step.notify) sendPushNotification(step.notify);
-      }, step.delay);
-    });
-  };
-
-  const startOneMinuteNotificationTest = async () => {
-    if (!('Notification' in window) || Notification.permission !== 'granted') {
-      alert('請先點擊上方「允許推播」按鈕開啟通知權限！');
+        sendPushNotification(awakeReply);
+        setIsTyping(false);
+      }, 1000);
       return;
     }
 
-    if ('serviceWorker' in navigator) {
-      try {
-        const reg = await navigator.serviceWorker.ready;
-        if (reg.active) {
-          reg.active.postMessage({
-            type: 'SCHEDULE_NOTIFICATION',
-            delay: 60000,
-            title: 'Soo',
-            options: {
-              body: 'Soo: 剛結束拍攝，你在幹嘛？',
-              icon: 'https://images.plurk.com/7lPN93L87TwPEfErIseop9.jpg',
-              badge: 'https://images.plurk.com/7lPN93L87TwPEfErIseop9.jpg'
-            }
-          });
-        }
-      } catch (e) {
-        console.error('SW postMessage error:', e);
-      }
+    // 檢查是否有排隊中的 follow_up 追問回覆
+    if (followUpQueue.length > 0) {
+      const [nextReply, ...remaining] = followUpQueue;
+      setFollowUpQueue(remaining);
+
+      setTimeout(() => {
+        setMessages(prev => [
+          ...prev,
+          { id: Date.now() + 1, role: 'assistant', type: 'text', content: nextReply, time: getCurrentTime() }
+        ]);
+        sendPushNotification(`Soo: ${nextReply}`);
+        setIsTyping(false);
+      }, 1000);
+      return;
     }
 
+    // 一般日常隨機回覆
     setTimeout(() => {
-      triggerCategoryRandom('selfie', '忙完了嗎？');
-    }, 60000);
-
-    alert('⏱ 倒數 60 秒已交給背景！請現在關閉螢幕或退到主畫面測試。');
+      const reply = USER_MOCK_REPLIES[Math.floor(Math.random() * USER_MOCK_REPLIES.length)];
+      setMessages(prev => [
+        ...prev,
+        { id: Date.now() + 1, role: 'assistant', type: 'text', content: reply, time: getCurrentTime() }
+      ]);
+      sendPushNotification(reply);
+      setIsTyping(false);
+    }, 1000);
   };
 
-  // 定時檢測
-  useEffect(() => {
-    const timer = setInterval(() => {
-      const now = new Date();
-      const h = now.getHours();
-      const m = now.getMinutes();
-      const timeKey = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+  // 清空本機暫存聊天紀錄
+  const handleClearMessages = () => {
+    if (window.confirm(`目前共有 ${messages.length} 則訊息，確定要清空所有紀錄嗎？`)) {
+      const initMsg = [{ id: Date.now(), role: 'assistant', type: 'text', content: '今天有好好吃飯嗎？', time: getCurrentTime() }];
+      setMessages(initMsg);
+      setFollowUpQueue([]);
+      localStorage.removeItem('soo_chat_messages');
+      localStorage.removeItem('soo_follow_up_queue');
+    }
+  };
 
-      if (h === 0 && m === 0) {
-        triggeredSlots.current.clear();
-        setHasAwoken(false);
-      }
-
-      const isTargetHour = (h >= 7 && h <= 23) || (h >= 0 && h <= 2);
-      if (m === 0 && isTargetHour && !triggeredSlots.current.has(timeKey)) {
-        triggeredSlots.current.add(timeKey);
-        if (h !== 8 && h !== 9 && h !== 10) {
-          const randomText = HOURLY_MESSAGES[Math.floor(Math.random() * HOURLY_MESSAGES.length)];
-          sendTextMessage(randomText);
-        }
-      }
-
-      sheetEvents.forEach(ev => {
-        const evStart = (ev.time_start || '').trim();
-        if (evStart === timeKey && ev.auto_chat_msg && !triggeredSlots.current.has(`ev_${ev.event_id}`)) {
-          triggeredSlots.current.add(`ev_${ev.event_id}`);
-          sendTextMessage(ev.auto_chat_msg);
-        }
-      });
-
-      if (!isAlarmActive || hasAwoken) return;
-
-      if (timeKey === '08:00' && !triggeredSlots.current.has('08:00')) {
-        triggeredSlots.current.add('08:00');
-        sendVoiceMessage(WAKEUP_VOICES[1]);
-      } else if (timeKey === '09:00' && !triggeredSlots.current.has('09:00')) {
-        triggeredSlots.current.add('09:00');
-        sendVoiceMessage(WAKEUP_VOICES[2]);
-      } else if (timeKey === '09:30' && !triggeredSlots.current.has('09:30')) {
-        triggeredSlots.current.add('09:30');
-        sendVoiceMessage(WAKEUP_VOICES[3]);
-      } else if (timeKey === '10:00' && !triggeredSlots.current.has('10:00')) {
-        triggeredSlots.current.add('10:00');
-        sendVoiceMessage(WAKEUP_VOICES[4]);
-      } else if (timeKey === '10:30' && !triggeredSlots.current.has('10:30')) {
-        triggeredSlots.current.add('10:30');
-        sendVoiceMessage(WAKEUP_VOICES[5]);
-      }
-
-      const callSlots = ['11:00', '11:30', '12:00', '12:30', '13:00'];
-      if (callSlots.includes(timeKey) && !triggeredSlots.current.has(timeKey)) {
-        triggeredSlots.current.add(timeKey);
-        setCallStatus('ringing');
-        sendPushNotification('Soo 正在來電...');
-      }
-    }, 10000);
-
-    return () => clearInterval(timer);
-  }, [isAlarmActive, hasAwoken, sheetEvents]);
-
-  // 來電鈴聲控制（未接通前播放鈴聲）
+  // 通話音訊控制
   useEffect(() => {
     if (callStatus === 'ringing') {
       if (ringAudioRef.current) {
@@ -534,7 +630,6 @@ export default function App() {
     }
   }, [callStatus]);
 
-  // 通話接通控制：單次播放 phone_call.mp3，不重複
   useEffect(() => {
     let durationTimer = null;
     if (callStatus === 'connected') {
@@ -551,12 +646,6 @@ export default function App() {
     return () => clearInterval(durationTimer);
   }, [callStatus]);
 
-  // 音訊播完自動掛斷
-  const handlePhoneCallEnded = () => {
-    handleEndCall();
-  };
-
-  // 視訊通話計時與影片控制：單次播放 video_call.mp4，不重複
   useEffect(() => {
     let videoTimer = null;
     if (isVideoCalling) {
@@ -572,22 +661,6 @@ export default function App() {
     }
     return () => clearInterval(videoTimer);
   }, [isVideoCalling]);
-
-  // 視訊影片播完自動掛斷
-  const handleVideoEnded = () => {
-    setIsVideoCalling(false);
-    setMessages(prev => [
-      ...prev,
-      {
-        id: Date.now(),
-        role: 'assistant',
-        type: 'call_record',
-        durationText: formatSeconds(videoDuration),
-        statusText: `視訊通話 ${formatSeconds(videoDuration)}`,
-        time: getCurrentTime()
-      }
-    ]);
-  };
 
   const handleEndCall = () => {
     const isConnected = (callStatus === 'connected');
@@ -612,64 +685,6 @@ export default function App() {
     setCallStatus('connected');
   };
 
-  const requestNotification = async () => {
-    if (!('Notification' in window)) {
-      alert('此環境不支援通知，請確認已加入主畫面並從桌面開啟。');
-      return;
-    }
-    try {
-      const perm = await Notification.requestPermission();
-      if (perm === 'granted') {
-        setHasNotifPermission(true);
-        sendPushNotification('排程通知已授權成功！');
-      } else {
-        alert('尚未取得通知授權');
-      }
-    } catch (e) {
-      alert('請求通知授權失敗: ' + e.message);
-    }
-  };
-
-  const handleSend = () => {
-    if (!inputText.trim() || isTyping) return;
-    const currentInput = inputText.trim();
-    const userMsg = {
-      id: Date.now(),
-      role: 'user',
-      type: 'text',
-      content: currentInput,
-      time: getCurrentTime()
-    };
-    setMessages(prev => [...prev, userMsg]);
-    setInputText('');
-    setIsTyping(true);
-
-    if (currentInput.includes('起床')) {
-      setHasAwoken(true);
-      setCallStatus('idle');
-      setTimeout(() => {
-        const awakeReply = '終於醒了？';
-        setMessages(prev => [
-          ...prev,
-          { id: Date.now() + 1, role: 'assistant', type: 'text', content: awakeReply, time: getCurrentTime() }
-        ]);
-        sendPushNotification(awakeReply);
-        setIsTyping(false);
-      }, 1000);
-      return;
-    }
-
-    setTimeout(() => {
-      const reply = USER_MOCK_REPLIES[Math.floor(Math.random() * USER_MOCK_REPLIES.length)];
-      setMessages(prev => [
-        ...prev,
-        { id: Date.now() + 1, role: 'assistant', type: 'text', content: reply, time: getCurrentTime() }
-      ]);
-      sendPushNotification(reply);
-      setIsTyping(false);
-    }, 1000);
-  };
-
   // 相簿群組化
   const albumGroups = React.useMemo(() => {
     const groups = {};
@@ -685,9 +700,9 @@ export default function App() {
 
   return (
     <div className="flex h-[100dvh] w-screen bg-slate-900 justify-center items-center select-none overflow-hidden sm:p-3">
-      {/* 鈴聲與通話音檔（不重複循環，播完自動觸發 handlePhoneCallEnded） */}
+      {/* 鈴聲與音檔 */}
       <audio ref={ringAudioRef} src="/audio/telepathy 2025.mp3" loop preload="auto" />
-      <audio ref={phoneCallAudioRef} src="/audio/phone_call.mp3" onEnded={handlePhoneCallEnded} preload="auto" />
+      <audio ref={phoneCallAudioRef} src="/audio/phone_call.mp3" onEnded={handleEndCall} preload="auto" />
 
       {/* 主聊天容器 */}
       <div className="w-full sm:max-w-[420px] h-[100dvh] sm:h-[92vh] sm:max-h-[880px] bg-[#ECEEF1] sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden relative border-0 sm:border sm:border-slate-700">
@@ -726,7 +741,7 @@ export default function App() {
           </div>
         )}
 
-        {/* 📹 全螢幕視訊通話介面（不重複循環，播完自動結束，已移除本機鏡頭縮圖） */}
+        {/* 📹 全螢幕視訊通話介面 */}
         {isVideoCalling && (
           <div className="absolute inset-0 bg-black z-50 flex flex-col justify-between items-center py-12 px-6 text-white animate-fade-in">
             <div className="absolute inset-0 z-0 overflow-hidden">
@@ -735,7 +750,20 @@ export default function App() {
                 src="/video/video_call.mp4"
                 playsInline
                 autoPlay
-                onEnded={handleVideoEnded}
+                onEnded={() => {
+                  setIsVideoCalling(false);
+                  setMessages(prev => [
+                    ...prev,
+                    {
+                      id: Date.now(),
+                      role: 'assistant',
+                      type: 'call_record',
+                      durationText: formatSeconds(videoDuration),
+                      statusText: `視訊通話 ${formatSeconds(videoDuration)}`,
+                      time: getCurrentTime()
+                    }
+                  ]);
+                }}
                 className="w-full h-full object-cover scale-105 filter brightness-95"
               />
               <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-transparent to-black/85 pointer-events-none" />
@@ -762,7 +790,7 @@ export default function App() {
                     }
                   ]);
                 }}
-                title="提前手動掛斷"
+                title="提前掛斷"
                 className="w-16 h-16 rounded-full bg-rose-600 hover:bg-rose-500 active:scale-95 transition flex items-center justify-center shadow-2xl"
               >
                 <svg className="w-7 h-7 fill-white rotate-[135deg]" viewBox="0 0 24 24"><path d="M6.62 10.79a15.05 15.05 0 006.59 6.59l2.2-2.2a1 1 0 011.02-.24 11.72 11.72 0 003.68.59 1 1 0 011 1v3.5a1 1 0 01-1 1A17 17 0 013 4a1 1 0 011-1h3.5a1 1 0 011 1c0 1.25.2 2.48.59 3.68a1 1 0 01-.24 1.02l-2.23 2.09z" /></svg>
@@ -771,41 +799,40 @@ export default function App() {
           </div>
         )}
 
-        {/* 頂部導航列 */}
+        {/* 頂部導航列：整合清空按鈕與訊息數量監控 Badge */}
         <div className="pt-12 pb-3.5 bg-[#4E727A] text-white flex items-center justify-between px-4 z-20 shrink-0 shadow-sm border-b border-[#3D5C63]">
           <div className="flex items-center space-x-3">
             <div className="w-12 h-12 rounded-full bg-slate-800/30 overflow-hidden ring-2 ring-white/25 shadow-inner shrink-0">
               <img src="https://images.plurk.com/6PooPJr1YbOhrMp5CCFdbl.jpg" alt="avatar" className="w-full h-full object-cover" />
             </div>
-            <span className="font-semibold text-base leading-none text-white tracking-wide">Soo</span>
+            <div className="flex items-center space-x-1.5">
+              <span className="font-semibold text-base leading-none text-white tracking-wide">Soo</span>
+              {/* 晨喚狀態指示：若已醒顯示淺色小點 */}
+              <span className={`w-2 h-2 rounded-full ${awokenDate === getTodayDateStr() ? 'bg-[#81D4D2]' : 'bg-amber-400'}`} title={awokenDate === getTodayDateStr() ? '今日已起床' : '晨喚待命/催促中'}></span>
+            </div>
           </div>
 
-          <div className="flex items-center space-x-2.5">
+          <div className="flex items-center space-x-2">
+            {/* 清空按鈕 + 訊息數字暫存監控 */}
+            <button
+              onClick={handleClearMessages}
+              title="清空聊天記錄"
+              className="bg-black/20 hover:bg-black/30 active:scale-95 text-white/90 text-[11px] px-2.5 py-1 rounded-full transition flex items-center space-x-1 border border-white/10"
+            >
+              <span>清空</span>
+              <span className="bg-[#81D4D2] text-[#0F3332] font-semibold text-[10px] px-1.5 py-0.2 rounded-full font-mono">
+                {messages.length}
+              </span>
+            </button>
+
             <button onClick={() => setCallStatus('connected')} title="直接通話" className="w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 active:scale-95 flex items-center justify-center transition">
               <svg className="w-3.5 h-3.5 fill-white" viewBox="0 0 24 24"><path d="M6.62 10.79a15.05 15.05 0 006.59 6.59l2.2-2.2a1 1 0 011.02-.24 11.72 11.72 0 003.68.59 1 1 0 011 1v3.5a1 1 0 01-1 1A17 17 0 013 4a1 1 0 011-1h3.5a1 1 0 011 1c0 1.25.2 2.48.59 3.68a1 1 0 01-.24 1.02l-2.23 2.09z" /></svg>
             </button>
             <button onClick={() => setIsVideoCalling(true)} title="視訊通話" className="w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 active:scale-95 flex items-center justify-center transition">
               <svg className="w-4 h-4 fill-white" viewBox="0 0 24 24"><path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z" /></svg>
             </button>
-            <button onClick={() => setIsAlarmActive(!isAlarmActive)} title="晨喚開關" className={`text-[11px] px-2.5 py-1 rounded-full font-medium transition flex items-center space-x-1 ${isAlarmActive ? 'bg-[#5FBDB9] text-white' : 'bg-black/20 text-white/60'}`}>
-              <span>鬧鐘</span>
-              <span>{isAlarmActive ? 'ON' : 'OFF'}</span>
-            </button>
           </div>
         </div>
-
-        {/* 通知橫幅 */}
-        {!hasNotifPermission && (
-          <div className="bg-[#5FBDB9] text-slate-900 px-4 py-2.5 flex items-center justify-between shadow-md z-10">
-            <div className="flex items-center space-x-2">
-              <span className="text-base">🔔</span>
-              <span className="text-xs font-medium tracking-wide">開啟通知接收 08:00 起床提醒</span>
-            </div>
-            <button onClick={requestNotification} className="bg-white text-slate-800 text-xs font-semibold px-3 py-1.5 rounded-full shadow active:scale-95 transition">
-              允許推播
-            </button>
-          </div>
-        )}
 
         {/* 對話區 */}
         <div className="flex-1 overflow-y-auto px-3.5 py-4 space-y-3.5 scroll-smooth">
@@ -892,25 +919,6 @@ export default function App() {
 
         {/* 劇本控制板 */}
         <div className="bg-slate-900/10 px-2.5 py-2 flex space-x-2 overflow-x-auto border-t border-slate-200/80 z-10 scrollbar-none shrink-0">
-          <button onClick={() => setCallStatus('ringing')} title="電話喚醒測試" className="text-[12px] whitespace-nowrap bg-white hover:bg-slate-50 text-slate-800 font-medium px-3 py-1.5 rounded-full shadow-sm border border-slate-200 transition shrink-0 active:scale-95">
-            📞
-          </button>
-          <button onClick={startOneMinuteNotificationTest} title="1分鐘後測試" className="text-[12px] whitespace-nowrap bg-white hover:bg-slate-50 text-slate-800 font-medium px-3 py-1.5 rounded-full shadow-sm border border-slate-200 transition shrink-0 active:scale-95">
-            🕰️
-          </button>
-          <button onClick={() => playScript('dailySeries')} title="語音: 想你三連發" className="text-[12px] whitespace-nowrap bg-white hover:bg-slate-50 text-slate-800 font-medium px-3 py-1.5 rounded-full shadow-sm border border-slate-200 transition shrink-0 active:scale-95">
-            💬
-          </button>
-          <button onClick={() => playScript('plotDate')} title="語音: 約會" className="text-[12px] whitespace-nowrap bg-white hover:bg-slate-50 text-slate-800 font-medium px-3 py-1.5 rounded-full shadow-sm border border-slate-200 transition shrink-0 active:scale-95">
-            🎬
-          </button>
-          <button onClick={() => playScript('plotLove')} title="語音: 我愛你" className="text-[12px] whitespace-nowrap bg-white hover:bg-slate-50 text-slate-800 font-medium px-3 py-1.5 rounded-full shadow-sm border border-slate-200 transition shrink-0 active:scale-95">
-            ♥️
-          </button>
-          <button onClick={() => playScript('goodNight')} title="語音: 晚安" className="text-[12px] whitespace-nowrap bg-white hover:bg-slate-50 text-slate-800 font-medium px-3 py-1.5 rounded-full shadow-sm border border-slate-200 transition shrink-0 active:scale-95">
-            🌙💤
-          </button>
-
           <button onClick={() => triggerCategoryRandom('gym', '今天課表做完了。')} title="試算表類別: 健身" className="text-[12px] whitespace-nowrap bg-white hover:bg-slate-50 text-slate-800 font-medium px-3 py-1.5 rounded-full shadow-sm border border-slate-200 transition shrink-0 active:scale-95">
             🏋️
           </button>
@@ -969,7 +977,7 @@ export default function App() {
           <input
             type="text"
             className="flex-1 bg-white/95 rounded-full px-4 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#81D4D2]"
-            placeholder="輸入..."
+            placeholder="輸入... (輸入「起床了」可解除鬧鐘)"
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
             onKeyDown={(e) => {
