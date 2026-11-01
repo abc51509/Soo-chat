@@ -3,50 +3,54 @@ import React, { useState, useEffect, useRef } from 'react';
 // Google 試算表設定 (綁定 Soo_Master_Database)
 const SPREADSHEET_ID = '11P8tG-MhZiwrBcGf9TyFirQNwPxKC2YPVbv4XHMEV-A';
 
-// 使用 Google Visualization JSON API：免疫任何換行符號、逗號或特殊字元
+// 最原始穩定的 CSV 解析函式
 const fetchSheetData = async (sheetName) => {
   try {
-    const url = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(sheetName)}&t=${Date.now()}`;
+    const url = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheetName)}&t=${Date.now()}`;
     const res = await fetch(url);
-    if (!res.ok) {
-      console.error(`連線至分頁 [${sheetName}] 失敗:`, res.status);
-      return [];
-    }
+    if (!res.ok) return [];
     const text = await res.text();
-    
-    // 擷取 Google 回傳的 JSON 區塊
-    const jsonStart = text.indexOf('{');
-    const jsonEnd = text.lastIndexOf('}');
-    if (jsonStart === -1 || jsonEnd === -1) return [];
 
-    const rawData = JSON.parse(text.substring(jsonStart, jsonEnd + 1));
-    const table = rawData.table;
-    if (!table || !table.rows || table.rows.length === 0) return [];
+    const lines = text.split('\n').filter(l => l.trim().length > 0);
+    if (lines.length <= 1) return [];
 
-    // 取得欄位名稱（標題列標準化為小寫代碼）
-    const headers = table.cols.map((col, idx) => {
-      const label = (col.label || '').trim().toLowerCase().replace(/[^a-z0-9_]/g, '');
-      return label || `col_${idx}`;
-    });
-
-    // 逐列轉為 key-value 物件
-    return table.rows.map(row => {
-      const entry = {};
-      (row.c || []).forEach((cell, idx) => {
-        const headerKey = headers[idx];
-        if (headerKey) {
-          entry[headerKey] = cell && cell.v !== null && cell.v !== undefined ? String(cell.v).trim() : '';
+    const parseRow = (rowStr) => {
+      const result = [];
+      let current = '';
+      let inQuotes = false;
+      for (let i = 0; i < rowStr.length; i++) {
+        const char = rowStr[i];
+        if (char === '"') {
+          inQuotes = !inQuotes;
+        } else if (char === ',' && !inQuotes) {
+          result.push(current.trim().replace(/^"|"$/g, ''));
+          current = '';
+        } else {
+          current += char;
         }
+      }
+      result.push(current.trim().replace(/^"|"$/g, ''));
+      return result;
+    };
+
+    const rawHeaders = parseRow(lines[0]);
+    const headers = rawHeaders.map(h => h.toLowerCase().replace(/[^a-z0-9_]/g, ''));
+
+    return lines.slice(1).map(line => {
+      const values = parseRow(line);
+      const entry = {};
+      headers.forEach((h, idx) => {
+        entry[h] = values[idx] ? values[idx].trim() : '';
       });
       return entry;
     });
   } catch (err) {
-    console.error(`讀取試算表 [${sheetName}] 發生例外:`, err);
+    console.error(`讀取試算表 [${sheetName}] 失敗:`, err);
     return [];
   }
 };
 
-// 音訊路徑安全解析校正（支援 random_like 代碼與自動補副檔名）
+// 音訊路徑安全解析（支援 random_like 代碼與自動補副檔名）
 const formatAudioUrl = (raw) => {
   if (!raw) return '';
   let clean = raw.trim().replace(/^["']|["']$/g, '');
@@ -268,7 +272,6 @@ export default function App() {
   const [sheetEvents, setSheetEvents] = useState([]);
   const [sheetNews, setSheetNews] = useState([]);
 
-  // 追問對話隊列 (follow_up_1, follow_up_2, follow_up_3)
   const [followUpQueue, setFollowUpQueue] = useState(() => {
     try {
       const saved = localStorage.getItem('soo_follow_up_queue');
@@ -282,8 +285,8 @@ export default function App() {
     return localStorage.getItem('soo_awoken_date') || '';
   });
 
-  const [callStatus, setCallStatus] = useState('idle');
-  const [callType, setCallType] = useState('audio');
+  const [callStatus, setCallStatus] = useState('idle'); // 'idle' | 'ringing' | 'connected'
+  const [callType, setCallType] = useState('audio'); // 'audio' | 'video'
   const [callDuration, setCallDuration] = useState(0);
   const [isVideoCalling, setIsVideoCalling] = useState(false);
   const [videoDuration, setVideoDuration] = useState(0);
@@ -366,16 +369,17 @@ export default function App() {
     ]);
   };
 
-  const addMissedCallRecord = (timeStr, statusText = '未接來電') => {
+  // 通話紀錄卡片：支援指定 role ('user' | 'assistant') 與自訂文字
+  const addCallRecord = (statusText = '未接來電', role = 'assistant', durationText = null) => {
     setMessages(prev => [
       ...prev,
       {
         id: Date.now() + Math.random(),
-        role: 'assistant',
+        role: role,
         type: 'call_record',
-        durationText: null,
+        durationText: durationText,
         statusText: statusText,
-        time: timeStr || getCurrentTime()
+        time: getCurrentTime()
       }
     ]);
   };
@@ -453,7 +457,6 @@ export default function App() {
     return chosen;
   };
 
-  // 點擊控制列：嚴格鎖定同一筆資料
   const triggerCategoryRandom = (catKey) => {
     const normalizedKey = catKey.toLowerCase().trim();
     const pool = sheetMedia.filter(m => {
@@ -532,9 +535,14 @@ export default function App() {
     setFollowUpQueue(newFollowUps);
   };
 
+  // 1. 上方通話按鈕：我主動打給他
   const handleUserOutgoingCall = () => {
     const isBusy = Math.random() < 0.25;
+
     if (isBusy) {
+      // 被拒接：產生「取消通話」紀錄氣泡，0.8秒後對方回傳「在忙」或「晚點回你」
+      addCallRecord('取消通話', 'user');
+
       const busyReplies = ['在忙', '晚點回你'];
       const chosenReply = busyReplies[Math.floor(Math.random() * busyReplies.length)];
       setTimeout(() => {
@@ -552,15 +560,21 @@ export default function App() {
       return;
     }
 
+    // 順利接通：直接進入通話介面，播放 phone_call.mp3，絕對不回在忙
     setCallType('audio');
     setCallAudioMode('user_outgoing');
     setCallAudioIndex(0);
     setCallStatus('connected');
   };
 
+  // 2. 上方視訊按鈕：我主動打視訊給他
   const handleUserOutgoingVideo = () => {
     const isBusy = Math.random() < 0.25;
+
     if (isBusy) {
+      // 被拒接：產生「取消視訊」紀錄氣泡，隨後傳在忙
+      addCallRecord('取消視訊', 'user');
+
       const busyReplies = ['在忙', '晚點回你'];
       const chosenReply = busyReplies[Math.floor(Math.random() * busyReplies.length)];
       setTimeout(() => {
@@ -578,9 +592,11 @@ export default function App() {
       return;
     }
 
+    // 順利接通：直接開啟全螢幕視訊，絕不回在忙
     setIsVideoCalling(true);
   };
 
+  // 3. 隨機來電：他打給我 (先響鈴 5 秒)
   const triggerIncomingCall = (type = 'audio', mode = 'default') => {
     setCallType(type);
     setCallAudioMode(mode);
@@ -591,7 +607,7 @@ export default function App() {
     ringingTimeoutRef.current = setTimeout(() => {
       setCallStatus((current) => {
         if (current === 'ringing') {
-          addMissedCallRecord(getCurrentTime(), type === 'video' ? '未接視訊' : '未接來電');
+          addCallRecord(type === 'video' ? '未接視訊' : '未接來電', 'assistant');
           triggerMissedCallFollowUp();
           return 'idle';
         }
@@ -618,24 +634,19 @@ export default function App() {
     const wasRinging = (callStatus === 'ringing');
     const isConnected = (callStatus === 'connected');
     const finalDurationText = formatSeconds(callDuration);
+    const currentMode = callAudioMode;
+
     setCallStatus('idle');
     setCallAudioIndex(0);
 
     if (wasRinging) {
-      addMissedCallRecord(getCurrentTime(), callType === 'video' ? '未接視訊' : '未接來電');
+      // 響鈴中拒接
+      addCallRecord(callType === 'video' ? '未接視訊' : '未接來電', 'assistant');
       triggerMissedCallFollowUp();
     } else {
-      setMessages(prev => [
-        ...prev,
-        {
-          id: Date.now(),
-          role: 'assistant',
-          type: 'call_record',
-          durationText: isConnected ? finalDurationText : null,
-          statusText: isConnected ? `通話時間 ${finalDurationText}` : '未接來電',
-          time: getCurrentTime()
-        }
-      ]);
+      // 通話中掛斷：由我主動撥出的顯示在右側(user)，其餘顯示在左側(assistant)
+      const recordRole = (currentMode === 'user_outgoing') ? 'user' : 'assistant';
+      addCallRecord(isConnected ? `通話時間 ${finalDurationText}` : '通話結束', recordRole, isConnected ? finalDurationText : null);
     }
   };
 
@@ -753,7 +764,7 @@ export default function App() {
       if (totalMinutes >= 8 * 60 && totalMinutes < 11 * 60) {
         if (!triggeredSlots.current.has('slot_08_00')) {
           triggeredSlots.current.add('slot_08_00');
-          addMissedCallRecord('08:00');
+          addCallRecord('未接來電', 'assistant');
           sendVoiceMessage(WAKEUP_VOICES[1]);
         }
       }
@@ -761,7 +772,7 @@ export default function App() {
       if (totalMinutes >= 11 * 60) {
         if (!triggeredSlots.current.has('slot_11_00')) {
           triggeredSlots.current.add('slot_11_00');
-          addMissedCallRecord('11:00');
+          addCallRecord('未接來電', 'assistant');
           sendVoiceMessage(WAKEUP_VOICES[5]);
         }
       }
@@ -776,7 +787,7 @@ export default function App() {
       halfHourSlots.forEach(slot => {
         if (totalMinutes >= slot.time && !triggeredSlots.current.has(slot.key)) {
           triggeredSlots.current.add(slot.key);
-          addMissedCallRecord(slot.label);
+          addCallRecord('未接來電', 'assistant');
           sendVoiceMessage(WAKEUP_VOICES[5]);
         }
       });
@@ -936,17 +947,7 @@ export default function App() {
                 autoPlay
                 onEnded={() => {
                   setIsVideoCalling(false);
-                  setMessages(prev => [
-                    ...prev,
-                    {
-                      id: Date.now(),
-                      role: 'assistant',
-                      type: 'call_record',
-                      durationText: formatSeconds(videoDuration),
-                      statusText: `視訊通話 ${formatSeconds(videoDuration)}`,
-                      time: getCurrentTime()
-                    }
-                  ]);
+                  addCallRecord(`視訊通話 ${formatSeconds(videoDuration)}`, 'user', formatSeconds(videoDuration));
                 }}
                 className="w-full h-full object-cover scale-105 filter brightness-95"
               />
@@ -962,17 +963,7 @@ export default function App() {
               <button
                 onClick={() => {
                   setIsVideoCalling(false);
-                  setMessages(prev => [
-                    ...prev,
-                    {
-                      id: Date.now(),
-                      role: 'assistant',
-                      type: 'call_record',
-                      durationText: formatSeconds(videoDuration),
-                      statusText: `視訊通話 ${formatSeconds(videoDuration)}`,
-                      time: getCurrentTime()
-                    }
-                  ]);
+                  addCallRecord(`視訊通話 ${formatSeconds(videoDuration)}`, 'user', formatSeconds(videoDuration));
                 }}
                 title="提前掛斷"
                 className="w-16 h-16 rounded-full bg-rose-600 hover:bg-rose-500 active:scale-95 transition flex items-center justify-center shadow-2xl"
@@ -1007,9 +998,11 @@ export default function App() {
               </span>
             </button>
 
+            {/* 上方通話按鈕：我主動打給他 */}
             <button onClick={handleUserOutgoingCall} title="通話" className="w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 active:scale-95 flex items-center justify-center transition">
               <svg className="w-3.5 h-3.5 fill-white" viewBox="0 0 24 24"><path d="M6.62 10.79a15.05 15.05 0 006.59 6.59l2.2-2.2a1 1 0 011.02-.24 11.72 11.72 0 003.68.59 1 1 0 011 1v3.5a1 1 0 01-1 1A17 17 0 013 4a1 1 0 011-1h3.5a1 1 0 011 1c0 1.25.2 2.48.59 3.68a1 1 0 01-.24 1.02l-2.23 2.09z" /></svg>
             </button>
+            {/* 上方視訊按鈕：我主動打視訊給他 */}
             <button onClick={handleUserOutgoingVideo} title="視訊通話" className="w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 active:scale-95 flex items-center justify-center transition">
               <svg className="w-4 h-4 fill-white" viewBox="0 0 24 24"><path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z" /></svg>
             </button>
@@ -1041,7 +1034,9 @@ export default function App() {
 
                 {msg.type === 'call_record' ? (
                   <div className="flex items-center space-x-2.5 bg-white px-3.5 py-2.5 rounded-2xl rounded-tl-none shadow-sm border border-slate-200">
-                    <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 ${msg.durationText ? 'bg-teal-50 text-teal-700' : 'bg-rose-100 text-rose-600'}`}>
+                    <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 ${
+                      msg.durationText ? 'bg-teal-50 text-teal-700' : 'bg-rose-100 text-rose-600'
+                    }`}>
                       <svg className="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M6.62 10.79a15.05 15.05 0 006.59 6.59l2.2-2.2a1 1 0 011.02-.24 11.72 11.72 0 003.68.59 1 1 0 011 1v3.5a1 1 0 01-1 1A17 17 0 013 4a1 1 0 011-1h3.5a1 1 0 011 1c0 1.25.2 2.48.59 3.68a1 1 0 01-.24 1.02l-2.23 2.09z" /></svg>
                     </div>
                     <div className="flex flex-col">
