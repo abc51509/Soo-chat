@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 // Google 試算表設定 (綁定 Soo_Master_Database)
 const SPREADSHEET_ID = '11P8tG-MhZiwrBcGf9TyFirQNwPxKC2YPVbv4XHMEV-A';
 
-// 試算表 CSV 解析工具
+// 健全的 CSV 解析工具（自動去除空白、容錯雙引號與大小寫）
 const fetchSheetData = async (sheetName) => {
   try {
     const url = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheetName)}&t=${Date.now()}`;
@@ -33,12 +33,15 @@ const fetchSheetData = async (sheetName) => {
       return result;
     };
 
-    const headers = parseRow(lines[0]);
+    // 欄位標題正規化（全部轉小寫並去除前後空白）
+    const rawHeaders = parseRow(lines[0]);
+    const headers = rawHeaders.map(h => h.toLowerCase().replace(/[^a-z0-9_]/g, ''));
+
     return lines.slice(1).map(line => {
       const values = parseRow(line);
       const entry = {};
       headers.forEach((h, idx) => {
-        entry[h] = values[idx] || '';
+        entry[h] = values[idx] ? values[idx].trim() : '';
       });
       return entry;
     });
@@ -141,7 +144,7 @@ const HOURLY_MESSAGES = [
   '想喝上次那罐薑茶。'
 ];
 
-// 語音列表全集（已擴充全新音檔）
+// 語音列表全集
 const ALL_VOICE_LIST = [
   { id: 'v1', title: '晨喚 1: 輕柔喚醒', src: '/audio/1_get up_cozy.mp3', duration: '0:03' },
   { id: 'v2', title: '晨喚 2: 該起來了', src: '/audio/2_plz_get_up.mp3', duration: '0:04' },
@@ -227,29 +230,27 @@ export default function App() {
   const [isVideoCalling, setIsVideoCalling] = useState(false);
   const [videoDuration, setVideoDuration] = useState(0);
 
-  // 模組面板 ('none' | 'album' | 'calendar' | 'voices' | 'news')
+  // 模組面板
   const [isPlusMenuOpen, setIsPlusMenuOpen] = useState(false);
   const [activeModal, setActiveModal] = useState(null);
   const [activeAlbumTab, setActiveAlbumTab] = useState('all');
 
-  // 音訊與視訊參照
   const ringAudioRef = useRef(null);
   const phoneCallAudioRef = useRef(null);
   const videoPlayerRef = useRef(null);
-  const voiceIntervalTimerRef = useRef(null);
   const triggeredSlots = useRef(new Set());
   const messagesEndRef = useRef(null);
 
-  // 初始化與載入 Google 試算表
+  // 載入 Google 試算表資料
   const loadAllSheets = async () => {
     const [eventsData, mediaData, newsData] = await Promise.all([
       fetchSheetData('events'),
       fetchSheetData('media'),
       fetchSheetData('news')
     ]);
-    setSheetEvents(eventsData);
-    setSheetMedia(mediaData);
-    setSheetNews(newsData);
+    if (eventsData && eventsData.length > 0) setSheetEvents(eventsData);
+    if (mediaData && mediaData.length > 0) setSheetMedia(mediaData);
+    if (newsData && newsData.length > 0) setSheetNews(newsData);
   };
 
   useEffect(() => {
@@ -326,7 +327,7 @@ export default function App() {
     let spentIds = JSON.parse(localStorage.getItem(storageKey) || '[]');
 
     let available = items.filter(item => {
-      const id = item.id || item.image_url || JSON.stringify(item);
+      const id = item.id || item.images || item.image_url || JSON.stringify(item);
       return !spentIds.includes(id);
     });
 
@@ -337,24 +338,30 @@ export default function App() {
     }
 
     const chosen = available[Math.floor(Math.random() * available.length)];
-    const chosenId = chosen.id || chosen.image_url || JSON.stringify(chosen);
+    const chosenId = chosen.id || chosen.images || chosen.image_url || JSON.stringify(chosen);
     spentIds.push(chosenId);
     localStorage.setItem(storageKey, JSON.stringify(spentIds));
 
     return chosen;
   };
 
+  // 修正後的動態類別抽取（自動模糊匹配 category）
   const triggerCategoryRandom = (catKey, defaultCaption = '看我拍了什麼。') => {
-    const pool = sheetMedia.filter(m => (m.category || '').toLowerCase() === catKey.toLowerCase());
+    const normalizedKey = catKey.toLowerCase().trim();
+    const pool = sheetMedia.filter(m => {
+      const itemCat = (m.category || m.category_name || '').toLowerCase().trim();
+      return itemCat === normalizedKey || itemCat.includes(normalizedKey);
+    });
+
     if (pool.length === 0) {
-      alert(`試算表 media 標籤中目前還沒有 category 為 "${catKey}" 的資料喔！請先在試算表補上一列。`);
+      alert(`試算表 media 標籤中尚未找到分類為 "${catKey}" 的資料，請確認試算表 media 頁面的 category 欄位拼字。`);
       return;
     }
 
     const item = pickRandomUnspent(catKey, pool);
     if (!item) return;
 
-    const rawImgs = (item.images || item.image_url || '').trim();
+    const rawImgs = (item.images || item.image_url || item.image || '').trim();
     const imgList = rawImgs.split(/[\s,]+/).filter(url => url.startsWith('http'));
 
     if (imgList.length === 1) {
@@ -478,7 +485,8 @@ export default function App() {
       }
 
       sheetEvents.forEach(ev => {
-        if (ev.time_start === timeKey && ev.auto_chat_msg && !triggeredSlots.current.has(`ev_${ev.event_id}`)) {
+        const evStart = (ev.time_start || '').trim();
+        if (evStart === timeKey && ev.auto_chat_msg && !triggeredSlots.current.has(`ev_${ev.event_id}`)) {
           triggeredSlots.current.add(`ev_${ev.event_id}`);
           sendTextMessage(ev.auto_chat_msg);
         }
@@ -514,7 +522,7 @@ export default function App() {
     return () => clearInterval(timer);
   }, [isAlarmActive, hasAwoken, sheetEvents]);
 
-  // 來電鈴聲控制（維持原本經典鈴聲 telepathy 2025）
+  // 來電鈴聲控制（未接通前播放鈴聲）
   useEffect(() => {
     if (callStatus === 'ringing') {
       if (ringAudioRef.current) {
@@ -526,7 +534,7 @@ export default function App() {
     }
   }, [callStatus]);
 
-  // 語音通話接通控制（串接 phone_call.mp3）
+  // 通話接通控制：單次播放 phone_call.mp3，不重複
   useEffect(() => {
     let durationTimer = null;
     if (callStatus === 'connected') {
@@ -534,31 +542,21 @@ export default function App() {
       durationTimer = setInterval(() => setCallDuration(prev => prev + 1), 1000);
       if (phoneCallAudioRef.current) {
         phoneCallAudioRef.current.currentTime = 0;
-        phoneCallAudioRef.current.play().catch(e => console.log('phone_call.mp3 play error:', e));
+        phoneCallAudioRef.current.play().catch(e => console.log('phone_call play error:', e));
       }
     } else {
       clearInterval(durationTimer);
-      clearTimeout(voiceIntervalTimerRef.current);
       if (phoneCallAudioRef.current) phoneCallAudioRef.current.pause();
     }
-    return () => {
-      clearInterval(durationTimer);
-      clearTimeout(voiceIntervalTimerRef.current);
-    };
+    return () => clearInterval(durationTimer);
   }, [callStatus]);
 
-  // phone_call.mp3 播放結束後循環
+  // 音訊播完自動掛斷
   const handlePhoneCallEnded = () => {
-    if (callStatus !== 'connected') return;
-    voiceIntervalTimerRef.current = setTimeout(() => {
-      if (phoneCallAudioRef.current && callStatus === 'connected') {
-        phoneCallAudioRef.current.currentTime = 0;
-        phoneCallAudioRef.current.play().catch(e => console.log('phone_call replay error:', e));
-      }
-    }, 2000);
+    handleEndCall();
   };
 
-  // 視訊通話計時與影片控制（串接 video_call.mp4）
+  // 視訊通話計時與影片控制：單次播放 video_call.mp4，不重複
   useEffect(() => {
     let videoTimer = null;
     if (isVideoCalling) {
@@ -574,6 +572,22 @@ export default function App() {
     }
     return () => clearInterval(videoTimer);
   }, [isVideoCalling]);
+
+  // 視訊影片播完自動掛斷
+  const handleVideoEnded = () => {
+    setIsVideoCalling(false);
+    setMessages(prev => [
+      ...prev,
+      {
+        id: Date.now(),
+        role: 'assistant',
+        type: 'call_record',
+        durationText: formatSeconds(videoDuration),
+        statusText: `視訊通話 ${formatSeconds(videoDuration)}`,
+        time: getCurrentTime()
+      }
+    ]);
+  };
 
   const handleEndCall = () => {
     const isConnected = (callStatus === 'connected');
@@ -662,7 +676,7 @@ export default function App() {
     sheetMedia.forEach(m => {
       const albumKey = m.album_name ? m.album_name.trim() : '未分類歸檔 (Uncategorized)';
       if (!groups[albumKey]) groups[albumKey] = [];
-      const raw = (m.images || m.image_url || '').trim();
+      const raw = (m.images || m.image_url || m.image || '').trim();
       const imgs = raw.split(/[\s,]+/).filter(u => u.startsWith('http'));
       groups[albumKey].push(...imgs);
     });
@@ -671,9 +685,8 @@ export default function App() {
 
   return (
     <div className="flex h-[100dvh] w-screen bg-slate-900 justify-center items-center select-none overflow-hidden sm:p-3">
-      {/* 來電鈴聲（維持原樣） */}
+      {/* 鈴聲與通話音檔（不重複循環，播完自動觸發 handlePhoneCallEnded） */}
       <audio ref={ringAudioRef} src="/audio/telepathy 2025.mp3" loop preload="auto" />
-      {/* 通話接聽後串接 phone_call.mp3 */}
       <audio ref={phoneCallAudioRef} src="/audio/phone_call.mp3" onEnded={handlePhoneCallEnded} preload="auto" />
 
       {/* 主聊天容器 */}
@@ -705,7 +718,7 @@ export default function App() {
               </div>
             ) : (
               <div className="w-full flex justify-center items-center mb-8">
-                <button onClick={handleEndCall} className="w-16 h-16 rounded-full bg-rose-600 hover:bg-rose-500 active:scale-95 transition flex items-center justify-center shadow-lg">
+                <button onClick={handleEndCall} title="掛斷" className="w-16 h-16 rounded-full bg-rose-600 hover:bg-rose-500 active:scale-95 transition flex items-center justify-center shadow-lg">
                   <svg className="w-7 h-7 fill-white rotate-[135deg]" viewBox="0 0 24 24"><path d="M6.62 10.79a15.05 15.05 0 006.59 6.59l2.2-2.2a1 1 0 011.02-.24 11.72 11.72 0 003.68.59 1 1 0 011 1v3.5a1 1 0 01-1 1A17 17 0 013 4a1 1 0 011-1h3.5a1 1 0 011 1c0 1.25.2 2.48.59 3.68a1 1 0 01-.24 1.02l-2.23 2.09z" /></svg>
                 </button>
               </div>
@@ -713,16 +726,16 @@ export default function App() {
           </div>
         )}
 
-        {/* 📹 全螢幕視訊通話介面（串接 /video/video_call.mp4） */}
+        {/* 📹 全螢幕視訊通話介面（不重複循環，播完自動結束，已移除本機鏡頭縮圖） */}
         {isVideoCalling && (
           <div className="absolute inset-0 bg-black z-50 flex flex-col justify-between items-center py-12 px-6 text-white animate-fade-in">
             <div className="absolute inset-0 z-0 overflow-hidden">
               <video
                 ref={videoPlayerRef}
                 src="/video/video_call.mp4"
-                loop
                 playsInline
                 autoPlay
+                onEnded={handleVideoEnded}
                 className="w-full h-full object-cover scale-105 filter brightness-95"
               />
               <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-transparent to-black/85 pointer-events-none" />
@@ -731,12 +744,6 @@ export default function App() {
             <div className="z-10 flex flex-col items-center mt-4 space-y-1">
               <span className="text-xl font-medium tracking-wide">Soo</span>
               <span className="text-xs text-[#81D4D2] font-mono tracking-widest">{formatSeconds(videoDuration)}</span>
-            </div>
-
-            <div className="z-10 absolute top-16 right-5 w-24 h-36 rounded-2xl overflow-hidden border-2 border-white/40 shadow-2xl bg-slate-800">
-              <div className="w-full h-full bg-slate-700/80 flex items-center justify-center text-xs text-white/50">
-                本機鏡頭
-              </div>
             </div>
 
             <div className="z-10 mb-6">
@@ -755,6 +762,7 @@ export default function App() {
                     }
                   ]);
                 }}
+                title="提前手動掛斷"
                 className="w-16 h-16 rounded-full bg-rose-600 hover:bg-rose-500 active:scale-95 transition flex items-center justify-center shadow-2xl"
               >
                 <svg className="w-7 h-7 fill-white rotate-[135deg]" viewBox="0 0 24 24"><path d="M6.62 10.79a15.05 15.05 0 006.59 6.59l2.2-2.2a1 1 0 011.02-.24 11.72 11.72 0 003.68.59 1 1 0 011 1v3.5a1 1 0 01-1 1A17 17 0 013 4a1 1 0 011-1h3.5a1 1 0 011 1c0 1.25.2 2.48.59 3.68a1 1 0 01-.24 1.02l-2.23 2.09z" /></svg>
@@ -773,11 +781,9 @@ export default function App() {
           </div>
 
           <div className="flex items-center space-x-2.5">
-            {/* 上方通話按鈕：串接 phone_call */}
             <button onClick={() => setCallStatus('connected')} title="直接通話" className="w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 active:scale-95 flex items-center justify-center transition">
               <svg className="w-3.5 h-3.5 fill-white" viewBox="0 0 24 24"><path d="M6.62 10.79a15.05 15.05 0 006.59 6.59l2.2-2.2a1 1 0 011.02-.24 11.72 11.72 0 003.68.59 1 1 0 011 1v3.5a1 1 0 01-1 1A17 17 0 013 4a1 1 0 011-1h3.5a1 1 0 011 1c0 1.25.2 2.48.59 3.68a1 1 0 01-.24 1.02l-2.23 2.09z" /></svg>
             </button>
-            {/* 上方視訊按鈕：串接 video_call */}
             <button onClick={() => setIsVideoCalling(true)} title="視訊通話" className="w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 active:scale-95 flex items-center justify-center transition">
               <svg className="w-4 h-4 fill-white" viewBox="0 0 24 24"><path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z" /></svg>
             </button>
