@@ -3,10 +3,11 @@ import React, { useState, useEffect, useRef } from 'react';
 // Google 試算表設定 (綁定 Soo_Master_Database)
 const SPREADSHEET_ID = '11P8tG-MhZiwrBcGf9TyFirQNwPxKC2YPVbv4XHMEV-A';
 
-// Google 原生 JSON 解析：彻底免疫任何 CSV 跨行引號吞噬
+// 通用、強固的 Google Visualization JSON 解析函式
 const fetchSheetData = async (sheetName) => {
   try {
-    const url = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(sheetName)}&t=${Date.now()}`;
+    // 強制 headers=1：鎖定第 1 列為標題，絕不發生跨行合併
+    const url = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:json&headers=1&sheet=${encodeURIComponent(sheetName)}&t=${Date.now()}`;
     const res = await fetch(url);
     if (!res.ok) return [];
     const text = await res.text();
@@ -17,31 +18,23 @@ const fetchSheetData = async (sheetName) => {
 
     const json = JSON.parse(text.substring(jsonStart, jsonEnd + 1));
     const table = json.table;
-    if (!table || !table.rows) return [];
+    if (!table || !table.rows || table.rows.length === 0) return [];
 
-    // 固定 A 到 L 欄順序：
-    // 0: id, 1: event_id, 2: date, 3: category, 4: sub_type, 5: album_name,
-    // 6: images, 7: caption, 8: audio_after, 9: follow_up_1, 10: follow_up_2, 11: follow_up_3
+    // 動態讀取第 1 列標籤作為 Key（標籤轉為乾淨的小寫英數底線代碼）
+    const colKeys = table.cols.map((col, idx) => {
+      const cleanLabel = (col.label || '').trim().toLowerCase().replace(/[^a-z0-9_]/g, '');
+      return cleanLabel || `col_${idx}`;
+    });
+
+    // 逐列轉為通用物件：支援 cell.v ?? cell.f 雙層備援，防型別吃字
     return table.rows.map(r => {
-      const getVal = (idx) => {
+      const entry = {};
+      colKeys.forEach((key, idx) => {
         const cell = r.c && r.c[idx];
-        return cell && cell.v !== null && cell.v !== undefined ? String(cell.v).trim() : '';
-      };
-
-      return {
-        id: getVal(0),
-        event_id: getVal(1),
-        date: getVal(2),
-        category: getVal(3),
-        sub_type: getVal(4),
-        album_name: getVal(5),
-        images: getVal(6),
-        caption: getVal(7),
-        audio_after: getVal(8),
-        follow_up_1: getVal(9),
-        follow_up_2: getVal(10),
-        follow_up_3: getVal(11)
-      };
+        const val = cell ? (cell.v ?? cell.f) : null;
+        entry[key] = val !== null && val !== undefined ? String(val).trim() : '';
+      });
+      return entry;
     });
   } catch (err) {
     console.error(`讀取試算表 [${sheetName}] 失敗:`, err);
@@ -264,7 +257,6 @@ export default function App() {
   const ringAudioRef = useRef(null);
   const phoneCallAudioRef = useRef(null);
   const videoPlayerRef = useRef(null);
-  const triggeredSlots = useRef(new Set());
   const messagesEndRef = useRef(null);
 
   useEffect(() => {
@@ -364,12 +356,13 @@ export default function App() {
     return chosen;
   };
 
+  // 點擊分類觸發
   const triggerCategoryRandom = (catKey) => {
     const target = catKey.toLowerCase().trim();
     const pool = sheetMedia.filter(m => (m.category || '').toLowerCase().trim() === target);
 
     if (pool.length === 0) {
-      alert(`試算表 media 中找不到分類為 "${catKey}" 的資料`);
+      alert(`試算表 media 標籤中尚未找到分類為 "${catKey}" 的資料`);
       return;
     }
 
@@ -436,7 +429,9 @@ export default function App() {
     if (item.follow_up_2 && item.follow_up_2.trim()) newFollowUps.push(item.follow_up_2.trim());
     if (item.follow_up_3 && item.follow_up_3.trim()) newFollowUps.push(item.follow_up_3.trim());
 
-    setFollowUpQueue(newFollowUps);
+    if (newFollowUps.length > 0) {
+      setFollowUpQueue(newFollowUps);
+    }
   };
 
   // 通話按鈕：我主動打給他
@@ -1013,7 +1008,7 @@ export default function App() {
                     <span className="text-xs font-medium text-slate-200">{item.title}</span>
                     <span className="text-[10px] text-slate-500 font-mono">{item.duration}</span>
                   </div>
-                  <AudioBubble audioSrc={formatAudioUrl(item.src)} durationText={item.duration} />
+                  <AudioBubble audioSrc={item.src} durationText={item.duration} />
                 </div>
               ))}
             </div>
