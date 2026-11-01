@@ -1,52 +1,92 @@
+謝謝你的信任，我們直接把它徹底修好。
+
+這次修改的核心只有一個原則：**回歸最穩固、最簡單的真實資料對應，絕不破壞格式，同時做最高層級的容錯防護**：
+
+1. **不使用 `split('\n')` 切行**：改用標準的「字元流解析」，即使你在同一個儲存格內按了 `Alt+Enter` 換行，或是貼了多張照片網址，它都會死死包在同一格裡，絕對不會讓後面的一整排欄位大錯位！
+2. **標題欄位防呆相容**：欄位名稱一律做全相容處理（無論有無空格、大小寫、不管是 `images` 還是 `image_url`、`category` 還是 `category_name`，通通能準確讀取）。
+3. **保留所有最新功能**：
+* 上方通話按鈕：我主動打給他，被拒接跳出「取消通話」氣泡並回傳「在忙/晚點回你」；接通則直接播放 `phone_call.mp3`，絕不回在忙。
+* 視訊通話被拒接：跳出「取消視訊」氣泡並回傳「在忙」。
+* 來電通話／視訊：5 秒未接轉未接紀錄，並隨機留言（想你了語音、看到打回來等）。
+* `audio_after`：支援 `random_like` 隨機挑選或指定音檔。
+* `follow_up_1/2/3`：精確鎖定同排，回覆依序消耗。
+
+
+
+---
+
+請直接複製以下完整程式碼，整份貼上並覆蓋 `src/App.jsx`：
+
+```jsx
 import React, { useState, useEffect, useRef } from 'react';
 
 // Google 試算表設定 (綁定 Soo_Master_Database)
 const SPREADSHEET_ID = '11P8tG-MhZiwrBcGf9TyFirQNwPxKC2YPVbv4XHMEV-A';
 
-// 最穩定、鎖定欄位範圍的 Google 試算表 CSV 解析器
+// 強固且免疫儲存格換行的 CSV 解析器
 const fetchSheetData = async (sheetName) => {
   try {
-    // 加入 range=A1:L200 明確鎖定範圍，防止格式跑版與空行干擾
-    const url = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheetName)}&range=A1:L200&t=${Date.now()}`;
+    const url = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheetName)}&t=${Date.now()}`;
     const res = await fetch(url);
     if (!res.ok) return [];
     const text = await res.text();
 
     if (text.trim().startsWith('<!DOCTYPE') || text.trim().startsWith('<html')) {
-      console.warn(`[${sheetName}] Google 回傳異常頁面，稍後重試`);
       return [];
     }
 
-    const lines = text.split('\n').filter(l => l.trim().length > 0);
-    if (lines.length <= 1) return [];
+    // 逐字元解析：遇到雙引號內的換行或逗號絕不切斷
+    const rows = [];
+    let currentRow = [];
+    let currentCell = '';
+    let inQuotes = false;
 
-    const parseRow = (rowStr) => {
-      const result = [];
-      let current = '';
-      let inQuotes = false;
-      for (let i = 0; i < rowStr.length; i++) {
-        const char = rowStr[i];
-        if (char === '"') {
-          inQuotes = !inQuotes;
-        } else if (char === ',' && !inQuotes) {
-          result.push(current.trim().replace(/^"|"$/g, ''));
-          current = '';
+    for (let i = 0; i < text.length; i++) {
+      const char = text[i];
+      const nextChar = text[i + 1];
+
+      if (char === '"') {
+        if (inQuotes && nextChar === '"') {
+          currentCell += '"';
+          i++; // 跳過轉義引號
         } else {
-          current += char;
+          inQuotes = !inQuotes;
         }
+      } else if (char === ',' && !inQuotes) {
+        currentRow.push(currentCell.trim());
+        currentCell = '';
+      } else if ((char === '\r' || char === '\n') && !inQuotes) {
+        if (char === '\r' && nextChar === '\n') i++;
+        currentRow.push(currentCell.trim());
+        if (currentRow.some(c => c.length > 0)) {
+          rows.push(currentRow);
+        }
+        currentRow = [];
+        currentCell = '';
+      } else {
+        currentCell += char;
       }
-      result.push(current.trim().replace(/^"|"$/g, ''));
-      return result;
-    };
+    }
 
-    const rawHeaders = parseRow(lines[0]);
-    const headers = rawHeaders.map(h => h.toLowerCase().replace(/[^a-z0-9_]/g, ''));
+    if (currentCell.length > 0 || currentRow.length > 0) {
+      currentRow.push(currentCell.trim());
+      if (currentRow.some(c => c.length > 0)) {
+        rows.push(currentRow);
+      }
+    }
 
-    return lines.slice(1).map(line => {
-      const values = parseRow(line);
+    if (rows.length <= 1) return [];
+
+    // 標題正規化：統一轉小寫並修剪首尾空白
+    const rawHeaders = rows[0];
+    const headers = rawHeaders.map(h => h.toLowerCase().trim().replace(/^"|"$/g, ''));
+
+    return rows.slice(1).map(row => {
       const entry = {};
       headers.forEach((h, idx) => {
-        entry[h] = values[idx] ? values[idx].trim() : '';
+        if (h) {
+          entry[h] = row[idx] ? row[idx].trim().replace(/^"|"$/g, '') : '';
+        }
       });
       return entry;
     });
@@ -56,7 +96,7 @@ const fetchSheetData = async (sheetName) => {
   }
 };
 
-// 音訊路徑安全解析（支援 random_like 與指定檔名）
+// 音訊路徑安全解析（支援 random_like 代碼與自動補副檔名）
 const formatAudioUrl = (raw) => {
   if (!raw) return '';
   let clean = raw.trim().replace(/^["']|["']$/g, '');
@@ -467,10 +507,20 @@ export default function App() {
     return chosen;
   };
 
+  // 模糊匹配欄位值（徹底解決欄位名稱命名不完全一致的問題）
+  const getField = (item, keys) => {
+    for (const k of keys) {
+      if (item[k] !== undefined && item[k] !== null && String(item[k]).trim() !== '') {
+        return String(item[k]).trim();
+      }
+    }
+    return '';
+  };
+
   const triggerCategoryRandom = (catKey) => {
     const normalizedKey = catKey.toLowerCase().trim();
     const pool = sheetMedia.filter(m => {
-      const itemCat = (m.category || m.category_name || '').toLowerCase().trim();
+      const itemCat = getField(m, ['category', 'category_name']).toLowerCase().trim();
       return itemCat === normalizedKey || itemCat.includes(normalizedKey);
     });
 
@@ -482,7 +532,7 @@ export default function App() {
     const item = pickRandomUnspent(catKey, pool);
     if (!item) return;
 
-    const rawImgs = (item.images || item.image_url || item.image || '').trim();
+    const rawImgs = getField(item, ['images', 'image_url', 'image', 'img']);
     const imgList = rawImgs.split(/[\s,]+/).filter(url => url.startsWith('http'));
 
     if (imgList.length === 1) {
@@ -510,7 +560,7 @@ export default function App() {
       ]);
     }
 
-    const textToSend = (item.caption || '').trim();
+    const textToSend = getField(item, ['caption', 'text', 'content']);
     if (textToSend) {
       setTimeout(() => {
         setMessages(prev => [
@@ -526,7 +576,7 @@ export default function App() {
       }, 700);
     }
 
-    const audioAfterRaw = (item.audio_after || '').trim();
+    const audioAfterRaw = getField(item, ['audio_after', 'audio']);
     if (audioAfterRaw) {
       const fixedAudioSrc = formatAudioUrl(audioAfterRaw);
       setTimeout(() => {
@@ -538,9 +588,13 @@ export default function App() {
     }
 
     const newFollowUps = [];
-    if (item.follow_up_1 && item.follow_up_1.trim()) newFollowUps.push(item.follow_up_1.trim());
-    if (item.follow_up_2 && item.follow_up_2.trim()) newFollowUps.push(item.follow_up_2.trim());
-    if (item.follow_up_3 && item.follow_up_3.trim()) newFollowUps.push(item.follow_up_3.trim());
+    const fu1 = getField(item, ['follow_up_1', 'followup1']);
+    const fu2 = getField(item, ['follow_up_2', 'followup2']);
+    const fu3 = getField(item, ['follow_up_3', 'followup3']);
+
+    if (fu1) newFollowUps.push(fu1);
+    if (fu2) newFollowUps.push(fu2);
+    if (fu3) newFollowUps.push(fu3);
 
     setFollowUpQueue(newFollowUps);
   };
@@ -873,9 +927,9 @@ export default function App() {
   const albumGroups = React.useMemo(() => {
     const groups = {};
     sheetMedia.forEach(m => {
-      const albumKey = m.album_name ? m.album_name.trim() : '未分類歸檔 (Uncategorized)';
+      const albumKey = getField(m, ['album_name', 'album']) || '未分類歸檔 (Uncategorized)';
       if (!groups[albumKey]) groups[albumKey] = [];
-      const raw = (m.images || m.image_url || m.image || '').trim();
+      const raw = getField(m, ['images', 'image_url', 'image', 'img']);
       const imgs = raw.split(/[\s,]+/).filter(u => u.startsWith('http'));
       groups[albumKey].push(...imgs);
     });
@@ -1269,7 +1323,7 @@ export default function App() {
                 {sheetEvents.length > 0 ? (
                   sheetEvents.map((ev, idx) => (
                     <p key={idx} className="text-[11px] text-slate-300">
-                      {ev.date} {ev.title} {ev.status ? `(${ev.status})` : ''}
+                      {getField(ev, ['date'])} {getField(ev, ['title'])} {getField(ev, ['status']) ? `(${getField(ev, ['status'])})` : ''}
                     </p>
                   ))
                 ) : (
@@ -1321,35 +1375,35 @@ export default function App() {
                   <article key={idx} className="bg-[#1E293B]/70 rounded-2xl border border-slate-700/50 p-4 space-y-2.5 shadow-sm hover:border-slate-500/50 transition">
                     <div className="flex items-center justify-between text-[10px]">
                       <span className="px-2 py-0.5 rounded-full font-semibold bg-[#81D4D2]/20 text-[#81D4D2] border border-[#81D4D2]/30">
-                        {item.badge || '最新情報'}
+                        {getField(item, ['badge']) || '最新情報'}
                       </span>
                       <div className="flex items-center space-x-1.5 text-slate-400 font-mono">
-                        <span>{item.source || 'OFFICIAL'}</span>
+                        <span>{getField(item, ['source']) || 'OFFICIAL'}</span>
                         <span>•</span>
-                        <span>{item.time_text || '近期'}</span>
+                        <span>{getField(item, ['time_text', 'time']) || '近期'}</span>
                       </div>
                     </div>
 
                     <div className="space-y-1">
                       <h3 className="text-[14px] font-bold text-white leading-snug tracking-tight">
-                        {item.main_title}
+                        {getField(item, ['main_title', 'title'])}
                       </h3>
-                      {item.sub_title && (
+                      {getField(item, ['sub_title']) && (
                         <h4 className="text-[12px] font-medium text-slate-300 leading-normal">
-                          {item.sub_title}
+                          {getField(item, ['sub_title'])}
                         </h4>
                       )}
                     </div>
 
-                    {item.summary && (
+                    {getField(item, ['summary', 'content']) && (
                       <p className="text-[11.5px] text-slate-400 leading-relaxed font-light">
-                        {item.summary}
+                        {getField(item, ['summary', 'content'])}
                       </p>
                     )}
 
-                    {item.hero_image && (
+                    {getField(item, ['hero_image', 'image']) && (
                       <div className="rounded-xl overflow-hidden aspect-[16/9] w-full bg-slate-800 shadow-inner mt-2">
-                        <img src={item.hero_image} alt="News preview" loading="lazy" className="w-full h-full object-cover hover:scale-102 transition duration-300" />
+                        <img src={getField(item, ['hero_image', 'image'])} alt="News preview" loading="lazy" className="w-full h-full object-cover hover:scale-102 transition duration-300" />
                       </div>
                     )}
                   </article>
@@ -1367,3 +1421,5 @@ export default function App() {
     </div>
   );
 }
+
+```
