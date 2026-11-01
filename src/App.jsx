@@ -6,7 +6,6 @@ const SPREADSHEET_ID = '11P8tG-MhZiwrBcGf9TyFirQNwPxKC2YPVbv4XHMEV-A';
 // 通用、強固的 Google Visualization JSON 解析函式
 const fetchSheetData = async (sheetName) => {
   try {
-    // 強制 headers=1：鎖定第 1 列為標題，絕不發生跨行合併
     const url = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:json&headers=1&sheet=${encodeURIComponent(sheetName)}&t=${Date.now()}`;
     const res = await fetch(url);
     if (!res.ok) return [];
@@ -20,13 +19,11 @@ const fetchSheetData = async (sheetName) => {
     const table = json.table;
     if (!table || !table.rows || table.rows.length === 0) return [];
 
-    // 動態讀取第 1 列標籤作為 Key（標籤轉為乾淨的小寫英數底線代碼）
     const colKeys = table.cols.map((col, idx) => {
       const cleanLabel = (col.label || '').trim().toLowerCase().replace(/[^a-z0-9_]/g, '');
       return cleanLabel || `col_${idx}`;
     });
 
-    // 逐列轉為通用物件：支援 cell.v ?? cell.f 雙層備援，防型別吃字
     return table.rows.map(r => {
       const entry = {};
       colKeys.forEach((key, idx) => {
@@ -138,7 +135,7 @@ const WAKEUP_VOICES = {
   5: { src: '/audio/5_get_up_yell.mp3', duration: '0:04', notify: 'Soo: 起床！' }
 };
 
-// 整點隨機純文字台詞
+// 整點與隨機日常短句
 const HOURLY_TEXT_MESSAGES = [
   '吃飯了嗎？',
   '外面很冷，多穿點。',
@@ -167,7 +164,7 @@ const HOURLY_TEXT_MESSAGES = [
   '想喝上次那罐薑茶。'
 ];
 
-// 整點隨機語音台詞
+// 隨機語音台詞
 const HOURLY_VOICE_MESSAGES = [
   { type: 'audio', src: '/audio/i_miss_u.mp3', duration: '0:03', notify: 'Soo: 我想你。' },
   { type: 'audio', src: '/audio/i_miss_u_longer.mp3', duration: '0:05', notify: 'Soo: 真的好想你...' },
@@ -245,7 +242,8 @@ export default function App() {
     return localStorage.getItem('soo_awoken_date') || '';
   });
 
-  const [callStatus, setCallStatus] = useState('idle');
+  const [callStatus, setCallStatus] = useState('idle'); // 'idle' | 'ringing' | 'connected'
+  const [callType, setCallType] = useState('audio'); // 'audio' | 'video'
   const [callDuration, setCallDuration] = useState(0);
   const [isVideoCalling, setIsVideoCalling] = useState(false);
   const [videoDuration, setVideoDuration] = useState(0);
@@ -257,6 +255,7 @@ export default function App() {
   const ringAudioRef = useRef(null);
   const phoneCallAudioRef = useRef(null);
   const videoPlayerRef = useRef(null);
+  const ringingTimeoutRef = useRef(null);
   const messagesEndRef = useRef(null);
 
   useEffect(() => {
@@ -332,6 +331,41 @@ export default function App() {
     ]);
   };
 
+  // 未接來電後的補發訊息邏輯
+  const triggerMissedCallFollowUp = (callCategory = 'normal') => {
+    setTimeout(() => {
+      if (callCategory === 'urgent') {
+        const urgentReplies = ['怎麼沒接？', '看到打回給我。', '在忙？還是睡著了？', '快回電話。'];
+        const chosen = urgentReplies[Math.floor(Math.random() * urgentReplies.length)];
+        setMessages(prev => [
+          ...prev,
+          { id: Date.now(), role: 'assistant', type: 'text', content: chosen, time: getCurrentTime() }
+        ]);
+        return;
+      }
+
+      const followUpOptions = [
+        { type: 'audio', src: '/audio/i_miss_u.mp3', duration: '0:03' },
+        { type: 'audio', src: '/audio/i_miss_u_longer.mp3', duration: '0:05' },
+        { type: 'audio', src: '/audio/shall_i_go_now.mp3', duration: '0:04' },
+        { type: 'text', content: '看到打回來。' },
+        { type: 'text', content: '忙完打過來吧。' },
+        { type: 'text', content: '在哪？' },
+        { type: 'text', content: '忙完了回一聲。' }
+      ];
+      const picked = followUpOptions[Math.floor(Math.random() * followUpOptions.length)];
+
+      if (picked.type === 'audio') {
+        sendVoiceMessage(picked);
+      } else {
+        setMessages(prev => [
+          ...prev,
+          { id: Date.now(), role: 'assistant', type: 'text', content: picked.content, time: getCurrentTime() }
+        ]);
+      }
+    }, 800);
+  };
+
   const pickRandomUnspent = (poolKey, items) => {
     if (!items || items.length === 0) return null;
     const storageKey = `soo_spent_${poolKey}`;
@@ -356,15 +390,12 @@ export default function App() {
     return chosen;
   };
 
-  // 點擊分類觸發
+  // 分類圖文隨機發布
   const triggerCategoryRandom = (catKey) => {
     const target = catKey.toLowerCase().trim();
     const pool = sheetMedia.filter(m => (m.category || '').toLowerCase().trim() === target);
 
-    if (pool.length === 0) {
-      alert(`試算表 media 標籤中尚未找到分類為 "${catKey}" 的資料`);
-      return;
-    }
+    if (pool.length === 0) return;
 
     const item = pickRandomUnspent(catKey, pool);
     if (!item) return;
@@ -434,13 +465,72 @@ export default function App() {
     }
   };
 
-  // 通話按鈕：我主動打給他
+  // 他打給我（來電通話 / 視訊）
+  const triggerIncomingCall = (type = 'audio', scenario = 'normal') => {
+    setCallType(type);
+    setCallStatus('ringing');
+
+    clearTimeout(ringingTimeoutRef.current);
+    ringingTimeoutRef.current = setTimeout(() => {
+      setCallStatus(current => {
+        if (current === 'ringing') {
+          addCallRecord(type === 'video' ? '未接視訊' : '未接來電', 'assistant');
+
+          // 若為急躁連環 call 情境，未接後 1.5 秒再打一通視訊追打
+          if (scenario === 'urgent_chain') {
+            setTimeout(() => {
+              triggerIncomingCall('video', 'urgent_second');
+            }, 1500);
+          } else if (scenario === 'urgent_second') {
+            triggerMissedCallFollowUp('urgent');
+          } else {
+            triggerMissedCallFollowUp('normal');
+          }
+          return 'idle';
+        }
+        return current;
+      });
+    }, 5000);
+  };
+
+  // 接聽來電
+  const handleAcceptCall = () => {
+    clearTimeout(ringingTimeoutRef.current);
+    if (ringAudioRef.current) ringAudioRef.current.pause();
+
+    if (callType === 'video') {
+      setCallStatus('idle');
+      setIsVideoCalling(true);
+    } else {
+      setCallStatus('connected');
+    }
+  };
+
+  // 掛斷 / 拒接
+  const handleEndCall = () => {
+    clearTimeout(ringingTimeoutRef.current);
+    const wasRinging = (callStatus === 'ringing');
+    const isConnected = (callStatus === 'connected');
+    const finalDurationText = formatSeconds(callDuration);
+    setCallStatus('idle');
+
+    if (wasRinging) {
+      // 正在響鈴時手動拒接：留下未接紀錄並在 800ms 後發送關心或追問
+      addCallRecord(callType === 'video' ? '未接視訊' : '未接來電', 'assistant');
+      triggerMissedCallFollowUp('normal');
+    } else if (isConnected) {
+      // 通話完畢
+      addCallRecord(`通話時間 ${finalDurationText}`, 'user', finalDurationText);
+    }
+  };
+
+  // 1. 我主動打給他
   const handleUserOutgoingCall = () => {
     const isBusy = Math.random() < 0.25;
 
     if (isBusy) {
       addCallRecord('取消通話', 'user');
-      const busyReplies = ['在忙', '晚點回你'];
+      const busyReplies = ['在忙', '晚點回你', '剛剛在對台詞，等我一下'];
       const chosenReply = busyReplies[Math.floor(Math.random() * busyReplies.length)];
       setTimeout(() => {
         setMessages(prev => [
@@ -457,16 +547,17 @@ export default function App() {
       return;
     }
 
+    setCallType('audio');
     setCallStatus('connected');
   };
 
-  // 視訊按鈕：我主動打視訊給他
+  // 2. 我主動打視訊給他
   const handleUserOutgoingVideo = () => {
     const isBusy = Math.random() < 0.25;
 
     if (isBusy) {
       addCallRecord('取消視訊', 'user');
-      const busyReplies = ['在忙', '晚點回你'];
+      const busyReplies = ['在忙', '晚點回你', '在外面不方便接視訊，等我回家'];
       const chosenReply = busyReplies[Math.floor(Math.random() * busyReplies.length)];
       setTimeout(() => {
         setMessages(prev => [
@@ -486,6 +577,53 @@ export default function App() {
     setIsVideoCalling(true);
   };
 
+  // 核心：每 3 分鐘隨機常理互動引擎
+  useEffect(() => {
+    const autoInterval = setInterval(() => {
+      // 若當前正在通話或視訊中，不插話
+      if (callStatus !== 'idle' || isVideoCalling) return;
+
+      const actions = [
+        'photo_gym', 'photo_car', 'photo_selfie', 'photo_gd', 'photo_outing', 'photo_mag', 'photo_off',
+        'voice_memo',
+        'text_msg',
+        'incoming_audio',
+        'incoming_video',
+        'urgent_chain_calls'
+      ];
+
+      const picked = actions[Math.floor(Math.random() * actions.length)];
+
+      if (picked === 'photo_gym') triggerCategoryRandom('gym');
+      else if (picked === 'photo_car') triggerCategoryRandom('car');
+      else if (picked === 'photo_selfie') triggerCategoryRandom('selfie');
+      else if (picked === 'photo_gd') triggerCategoryRandom('gd');
+      else if (picked === 'photo_outing') triggerCategoryRandom('outing');
+      else if (picked === 'photo_mag') triggerCategoryRandom('magazine');
+      else if (picked === 'photo_off') triggerCategoryRandom('official');
+      else if (picked === 'voice_memo') {
+        const chosenVoice = HOURLY_VOICE_MESSAGES[Math.floor(Math.random() * HOURLY_VOICE_MESSAGES.length)];
+        sendVoiceMessage(chosenVoice);
+      } else if (picked === 'text_msg') {
+        const randomText = HOURLY_TEXT_MESSAGES[Math.floor(Math.random() * HOURLY_TEXT_MESSAGES.length)];
+        setMessages(prev => [
+          ...prev,
+          { id: Date.now() + Math.random(), role: 'assistant', type: 'text', content: randomText, time: getCurrentTime() }
+        ]);
+      } else if (picked === 'incoming_audio') {
+        triggerIncomingCall('audio', 'normal');
+      } else if (picked === 'incoming_video') {
+        triggerIncomingCall('video', 'normal');
+      } else if (picked === 'urgent_chain_calls') {
+        // 連續打電話情境：先打音訊，沒接再追打視訊，最後補「怎麼沒接？」
+        triggerIncomingCall('audio', 'urgent_chain');
+      }
+    }, 180000); // 180,000ms = 3 分鐘
+
+    return () => clearInterval(autoInterval);
+  }, [sheetMedia, callStatus, isVideoCalling]);
+
+  // 使用者傳送訊息
   const handleSend = () => {
     if (!inputText.trim() || isTyping) return;
     const currentInput = inputText.trim();
@@ -592,24 +730,6 @@ export default function App() {
     return () => clearInterval(videoTimer);
   }, [isVideoCalling]);
 
-  const handleEndCall = () => {
-    const isConnected = (callStatus === 'connected');
-    const finalDurationText = formatSeconds(callDuration);
-    setCallStatus('idle');
-
-    setMessages(prev => [
-      ...prev,
-      {
-        id: Date.now(),
-        role: 'user',
-        type: 'call_record',
-        durationText: isConnected ? finalDurationText : null,
-        statusText: isConnected ? `通話時間 ${finalDurationText}` : '未接來電',
-        time: getCurrentTime()
-      }
-    ]);
-  };
-
   const albumGroups = React.useMemo(() => {
     const groups = {};
     sheetMedia.forEach(m => {
@@ -631,7 +751,7 @@ export default function App() {
       {/* 主聊天容器 */}
       <div className="w-full sm:max-w-[420px] h-[100dvh] sm:h-[92vh] sm:max-h-[880px] bg-[#ECEEF1] sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden relative border-0 sm:border sm:border-slate-700">
         
-        {/* 全螢幕語音通話介面 */}
+        {/* 全螢幕來電介面（語音 / 視訊共通提示） */}
         {callStatus !== 'idle' && (
           <div className="absolute inset-0 bg-slate-950/95 z-50 flex flex-col justify-between items-center py-16 px-6 text-white backdrop-blur-md animate-fade-in">
             <div className="flex flex-col items-center mt-10 space-y-4">
@@ -639,14 +759,31 @@ export default function App() {
                 <img src="https://images.plurk.com/6PooPJr1YbOhrMp5CCFdbl.jpg" alt="avatar" className="w-full h-full object-cover" />
               </div>
               <span className="text-2xl font-semibold tracking-wider">Soo</span>
-              <span className="text-sm text-[#81D4D2] font-mono tracking-wider">{formatSeconds(callDuration)}</span>
+              {callStatus === 'ringing' ? (
+                <span className="text-xs text-slate-400 font-light tracking-wide">
+                  {callType === 'video' ? '視訊來電...' : '語音來電...'}
+                </span>
+              ) : (
+                <span className="text-sm text-[#81D4D2] font-mono tracking-wider">{formatSeconds(callDuration)}</span>
+              )}
             </div>
 
-            <div className="w-full flex justify-center items-center mb-8">
-              <button onClick={handleEndCall} title="掛斷" className="w-16 h-16 rounded-full bg-rose-600 hover:bg-rose-500 active:scale-95 transition flex items-center justify-center shadow-lg">
-                <svg className="w-7 h-7 fill-white rotate-[135deg]" viewBox="0 0 24 24"><path d="M6.62 10.79a15.05 15.05 0 006.59 6.59l2.2-2.2a1 1 0 011.02-.24 11.72 11.72 0 003.68.59 1 1 0 011 1v3.5a1 1 0 01-1 1A17 17 0 013 4a1 1 0 011-1h3.5a1 1 0 011 1c0 1.25.2 2.48.59 3.68a1 1 0 01-.24 1.02l-2.23 2.09z" /></svg>
+            {callStatus === 'ringing' ? (
+              <div className="w-full flex justify-around items-center px-6 mb-8">
+                <button onClick={handleEndCall} title="拒接" className="w-16 h-16 rounded-full bg-rose-600 hover:bg-rose-500 active:scale-95 transition flex items-center justify-center shadow-lg">
+                  <svg className="w-7 h-7 fill-white rotate-[135deg]" viewBox="0 0 24 24"><path d="M6.62 10.79a15.05 15.05 0 006.59 6.59l2.2-2.2a1 1 0 011.02-.24 11.72 11.72 0 003.68.59 1 1 0 011 1v3.5a1 1 0 01-1 1A17 17 0 013 4a1 1 0 011-1h3.5a1 1 0 011 1c0 1.25.2 2.48.59 3.68a1 1 0 01-.24 1.02l-2.23 2.09z" /></svg>
+                </button>
+                <button onClick={handleAcceptCall} title="接聽" className="w-16 h-16 rounded-full bg-[#5FBDB9] hover:bg-[#52ada9] active:scale-95 transition flex items-center justify-center shadow-lg animate-bounce">
+                  <svg className="w-7 h-7 fill-white" viewBox="0 0 24 24"><path d="M6.62 10.79a15.05 15.05 0 006.59 6.59l2.2-2.2a1 1 0 011.02-.24 11.72 11.72 0 003.68.59 1 1 0 011 1v3.5a1 1 0 01-1 1A17 17 0 013 4a1 1 0 011-1h3.5a1 1 0 011 1c0 1.25.2 2.48.59 3.68a1 1 0 01-.24 1.02l-2.23 2.09z" /></svg>
+                </button>
+              </div>
+            ) : (
+              <div className="w-full flex justify-center items-center mb-8">
+                <button onClick={handleEndCall} title="掛斷" className="w-16 h-16 rounded-full bg-rose-600 hover:bg-rose-500 active:scale-95 transition flex items-center justify-center shadow-lg">
+                  <svg className="w-7 h-7 fill-white rotate-[135deg]" viewBox="0 0 24 24"><path d="M6.62 10.79a15.05 15.05 0 006.59 6.59l2.2-2.2a1 1 0 011.02-.24 11.72 11.72 0 003.68.59 1 1 0 011 1v3.5a1 1 0 01-1 1A17 17 0 013 4a1 1 0 011-1h3.5a1 1 0 011 1c0 1.25.2 2.48.59 3.68a1 1 0 01-.24 1.02l-2.23 2.09z" /></svg>
               </button>
-            </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -661,17 +798,7 @@ export default function App() {
                 autoPlay
                 onEnded={() => {
                   setIsVideoCalling(false);
-                  setMessages(prev => [
-                    ...prev,
-                    {
-                      id: Date.now(),
-                      role: 'user',
-                      type: 'call_record',
-                      durationText: formatSeconds(videoDuration),
-                      statusText: `視訊通話 ${formatSeconds(videoDuration)}`,
-                      time: getCurrentTime()
-                    }
-                  ]);
+                  addCallRecord(`視訊通話 ${formatSeconds(videoDuration)}`, 'user', formatSeconds(videoDuration));
                 }}
                 className="w-full h-full object-cover scale-105 filter brightness-95"
               />
@@ -687,17 +814,7 @@ export default function App() {
               <button
                 onClick={() => {
                   setIsVideoCalling(false);
-                  setMessages(prev => [
-                    ...prev,
-                    {
-                      id: Date.now(),
-                      role: 'user',
-                      type: 'call_record',
-                      durationText: formatSeconds(videoDuration),
-                      statusText: `視訊通話 ${formatSeconds(videoDuration)}`,
-                      time: getCurrentTime()
-                    }
-                  ]);
+                  addCallRecord(`視訊通話 ${formatSeconds(videoDuration)}`, 'user', formatSeconds(videoDuration));
                 }}
                 title="提前掛斷"
                 className="w-16 h-16 rounded-full bg-rose-600 hover:bg-rose-500 active:scale-95 transition flex items-center justify-center shadow-2xl"
