@@ -3,68 +3,31 @@ import React, { useState, useEffect, useRef } from 'react';
 // Google 試算表設定 (綁定 Soo_Master_Database)
 const SPREADSHEET_ID = '11P8tG-MhZiwrBcGf9TyFirQNwPxKC2YPVbv4XHMEV-A';
 
-// 標準健全的 CSV 狀態機解析：嚴格分行，不再讓引號跨行吞噬幾十列
-const parseCsvRobust = (text) => {
-  const rows = [];
-  let currentRow = [];
-  let currentField = '';
-  let inQuotes = false;
-
-  for (let i = 0; i < text.length; i++) {
-    const char = text[i];
-    const nextChar = text[i + 1];
-
-    if (char === '"') {
-      if (inQuotes && nextChar === '"') {
-        currentField += '"';
-        i++; // 跳過轉義雙引號
-      } else {
-        inQuotes = !inQuotes;
-      }
-    } else if (char === ',' && !inQuotes) {
-      currentRow.push(currentField.trim());
-      currentField = '';
-    } else if ((char === '\r' || char === '\n') && !inQuotes) {
-      if (char === '\r' && nextChar === '\n') {
-        i++;
-      }
-      currentRow.push(currentField.trim());
-      if (currentRow.some(c => c.length > 0)) {
-        rows.push(currentRow);
-      }
-      currentRow = [];
-      currentField = '';
-    } else {
-      currentField += char;
-    }
-  }
-
-  if (currentField.length > 0 || currentRow.length > 0) {
-    currentRow.push(currentField.trim());
-    if (currentRow.some(c => c.length > 0)) {
-      rows.push(currentRow);
-    }
-  }
-
-  return rows;
-};
-
-// 治本讀取：固定 A-L 欄索引映射，不再動態受標題污染影響
+// Google 原生 JSON 解析：彻底免疫任何 CSV 跨行引號吞噬
 const fetchSheetData = async (sheetName) => {
   try {
-    const url = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheetName)}&t=${Date.now()}`;
+    const url = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(sheetName)}&t=${Date.now()}`;
     const res = await fetch(url);
     if (!res.ok) return [];
     const text = await res.text();
-    
-    const rows = parseCsvRobust(text);
-    if (rows.length <= 1) return [];
+
+    const jsonStart = text.indexOf('{');
+    const jsonEnd = text.lastIndexOf('}');
+    if (jsonStart === -1 || jsonEnd === -1) return [];
+
+    const json = JSON.parse(text.substring(jsonStart, jsonEnd + 1));
+    const table = json.table;
+    if (!table || !table.rows) return [];
 
     // 固定 A 到 L 欄順序：
     // 0: id, 1: event_id, 2: date, 3: category, 4: sub_type, 5: album_name,
     // 6: images, 7: caption, 8: audio_after, 9: follow_up_1, 10: follow_up_2, 11: follow_up_3
-    return rows.slice(1).map(row => {
-      const getVal = (idx) => (row[idx] ? row[idx].trim().replace(/^"|"$/g, '') : '');
+    return table.rows.map(r => {
+      const getVal = (idx) => {
+        const cell = r.c && r.c[idx];
+        return cell && cell.v !== null && cell.v !== undefined ? String(cell.v).trim() : '';
+      };
+
       return {
         id: getVal(0),
         event_id: getVal(1),
@@ -401,13 +364,12 @@ export default function App() {
     return chosen;
   };
 
-  // 正常點擊分類觸發
   const triggerCategoryRandom = (catKey) => {
     const target = catKey.toLowerCase().trim();
     const pool = sheetMedia.filter(m => (m.category || '').toLowerCase().trim() === target);
 
     if (pool.length === 0) {
-      alert(`試算表 media 標籤中尚未找到分類為 "${catKey}" 的資料`);
+      alert(`試算表 media 中找不到分類為 "${catKey}" 的資料`);
       return;
     }
 
@@ -474,18 +436,15 @@ export default function App() {
     if (item.follow_up_2 && item.follow_up_2.trim()) newFollowUps.push(item.follow_up_2.trim());
     if (item.follow_up_3 && item.follow_up_3.trim()) newFollowUps.push(item.follow_up_3.trim());
 
-    if (newFollowUps.length > 0) {
-      setFollowUpQueue(newFollowUps);
-    }
+    setFollowUpQueue(newFollowUps);
   };
 
-  // 1. 上方通話按鈕：我主動打給他
+  // 通話按鈕：我主動打給他
   const handleUserOutgoingCall = () => {
     const isBusy = Math.random() < 0.25;
 
     if (isBusy) {
       addCallRecord('取消通話', 'user');
-
       const busyReplies = ['在忙', '晚點回你'];
       const chosenReply = busyReplies[Math.floor(Math.random() * busyReplies.length)];
       setTimeout(() => {
@@ -506,13 +465,12 @@ export default function App() {
     setCallStatus('connected');
   };
 
-  // 2. 上方視訊按鈕：我主動打視訊給他
+  // 視訊按鈕：我主動打視訊給他
   const handleUserOutgoingVideo = () => {
     const isBusy = Math.random() < 0.25;
 
     if (isBusy) {
       addCallRecord('取消視訊', 'user');
-
       const busyReplies = ['在忙', '晚點回你'];
       const chosenReply = busyReplies[Math.floor(Math.random() * busyReplies.length)];
       setTimeout(() => {
@@ -554,10 +512,9 @@ export default function App() {
       setCallStatus('idle');
 
       setTimeout(() => {
-        const awakeReply = '終於醒了？';
         setMessages(prev => [
           ...prev,
-          { id: Date.now() + 1, role: 'assistant', type: 'text', content: awakeReply, time: getCurrentTime() }
+          { id: Date.now() + 1, role: 'assistant', type: 'text', content: '終於醒了？', time: getCurrentTime() }
         ]);
         setIsTyping(false);
       }, 1000);
@@ -590,8 +547,7 @@ export default function App() {
 
   const handleClearMessages = () => {
     if (window.confirm(`目前共有 ${messages.length} 則訊息，確定要清空所有紀錄嗎？`)) {
-      const initMsg = [{ id: Date.now(), role: 'assistant', type: 'text', content: '今天有好好吃飯嗎？', time: getCurrentTime() }];
-      setMessages(initMsg);
+      setMessages([{ id: Date.now(), role: 'assistant', type: 'text', content: '今天有好好吃飯嗎？', time: getCurrentTime() }]);
       setFollowUpQueue([]);
       localStorage.removeItem('soo_chat_messages');
       localStorage.removeItem('soo_follow_up_queue');
