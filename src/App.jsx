@@ -377,7 +377,7 @@ const EVENT_SET_7 = [
   'https://i.pinimg.com/736x/2e/76/2c/2e762c3bd3e8f30a6828663c3705a25b.jpg'
 ];
 
-// 所有未分類匯總（相簿頁面 All 標籤）
+// 所有未分類匯總
 const ALL_UNCATEGORIZED_PHOTOS = [
   ...POOL_GYM,
   ...POOL_CAR,
@@ -397,6 +397,72 @@ const VIDEO_STREAMS = [
   { id: 4, title: 'Hotel Rest', poster: 'https://images.plurk.com/2W5EnleU58XmoB8Eny9om4.jpg' },
   { id: 5, title: 'Night Walk', poster: 'https://i.pinimg.com/736x/c8/c3/e6/c8c3e646c47bd83dbeb285393405087a.jpg' }
 ];
+
+// 劇本式多段語音劇本
+const SCRIPT_SCENARIOS = {
+  dailySeries: {
+    label: '💬',
+    steps: [
+      {
+        delay: 400,
+        type: 'audio',
+        audioSrc: '/audio/i_miss_u.mp3',
+        durationText: '0:03',
+        notify: 'Soo傳送了語音訊息'
+      },
+      {
+        delay: 3500,
+        type: 'audio',
+        audioSrc: '/audio/i_miss_u_longer.mp3',
+        durationText: '0:05',
+        notify: 'Soo傳送了語音訊息'
+      },
+      {
+        delay: 7000,
+        type: 'audio',
+        audioSrc: '/audio/shall_i_go_now.mp3',
+        durationText: '0:04',
+        notify: 'Soo傳送了語音訊息'
+      }
+    ]
+  },
+  plotDate: {
+    label: '🎬',
+    steps: [
+      {
+        delay: 400,
+        type: 'audio',
+        audioSrc: '/audio/lets_date.mp3',
+        durationText: '0:04',
+        notify: 'Soo傳送了語音訊息'
+      }
+    ]
+  },
+  plotLove: {
+    label: '♥️',
+    steps: [
+      {
+        delay: 400,
+        type: 'audio',
+        audioSrc: '/audio/love_u.mp3',
+        durationText: '0:03',
+        notify: 'Soo傳送了語音訊息'
+      }
+    ]
+  },
+  goodNight: {
+    label: '🌙💤',
+    steps: [
+      {
+        delay: 400,
+        type: 'audio',
+        audioSrc: '/audio/good_night_normal.mp3',
+        durationText: '0:05',
+        notify: 'Soo傳送了語音訊息'
+      }
+    ]
+  }
+};
 
 // 情報頁面資料
 const INTEL_FEED_DATA = [
@@ -433,6 +499,13 @@ const INTEL_FEED_DATA = [
     summary: '極簡剪裁襯衫搭配冷色調針織，將克制與禁慾感拿捏得淋漓盡致。',
     heroImage: 'https://images.plurk.com/wGRATa3N4kmnXq7NfNW5q.jpg'
   }
+];
+
+const USER_MOCK_REPLIES = [
+  '好，我聽到了～',
+  '吃飯了嗎？',
+  '有點想你了！',
+  '待會見～'
 ];
 
 export default function App() {
@@ -562,7 +635,6 @@ export default function App() {
     return chosen;
   };
 
-  // 觸發隨機不重複單照發送
   const triggerRandomSinglePhoto = (poolKey, pool, promptText) => {
     const imgUrl = pickRandomUnspent(poolKey, pool);
     setMessages(prev => [
@@ -594,7 +666,6 @@ export default function App() {
     }
   };
 
-  // 觸發隨機不重複志龍同遊組
   const triggerRandomGD = () => {
     const item = pickRandomUnspent('gd', POOL_GD);
     if (item.images.length === 1) {
@@ -624,7 +695,6 @@ export default function App() {
     sendPushNotification('Soo 傳送了照片組');
   };
 
-  // 發送自訂相簿照片組
   const sendAlbumBatch = (title, images, promptText) => {
     setMessages(prev => [
       ...prev,
@@ -654,6 +724,61 @@ export default function App() {
     } else {
       sendPushNotification(`Soo 已傳送照片相簿 (${images.length}張)`);
     }
+  };
+
+  const playScript = (key) => {
+    const scenario = SCRIPT_SCENARIOS[key];
+    if (!scenario) return;
+
+    scenario.steps.forEach((step, idx) => {
+      setTimeout(() => {
+        setMessages(prev => [
+          ...prev,
+          {
+            id: Date.now() + idx,
+            role: 'assistant',
+            ...step,
+            time: getCurrentTime()
+          }
+        ]);
+        if (step.notify) {
+          sendPushNotification(step.notify);
+        }
+      }, step.delay);
+    });
+  };
+
+  const startOneMinuteNotificationTest = async () => {
+    if (!('Notification' in window) || Notification.permission !== 'granted') {
+      alert('請先點擊上方綠色「允許推播」按鈕開啟通知權限！');
+      return;
+    }
+
+    if ('serviceWorker' in navigator) {
+      try {
+        const reg = await navigator.serviceWorker.ready;
+        if (reg.active) {
+          reg.active.postMessage({
+            type: 'SCHEDULE_NOTIFICATION',
+            delay: 60000,
+            title: 'Soo',
+            options: {
+              body: 'Soo: 剛結束拍攝，你在幹嘛？',
+              icon: 'https://images.plurk.com/7lPN93L87TwPEfErIseop9.jpg',
+              badge: 'https://images.plurk.com/7lPN93L87TwPEfErIseop9.jpg'
+            }
+          });
+        }
+      } catch (e) {
+        console.error('SW postMessage error:', e);
+      }
+    }
+
+    setTimeout(() => {
+      triggerRandomSinglePhoto('selfie', POOL_SELFIE, '忙完了嗎？');
+    }, 60000);
+
+    alert('⏱ 倒數 60 秒已交給背景！請現在關閉螢幕或退到主畫面測試。');
   };
 
   // 晨喚與整點排程檢查
@@ -1158,9 +1283,59 @@ export default function App() {
           <div ref={messagesEndRef} />
         </div>
 
-        {/* 劇本控制板（全白圓鈕，含畫報、自拍、活動與隨機不重複按鈕） */}
+        {/* 劇本控制板（完整包含：隨機不重複、語音劇本、測試通話與相簿） */}
         <div className="bg-slate-900/10 px-2.5 py-2 flex space-x-2 overflow-x-auto border-t border-slate-200/80 z-10 scrollbar-none shrink-0">
-          {/* 隨機不重複按鈕群 */}
+          {/* 1. 測試按鈕群 */}
+          <button
+            onClick={() => setCallStatus('ringing')}
+            title="電話喚醒測試"
+            className="text-[12px] whitespace-nowrap bg-white hover:bg-slate-50 text-slate-800 font-medium px-3 py-1.5 rounded-full shadow-sm border border-slate-200 transition shrink-0 active:scale-95"
+          >
+            📞
+          </button>
+
+          <button
+            onClick={startOneMinuteNotificationTest}
+            title="1分鐘後測試"
+            className="text-[12px] whitespace-nowrap bg-white hover:bg-slate-50 text-slate-800 font-medium px-3 py-1.5 rounded-full shadow-sm border border-slate-200 transition shrink-0 active:scale-95"
+          >
+            🕰️
+          </button>
+
+          {/* 2. 語音劇本按鈕群 */}
+          <button
+            onClick={() => playScript('dailySeries')}
+            title="語音劇本: 想你三連發"
+            className="text-[12px] whitespace-nowrap bg-white hover:bg-slate-50 text-slate-800 font-medium px-3 py-1.5 rounded-full shadow-sm border border-slate-200 transition shrink-0 active:scale-95"
+          >
+            💬
+          </button>
+
+          <button
+            onClick={() => playScript('plotDate')}
+            title="語音劇本: 我們約會吧"
+            className="text-[12px] whitespace-nowrap bg-white hover:bg-slate-50 text-slate-800 font-medium px-3 py-1.5 rounded-full shadow-sm border border-slate-200 transition shrink-0 active:scale-95"
+          >
+            🎬
+          </button>
+
+          <button
+            onClick={() => playScript('plotLove')}
+            title="語音劇本: 我愛你"
+            className="text-[12px] whitespace-nowrap bg-white hover:bg-slate-50 text-slate-800 font-medium px-3 py-1.5 rounded-full shadow-sm border border-slate-200 transition shrink-0 active:scale-95"
+          >
+            ♥️
+          </button>
+
+          <button
+            onClick={() => playScript('goodNight')}
+            title="語音劇本: 晚安"
+            className="text-[12px] whitespace-nowrap bg-white hover:bg-slate-50 text-slate-800 font-medium px-3 py-1.5 rounded-full shadow-sm border border-slate-200 transition shrink-0 active:scale-95"
+          >
+            🌙💤
+          </button>
+
+          {/* 3. 隨機不重複抽照群 */}
           <button
             onClick={() => triggerRandomSinglePhoto('gym', POOL_GYM, '今天課表做完了。')}
             title="隨機不重複: 健身"
@@ -1201,7 +1376,7 @@ export default function App() {
             🎡
           </button>
 
-          {/* 固定畫報相簿群 */}
+          {/* 4. 畫報與相簿發送群 */}
           <button
             onClick={() => sendAlbumBatch('TIME HOMME 25FW 【Breeze from the touch】 - I', TIME_HOMME_PART1, 'TIME HOMME 新一季畫報出爐了。')}
             title="TIME HOMME Part 1"
@@ -1226,7 +1401,6 @@ export default function App() {
             💼
           </button>
 
-          {/* 單次自拍與活動組 */}
           <button
             onClick={() => sendAlbumBatch('車內隨拍組', CAR_SET_4, '剛剛在車上隨便拍的。')}
             title="單次車內自拍組"
@@ -1251,7 +1425,6 @@ export default function App() {
             🖤
           </button>
 
-          {/* Arena 與日常台詞 */}
           <button
             onClick={() => sendAlbumBatch('Arena Homme+ Nov 2026 - Series A', ARENA_ALL_IMAGES.slice(0, 11), '《Arena Homme+》A cut 樣片出來了。')}
             className="text-[12px] whitespace-nowrap bg-white hover:bg-slate-50 text-slate-800 font-medium px-3 py-1.5 rounded-full shadow-sm border border-slate-200 transition shrink-0 active:scale-95"
@@ -1357,7 +1530,7 @@ export default function App() {
           </button>
         </div>
 
-        {/* 彈出視窗 1️⃣：相簿功能（Arena、TIME HOMME、Delvaux 與全未分類） */}
+        {/* 彈出視窗 1️⃣：相簿功能 */}
         {activeModal === 'album' && (
           <div className="absolute inset-0 bg-slate-950/95 z-50 flex flex-col text-white backdrop-blur-md animate-fade-in">
             <div className="pt-10 pb-3 px-4 bg-[#212E3E] flex items-center justify-between shadow">
@@ -1365,7 +1538,6 @@ export default function App() {
               <button onClick={() => setActiveModal(null)} className="text-sm text-slate-400 hover:text-white px-2 py-1">關閉</button>
             </div>
 
-            {/* 相簿標籤分頁 */}
             <div className="flex border-b border-white/10 px-3 pt-2 bg-slate-900/60 overflow-x-auto scrollbar-none">
               <button
                 onClick={() => setActiveAlbumTab('arena')}
@@ -1401,7 +1573,6 @@ export default function App() {
               </button>
             </div>
 
-            {/* 無縫連續三排相片牆 */}
             <div className="flex-1 overflow-y-auto p-2">
               {activeAlbumTab === 'arena' && (
                 <div className="grid grid-cols-3 gap-1 rounded-xl overflow-hidden">
