@@ -1,27 +1,3 @@
-已完成 UI 的細緻調整：
-
-1. **Header Bar 位置與頭貼比例**：
-* 頂部內邊距下移（改為 `pt-12 pb-3.5`），讓 Header 視覺向下舒展。
-* 刪除返回箭頭（`‹`）。
-* 刪除狀態綠色小字。
-* 頭貼加大（直徑提升至 `w-12 h-12`，搭配細緻光圈），名字 **Soo** 與頭貼垂直對齊置中，文字視覺更俐落。
-
-
-2. **頂部導航列與底部輸入列色彩重定（莫蘭迪灰調土耳其藍）**：
-* 選用中明度、帶柔灰氛圍的 Morandi Teal（`#4E727A` / 邊框 `#3D5C63`），低調耐看且不壓迫。
-
-
-3. **使用者訊息氣泡（Tiffany 淡藍綠色）**：
-* 由原本的亮草綠改為輕透質感的 Tiffany Blue（`#81D4D2` / 搭配深墨綠色文字 `#0F3332`）。
-* 已讀標記與時間色彩同步微調為精緻的灰綠調（`text-teal-700/80`）。
-
-
-
----
-
-請直接複製以下完整程式碼覆蓋至 GitHub 上的 `src/App.jsx` 並 Commit：
-
-```jsx
 import React, { useState, useEffect, useRef } from 'react';
 
 // Google 試算表設定 (已綁定你的 Soo_Master_Database)
@@ -1155,5 +1131,3 @@ export default function App() {
     </div>
   );
 }
-
-```
