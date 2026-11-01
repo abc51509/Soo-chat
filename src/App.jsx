@@ -3,54 +3,80 @@ import React, { useState, useEffect, useRef } from 'react';
 // Google 試算表設定 (綁定 Soo_Master_Database)
 const SPREADSHEET_ID = '11P8tG-MhZiwrBcGf9TyFirQNwPxKC2YPVbv4XHMEV-A';
 
-// 健全的 CSV 解析工具
+// 健全強固的 RFC 4180 CSV 解析器（支援儲存格內換行、雙引號與逗號）
+const parseCSV = (text) => {
+  const rows = [];
+  let currentRow = [];
+  let currentVal = '';
+  let inQuotes = false;
+
+  for (let i = 0; i < text.length; i++) {
+    const char = text[i];
+    const nextChar = text[i + 1];
+
+    if (char === '"') {
+      if (inQuotes && nextChar === '"') {
+        currentVal += '"';
+        i++;
+      } else {
+        inQuotes = !inQuotes;
+      }
+    } else if (char === ',' && !inQuotes) {
+      currentRow.push(currentVal.trim());
+      currentVal = '';
+    } else if ((char === '\r' || char === '\n') && !inQuotes) {
+      if (char === '\r' && nextChar === '\n') i++;
+      currentRow.push(currentVal.trim());
+      if (currentRow.some(val => val.length > 0)) {
+        rows.push(currentRow);
+      }
+      currentRow = [];
+      currentVal = '';
+    } else {
+      currentVal += char;
+    }
+  }
+
+  if (currentVal.length > 0 || currentRow.length > 0) {
+    currentRow.push(currentVal.trim());
+    if (currentRow.some(val => val.length > 0)) {
+      rows.push(currentRow);
+    }
+  }
+
+  return rows;
+};
+
+// 抓取試算表資料並轉為物件陣列
 const fetchSheetData = async (sheetName) => {
   try {
     const url = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheetName)}&t=${Date.now()}`;
     const res = await fetch(url);
-    if (!res.ok) return [];
+    if (!res.ok) {
+      console.error(`連線至分頁 [${sheetName}] 失敗:`, res.status);
+      return [];
+    }
     const text = await res.text();
-    
-    const lines = text.split('\n').filter(l => l.trim().length > 0);
-    if (lines.length <= 1) return [];
+    const rows = parseCSV(text);
+    if (rows.length <= 1) return [];
 
-    const parseRow = (rowStr) => {
-      const result = [];
-      let current = '';
-      let inQuotes = false;
-      for (let i = 0; i < rowStr.length; i++) {
-        const char = rowStr[i];
-        if (char === '"') {
-          inQuotes = !inQuotes;
-        } else if (char === ',' && !inQuotes) {
-          result.push(current.trim().replace(/^"|"$/g, ''));
-          current = '';
-        } else {
-          current += char;
-        }
-      }
-      result.push(current.trim().replace(/^"|"$/g, ''));
-      return result;
-    };
+    // 標題標準化（去除特殊符號並轉小寫）
+    const headers = rows[0].map(h => h.toLowerCase().replace(/[^a-z0-9_]/g, ''));
 
-    const rawHeaders = parseRow(lines[0]);
-    const headers = rawHeaders.map(h => h.toLowerCase().replace(/[^a-z0-9_]/g, ''));
-
-    return lines.slice(1).map(line => {
-      const values = parseRow(line);
+    return rows.slice(1).map(row => {
       const entry = {};
       headers.forEach((h, idx) => {
-        entry[h] = values[idx] ? values[idx].trim() : '';
+        entry[h] = row[idx] ? row[idx].trim() : '';
       });
       return entry;
     });
   } catch (err) {
-    console.error(`讀取試算表 [${sheetName}] 失敗:`, err);
+    console.error(`讀取試算表 [${sheetName}] 發生例外:`, err);
     return [];
   }
 };
 
-// 音訊路徑安全解析校正
+// 支援 random_like 代碼與自動容錯格式化音訊路徑
 const formatAudioUrl = (raw) => {
   if (!raw) return '';
   let clean = raw.trim().replace(/^["']|["']$/g, '');
@@ -207,7 +233,6 @@ const ALL_VOICE_LIST = [
   { id: 'v17', title: '夜間: 晚安', src: '/audio/good_night_normal.mp3', duration: '0:05' }
 ];
 
-// 語音劇本組合
 const SCRIPT_SCENARIOS = {
   dailySeries: {
     label: '💬',
@@ -255,7 +280,6 @@ export default function App() {
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   };
 
-  // 訊息本機儲存
   const [messages, setMessages] = useState(() => {
     try {
       const saved = localStorage.getItem('soo_chat_messages');
@@ -269,12 +293,10 @@ export default function App() {
   const [inputText, setInputText] = useState('');
   const [isTyping, setIsTyping] = useState(false);
 
-  // 試算表動態資料
   const [sheetMedia, setSheetMedia] = useState([]);
   const [sheetEvents, setSheetEvents] = useState([]);
   const [sheetNews, setSheetNews] = useState([]);
 
-  // 追問對話隊列
   const [followUpQueue, setFollowUpQueue] = useState(() => {
     try {
       const saved = localStorage.getItem('soo_follow_up_queue');
@@ -284,23 +306,19 @@ export default function App() {
     }
   });
 
-  // 晨喚狀態追蹤
   const [awokenDate, setAwokenDate] = useState(() => {
     return localStorage.getItem('soo_awoken_date') || '';
   });
 
-  // 通話與視訊狀態
-  const [callStatus, setCallStatus] = useState('idle'); // 'idle' | 'ringing' | 'connected'
-  const [callType, setCallType] = useState('audio'); // 'audio' | 'video'
+  const [callStatus, setCallStatus] = useState('idle');
+  const [callType, setCallType] = useState('audio');
   const [callDuration, setCallDuration] = useState(0);
   const [isVideoCalling, setIsVideoCalling] = useState(false);
   const [videoDuration, setVideoDuration] = useState(0);
 
-  // 通話音訊播放模式: 'user_outgoing' | 'default' | 'triple'
   const [callAudioMode, setCallAudioMode] = useState('user_outgoing');
   const [callAudioIndex, setCallAudioIndex] = useState(0);
 
-  // 模組面板
   const [isPlusMenuOpen, setIsPlusMenuOpen] = useState(false);
   const [activeModal, setActiveModal] = useState(null);
   const [activeAlbumTab, setActiveAlbumTab] = useState('all');
@@ -318,7 +336,6 @@ export default function App() {
     '/audio/shall_i_go_now.mp3'
   ];
 
-  // 儲存至 LocalStorage
   useEffect(() => {
     try {
       localStorage.setItem('soo_chat_messages', JSON.stringify(messages));
@@ -335,6 +352,7 @@ export default function App() {
     }
   }, [followUpQueue]);
 
+  // 抓取試算表資料
   const loadAllSheets = async () => {
     const [eventsData, mediaData, newsData] = await Promise.all([
       fetchSheetData('events'),
@@ -391,7 +409,6 @@ export default function App() {
     ]);
   };
 
-  // 未接來電隨機追加關心訊息（文字 或 語音氣泡）
   const triggerMissedCallFollowUp = () => {
     setTimeout(() => {
       const followUpOptions = [
@@ -465,7 +482,7 @@ export default function App() {
     return chosen;
   };
 
-  // 點擊控制列發送分類照片
+  // 點擊控制列：抓取對應分類資料
   const triggerCategoryRandom = (catKey) => {
     const normalizedKey = catKey.toLowerCase().trim();
     const pool = sheetMedia.filter(m => {
@@ -473,7 +490,10 @@ export default function App() {
       return itemCat === normalizedKey || itemCat.includes(normalizedKey);
     });
 
-    if (pool.length === 0) return;
+    if (pool.length === 0) {
+      alert(`試算表 media 標籤中尚未找到分類為 "${catKey}" 的資料`);
+      return;
+    }
 
     const item = pickRandomUnspent(catKey, pool);
     if (!item) return;
@@ -541,7 +561,6 @@ export default function App() {
     setFollowUpQueue(newFollowUps);
   };
 
-  // 1. 上方通話按鈕：我打給他 (固定播 phone_call.mp3，約 25% 隨機不接並回「在忙」或「晚點回你」)
   const handleUserOutgoingCall = () => {
     const isBusy = Math.random() < 0.25;
     if (isBusy) {
@@ -568,7 +587,6 @@ export default function App() {
     setCallStatus('connected');
   };
 
-  // 2. 上方視訊按鈕：我打視訊給他 (約 25% 隨機不接並回「在忙」或「晚點回你」)
   const handleUserOutgoingVideo = () => {
     const isBusy = Math.random() < 0.25;
     if (isBusy) {
@@ -592,7 +610,6 @@ export default function App() {
     setIsVideoCalling(true);
   };
 
-  // 3. 隨機來電：他打給我 (可為語音或視訊，先響鈴 5 秒，沒接轉未接並隨機留言)
   const triggerIncomingCall = (type = 'audio', mode = 'default') => {
     setCallType(type);
     setCallAudioMode(mode);
@@ -612,7 +629,6 @@ export default function App() {
     }, 5000);
   };
 
-  // 接聽來電
   const handleAcceptCall = () => {
     clearTimeout(ringingTimeoutRef.current);
     if (ringAudioRef.current) ringAudioRef.current.pause();
@@ -626,7 +642,6 @@ export default function App() {
     }
   };
 
-  // 掛斷或拒接通話
   const handleEndCall = () => {
     clearTimeout(ringingTimeoutRef.current);
     const wasRinging = (callStatus === 'ringing');
@@ -636,7 +651,6 @@ export default function App() {
     setCallAudioIndex(0);
 
     if (wasRinging) {
-      // 響鈴時直接按拒接
       addMissedCallRecord(getCurrentTime(), callType === 'video' ? '未接視訊' : '未接來電');
       triggerMissedCallFollowUp();
     } else {
@@ -734,10 +748,8 @@ export default function App() {
       else if (picked === 'photo_off') triggerCategoryRandom('official');
       else if (picked === 'call_triple') triggerIncomingCall('audio', 'triple');
       else if (picked === 'call_shall_i') triggerIncomingCall('audio', 'default');
-      else if (picked === 'incoming_video') {
-        // 隨機視訊來電：先響鈴聲 5 秒，沒接轉未接並隨機留言
-        triggerIncomingCall('video', 'default');
-      } else if (picked === 'text_or_voice') {
+      else if (picked === 'incoming_video') triggerIncomingCall('video', 'default');
+      else if (picked === 'text_or_voice') {
         const isVoice = Math.random() < 0.35;
         if (isVoice) {
           const chosenVoice = HOURLY_VOICE_MESSAGES[Math.floor(Math.random() * HOURLY_VOICE_MESSAGES.length)];
@@ -906,7 +918,7 @@ export default function App() {
       {/* 主聊天容器 */}
       <div className="w-full sm:max-w-[420px] h-[100dvh] sm:h-[92vh] sm:max-h-[880px] bg-[#ECEEF1] sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden relative border-0 sm:border sm:border-slate-700">
         
-        {/* 全螢幕來電介面 (語音來電 / 視訊來電) */}
+        {/* 全螢幕來電介面 */}
         {callStatus !== 'idle' && (
           <div className="absolute inset-0 bg-slate-950/95 z-50 flex flex-col justify-between items-center py-16 px-6 text-white backdrop-blur-md animate-fade-in">
             <div className="flex flex-col items-center mt-10 space-y-4">
