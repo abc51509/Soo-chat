@@ -3,7 +3,27 @@ import React, { useState, useEffect, useRef } from 'react';
 // Google 試算表設定 (綁定 Soo_Master_Database)
 const SPREADSHEET_ID = '11P8tG-MhZiwrBcGf9TyFirQNwPxKC2YPVbv4XHMEV-A';
 
-// 最原始、最直接的 CSV 解析函式
+// 健全解析連續逗號與空白格的 CSV 工具
+const parseRow = (rowStr) => {
+  const result = [];
+  let current = '';
+  let inQuotes = false;
+  for (let i = 0; i < rowStr.length; i++) {
+    const char = rowStr[i];
+    if (char === '"') {
+      inQuotes = !inQuotes;
+    } else if (char === ',' && !inQuotes) {
+      result.push(current.trim().replace(/^"|"$/g, ''));
+      current = '';
+    } else {
+      current += char;
+    }
+  }
+  result.push(current.trim().replace(/^"|"$/g, ''));
+  return result;
+};
+
+// 治本方案：直接按表格 A 到 L 欄位置精確對齊（空白不填也完全不會移位）
 const fetchSheetData = async (sheetName) => {
   try {
     const url = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheetName)}&t=${Date.now()}`;
@@ -14,34 +34,45 @@ const fetchSheetData = async (sheetName) => {
     const lines = text.split('\n').filter(l => l.trim().length > 0);
     if (lines.length <= 1) return [];
 
-    const parseRow = (rowStr) => {
-      const result = [];
-      let current = '';
-      let inQuotes = false;
-      for (let i = 0; i < rowStr.length; i++) {
-        const char = rowStr[i];
-        if (char === '"') {
-          inQuotes = !inQuotes;
-        } else if (char === ',' && !inQuotes) {
-          result.push(current.trim().replace(/^"|"$/g, ''));
-          current = '';
-        } else {
-          current += char;
-        }
-      }
-      result.push(current.trim().replace(/^"|"$/g, ''));
-      return result;
-    };
-
     const rawHeaders = parseRow(lines[0]);
     const headers = rawHeaders.map(h => h.toLowerCase().replace(/[^a-z0-9_]/g, ''));
+
+    // 檢查欄位是否存在
+    const catIdx = headers.indexOf('category');
+    const imgIdx = headers.indexOf('images');
 
     return lines.slice(1).map(line => {
       const values = parseRow(line);
       const entry = {};
+
+      // 1. 優先用 header 名稱綁定
       headers.forEach((h, idx) => {
         entry[h] = values[idx] ? values[idx].trim() : '';
       });
+
+      // 2. 治本防呆：若 header 位置偏移，強制鎖定 D 欄 (Index 3) 與 G 欄 (Index 6)
+      if (!entry.category && values[3]) {
+        entry.category = values[3].trim();
+      }
+      if (!entry.images && values[6]) {
+        entry.images = values[6].trim();
+      }
+      if (!entry.caption && values[7]) {
+        entry.caption = values[7].trim();
+      }
+      if (!entry.audio_after && values[8]) {
+        entry.audio_after = values[8].trim();
+      }
+      if (!entry.follow_up_1 && values[9]) {
+        entry.follow_up_1 = values[9].trim();
+      }
+      if (!entry.follow_up_2 && values[10]) {
+        entry.follow_up_2 = values[10].trim();
+      }
+      if (!entry.follow_up_3 && values[11]) {
+        entry.follow_up_3 = values[11].trim();
+      }
+
       return entry;
     });
   } catch (err) {
@@ -188,7 +219,6 @@ export default function App() {
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   };
 
-  // 訊息本機儲存
   const [messages, setMessages] = useState(() => {
     try {
       const saved = localStorage.getItem('soo_chat_messages');
@@ -202,12 +232,10 @@ export default function App() {
   const [inputText, setInputText] = useState('');
   const [isTyping, setIsTyping] = useState(false);
 
-  // 試算表動態資料
   const [sheetMedia, setSheetMedia] = useState([]);
   const [sheetEvents, setSheetEvents] = useState([]);
   const [sheetNews, setSheetNews] = useState([]);
 
-  // 追問對話隊列
   const [followUpQueue, setFollowUpQueue] = useState(() => {
     try {
       const saved = localStorage.getItem('soo_follow_up_queue');
@@ -217,18 +245,15 @@ export default function App() {
     }
   });
 
-  // 晨喚狀態追蹤
   const [awokenDate, setAwokenDate] = useState(() => {
     return localStorage.getItem('soo_awoken_date') || '';
   });
 
-  // 通話與視訊狀態
   const [callStatus, setCallStatus] = useState('idle');
   const [callDuration, setCallDuration] = useState(0);
   const [isVideoCalling, setIsVideoCalling] = useState(false);
   const [videoDuration, setVideoDuration] = useState(0);
 
-  // 模組面板
   const [isPlusMenuOpen, setIsPlusMenuOpen] = useState(false);
   const [activeModal, setActiveModal] = useState(null);
   const [activeAlbumTab, setActiveAlbumTab] = useState('all');
@@ -255,7 +280,6 @@ export default function App() {
     }
   }, [followUpQueue]);
 
-  // 載入 Google 試算表資料
   const loadAllSheets = async () => {
     const [eventsData, mediaData, newsData] = await Promise.all([
       fetchSheetData('events'),
@@ -293,7 +317,7 @@ export default function App() {
         role: 'assistant',
         type: 'audio',
         audioSrc: cleanSrc,
-        durationText: voiceData.duration || '0:04',
+        durationText: voiceData.duration || '0:03',
         time: getCurrentTime()
       }
     ]);
@@ -313,14 +337,13 @@ export default function App() {
     ]);
   };
 
-  // 隨機不重複抽選
   const pickRandomUnspent = (poolKey, items) => {
     if (!items || items.length === 0) return null;
     const storageKey = `soo_spent_${poolKey}`;
     let spentIds = JSON.parse(localStorage.getItem(storageKey) || '[]');
 
     let available = items.filter(item => {
-      const id = item.id || item.images || item.image_url || JSON.stringify(item);
+      const id = item.id || item.images || JSON.stringify(item);
       return !spentIds.includes(id);
     });
 
@@ -331,30 +354,15 @@ export default function App() {
     }
 
     const chosen = available[Math.floor(Math.random() * available.length)];
-    const chosenId = chosen.id || chosen.images || chosen.image_url || JSON.stringify(chosen);
+    const chosenId = chosen.id || chosen.images || JSON.stringify(chosen);
     spentIds.push(chosenId);
     localStorage.setItem(storageKey, JSON.stringify(spentIds));
 
     return chosen;
   };
 
-  // 診斷觸發函式（針對 🏋️ 特別檢查）
+  // 點擊分類：精準按照對應好的 category 與欄位發送
   const triggerCategoryRandom = (catKey) => {
-    // 1️⃣ 檢查整張 sheet 是否沒抓到
-    if (!sheetMedia || sheetMedia.length === 0) {
-      alert('1️⃣');
-      return;
-    }
-
-    // 2️⃣ 檢查物件裡面有沒有 category 欄位
-    const firstRow = sheetMedia[0] || {};
-    const hasCategoryKey = Object.keys(firstRow).some(k => k === 'category' || k.includes('category'));
-    if (!hasCategoryKey) {
-      alert('2️⃣');
-      return;
-    }
-
-    // 3️⃣ 檢查是否有符合 gym 的列
     const normalizedKey = catKey.toLowerCase().trim();
     const pool = sheetMedia.filter(m => {
       const itemCat = (m.category || m.category_name || '').toLowerCase().trim();
@@ -362,23 +370,17 @@ export default function App() {
     });
 
     if (pool.length === 0) {
-      alert('3️⃣');
+      alert(`試算表 media 標籤中尚未找到分類為 "${catKey}" 的資料`);
       return;
     }
 
     const item = pickRandomUnspent(catKey, pool);
     if (!item) return;
 
-    // 4️⃣ 檢查圖片網址是否存在
+    // 抓取圖片網址（Index 6 / images 欄）
     const rawImgs = (item.images || item.image_url || item.image || '').trim();
     const imgList = rawImgs.split(/[\s,]+/).filter(url => url.startsWith('http'));
 
-    if (imgList.length === 0) {
-      alert('4️⃣');
-      return;
-    }
-
-    // 發送單圖
     if (imgList.length === 1) {
       setMessages(prev => [
         ...prev,
@@ -391,7 +393,6 @@ export default function App() {
         }
       ]);
     } else if (imgList.length > 1) {
-      // 發送多圖（上方無標題）
       setMessages(prev => [
         ...prev,
         {
@@ -405,7 +406,7 @@ export default function App() {
       ]);
     }
 
-    // 發送 caption
+    // 抓取 caption（Index 7 / caption 欄）
     const textToSend = (item.caption || '').trim();
     if (textToSend) {
       setTimeout(() => {
@@ -422,7 +423,7 @@ export default function App() {
       }, 700);
     }
 
-    // 處理語音
+    // 抓取 audio_after（Index 8 / audio_after 欄）
     const audioAfter = (item.audio_after || '').trim();
     if (audioAfter) {
       let finalAudio = audioAfter;
@@ -442,15 +443,13 @@ export default function App() {
       }, textToSend ? 1400 : 800);
     }
 
-    // 裝載追問
+    // 抓取 follow_up 1, 2, 3（Index 9, 10, 11 欄）
     const newFollowUps = [];
     if (item.follow_up_1 && item.follow_up_1.trim()) newFollowUps.push(item.follow_up_1.trim());
     if (item.follow_up_2 && item.follow_up_2.trim()) newFollowUps.push(item.follow_up_2.trim());
     if (item.follow_up_3 && item.follow_up_3.trim()) newFollowUps.push(item.follow_up_3.trim());
 
-    if (newFollowUps.length > 0) {
-      setFollowUpQueue(newFollowUps);
-    }
+    setFollowUpQueue(newFollowUps);
   };
 
   // 1. 上方通話按鈕：我主動打給他
@@ -458,7 +457,6 @@ export default function App() {
     const isBusy = Math.random() < 0.25;
 
     if (isBusy) {
-      // 拒接：出現「取消通話」紀錄氣泡，0.8 秒後回傳「在忙」或「晚點回你」
       addCallRecord('取消通話', 'user');
 
       const busyReplies = ['在忙', '晚點回你'];
@@ -478,7 +476,6 @@ export default function App() {
       return;
     }
 
-    // 接通：進入全螢幕播放 phone_call.mp3，絕對不回在忙
     setCallStatus('connected');
   };
 
@@ -575,7 +572,6 @@ export default function App() {
     }
   };
 
-  // 通話音訊控制
   useEffect(() => {
     if (callStatus === 'ringing') {
       if (ringAudioRef.current) {
@@ -637,7 +633,6 @@ export default function App() {
     ]);
   };
 
-  // 相簿群組化
   const albumGroups = React.useMemo(() => {
     const groups = {};
     sheetMedia.forEach(m => {
@@ -667,11 +662,7 @@ export default function App() {
                 <img src="https://images.plurk.com/6PooPJr1YbOhrMp5CCFdbl.jpg" alt="avatar" className="w-full h-full object-cover" />
               </div>
               <span className="text-2xl font-semibold tracking-wider">Soo</span>
-              {callStatus === 'ringing' ? (
-                <span className="text-xs text-slate-400 font-light tracking-wide">來電...</span>
-              ) : (
-                <span className="text-sm text-[#81D4D2] font-mono tracking-wider">{formatSeconds(callDuration)}</span>
-              )}
+              <span className="text-sm text-[#81D4D2] font-mono tracking-wider">{formatSeconds(callDuration)}</span>
             </div>
 
             <div className="w-full flex justify-center items-center mb-8">
