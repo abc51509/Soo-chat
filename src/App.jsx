@@ -108,7 +108,7 @@ const ALL_VOICE_LIST = [
   { id: 'v11', title: '夜間: 晚安', src: '/audio/good_night_normal.mp3', duration: '0:05' }
 ];
 
-// 完整無縫 Arena 相簿圖庫（A~D 組融合，共 36 張）
+// 雜誌相簿資料庫
 const ARENA_ALL_IMAGES = [
   'https://images.plurk.com/wGRATa3N4kmnXq7NfNW5q.jpg',
   'https://images.plurk.com/5pOLToEI89ynuGrE6eK9zq.jpg',
@@ -148,29 +148,260 @@ const ARENA_ALL_IMAGES = [
   'https://images.plurk.com/6F2dPLa67VN6EhGBoaR1MN.jpg'
 ];
 
-// 未分類照片歸檔
-const UNCATEGORIZED_PHOTOS = [
-  'https://i.pinimg.com/736x/17/b6/1e/17b61e7e3cfb485941687fb05647a3fe.jpg',
-  'https://i.pinimg.com/1200x/59/67/d1/5967d1cd4f2c5523a27d5913a66271fa.jpg',
-  'https://i.pinimg.com/736x/53/42/e7/5342e7ed2ea38ed256fe6c18438ff942.jpg',
-  'https://i.pinimg.com/1200x/98/3d/57/983d579ed770c086cd7e39cf388ec5fe.jpg',
-  'https://i.pinimg.com/736x/c8/c3/e6/c8c3e646c47bd83dbeb285393405087a.jpg'
+// TIME HOMME 25FW
+const TIME_HOMME_PART1 = [
+  'https://images.plurk.com/1n6vKU2MA4NxmtkOg1q48K.jpg',
+  'https://images.plurk.com/6qCqoOzKNxggR9jzsCGu3Q.jpg',
+  'https://images.plurk.com/3QA3CyLsc2Ya5JkujHnBwI.jpg',
+  'https://images.plurk.com/4bmcYO4fyt1MyaT5dmhePw.jpg',
+  'https://images.plurk.com/4KnvP5RB2txpbFFCy3SYuY.jpg',
+  'https://images.plurk.com/2sURoKoVeg7eMN0RAf1dFp.jpg',
+  'https://images.plurk.com/610OFc2VxdE5mZ9aYRUt1q.jpg',
+  'https://images.plurk.com/4hDKUxkzvLh3pvObvCk8mb.jpg',
+  'https://images.plurk.com/2k5QTkrOMyknXC8xH1MooT.jpg',
+  'https://images.plurk.com/4UR6PXZn03LAjKe1EuId7a.jpg'
 ];
 
-// 視訊通話備選影片池（預設 5 個 slot，支援循環/切換）
+const TIME_HOMME_PART2 = [
+  'https://images.plurk.com/2KdI0bz3GM4UaZjzYhksHn.jpg',
+  'https://images.plurk.com/XM84QxTG0o6ZC07Xw7WRh.jpg',
+  'https://images.plurk.com/39eq7ySEDlwfAhkAAX4zMn.jpg',
+  'https://images.plurk.com/2n2KyLjMwfSTaqJq810BPU.jpg',
+  'https://images.plurk.com/2GDm3FPQsAwYpMggcS772e.jpg',
+  'https://images.plurk.com/5V0Fy8hk3b4UVCeoZMwPUJ.jpg',
+  'https://images.plurk.com/2oS7Ui3xFzMhcZw2pc6Fe.jpg'
+];
+
+// Delvaux Shanghai 2026
+const DELVAUX_IMAGES = [
+  'https://images.plurk.com/1iUVhhGyvxDlOOdGPw35pq.jpg',
+  'https://images.plurk.com/4MWcEw44Ok0b1UBrEfxxpB.jpg',
+  'https://images.plurk.com/3HzgKz3tQbYtp3pw8S6iog.jpg'
+];
+
+// 隨機資料集
+const POOL_GYM = [
+  'https://i.pinimg.com/736x/22/d8/f3/22d8f306275dfe7b64acd21ca98f9abd.jpg',
+  'https://i.pinimg.com/1200x/0b/4a/6e/0b4a6e568ea37bf78bb7fd21d856e1fd.jpg',
+  'https://i.pinimg.com/736x/b3/d2/1c/b3d21c7fbbe868dafddbb3f95aa8e776.jpg',
+  'https://i.pinimg.com/736x/9b/3c/2b/9b3c2bd0c58cf554a825623936d16638.jpg',
+  'https://images.plurk.com/2p8rnxDbpRf4qxx5Q6Q74S.png',
+  'https://i.pinimg.com/736x/f5/b3/e3/f5b3e37f5e7bfb403891ae73bb3a11b0.jpg',
+  'https://i.pinimg.com/1200x/e4/5c/ca/e45ccadfc78f9fa779732ad580470860.jpg',
+  'https://i.pinimg.com/1200x/cc/bf/8f/ccbf8f5b46666abdd4c316143d423dc1.jpg',
+  'https://i.pinimg.com/736x/b5/1d/0b/b51d0b03a1ba894c9664b1d2da2deb8f.jpg',
+  'https://i.pinimg.com/736x/19/c9/b9/19c9b95b095ee9ebbcac9a55c1ab48fe.jpg',
+  'https://i.pinimg.com/1200x/73/4a/f9/734af9ab80865c574b51f752c796e84f.jpg',
+  'https://i.pinimg.com/1200x/38/30/68/3830689dd99141249fa198569dbea6e1.jpg',
+  'https://i.pinimg.com/736x/12/33/6f/12336f1677a932a5512caa9feb450179.jpg',
+  'https://i.pinimg.com/736x/44/56/8f/44568fb30bb68a862ada8623d740a10c.jpg',
+  'https://i.pinimg.com/736x/c3/ae/cb/c3aecb385e6a49a5dc57999bd54c35b0.jpg',
+  'https://i.pinimg.com/736x/12/9e/68/129e687df81f5b1c934dd61c2d9f7c32.jpg',
+  'https://i.pinimg.com/736x/d8/66/e8/d866e889a4a11c83af260f0a4d2b99c6.jpg',
+  'https://i.pinimg.com/736x/5f/9d/98/5f9d981fc34c45615750657144e7e46b.jpg',
+  'https://i.pinimg.com/1200x/b5/51/c9/b551c94ebb578f6d7481403a2bba5f64.jpg',
+  'https://i.pinimg.com/1200x/c7/73/69/c7736998719e9cab3729a016790571e5.jpg',
+  'https://i.pinimg.com/1200x/ba/9f/12/ba9f1204756592f351dc364dea4e734c.jpg',
+  'https://i.pinimg.com/736x/87/9d/84/879d84b1c94f5c7319271e4c93944c57.jpg',
+  'https://i.pinimg.com/736x/88/11/56/8811564c9aa2a3ea84bed10bbac6c091.jpg'
+];
+
+const POOL_CAR = [
+  'https://images.plurk.com/JlYgvQyCmqHHSDRSEvPQF.png',
+  'https://images.plurk.com/3tpfXvohjEd9h3XvCGxN4G.png',
+  'https://i.pinimg.com/1200x/73/bc/05/73bc05dddcfe4f6162d6f445d711d81b.jpg',
+  'https://i.pinimg.com/736x/ff/86/9c/ff869c391d315875c4095373d5f3e4cd.jpg',
+  'https://i.pinimg.com/1200x/e3/5b/f0/e35bf0b169899712eed25cc9675a1b77.jpg',
+  'https://i.pinimg.com/736x/9a/8d/00/9a8d00a17c6882e8dfb4da86491e8492.jpg'
+];
+
+const POOL_SELFIE = [
+  'https://i.pinimg.com/736x/e3/9b/f3/e39bf309ce2c32fc550fc18fc8676f91.jpg',
+  'https://i.pinimg.com/736x/9d/02/1a/9d021a2727ba2d1214e66f0e45c260e3.jpg',
+  'https://images.plurk.com/3xGyOx0iQu8GUt4h4CxqcJ.png',
+  'https://i.pinimg.com/1200x/cb/16/15/cb161533e0b32facbcc86d9363cf8dad.jpg',
+  'https://i.pinimg.com/736x/95/fd/0e/95fd0e349f6bd4346af7c83f4e868059.jpg',
+  'https://i.pinimg.com/736x/e1/47/14/e14714b11cd95e420ef5704b52a21349.jpg',
+  'https://i.pinimg.com/736x/71/ee/b9/71eeb999b41c87d8fdb7fda0383683fa.jpg',
+  'https://i.pinimg.com/736x/4f/86/a6/4f86a6c2208965cc5e8d461bc91d42ff.jpg',
+  'https://i.pinimg.com/736x/92/c9/1c/92c91c1d2c76af88aa27f2b3360ce0a4.jpg',
+  'https://i.pinimg.com/736x/d6/3b/a9/d63ba955460dc7e8049ec82a13e53162.jpg'
+];
+
+const POOL_OUTING = [
+  'https://i.pinimg.com/736x/c4/91/c0/c491c085bad5bdd087efcd5e0a95479d.jpg',
+  'https://i.pinimg.com/736x/ca/29/91/ca29918efc16e3c1d6817af1604318c3.jpg',
+  'https://images.plurk.com/6KBVwlFOZXbLrdcj7aRQaD.png',
+  'https://imgs.plurk.com/QHV/cCK/Z2RQIJm1B4qkyJt9SiXrfKKnNZE_lg.jpg',
+  'https://imgs.plurk.com/QHV/9bl/4ATkcvLXfnoUmF2MW7BNne0Fxfh_lg.jpg',
+  'https://i.pinimg.com/736x/ba/0b/52/ba0b52dfde7b006a890f56746651a5de.jpg',
+  'https://imgs.plurk.com/QHV/7BS/g1ToIODKXRxceDrzzP9sb8RRiGI_lg.jpg',
+  'https://i.pinimg.com/736x/76/c8/27/76c82772ae34258891d024b856aa24f3.jpg'
+];
+
+// 志龍同遊分組資料
+const POOL_GD = [
+  {
+    id: 'gd_g1',
+    images: [
+      'https://i.pinimg.com/736x/1e/fa/d3/1efad3e8d5aa375231ffe5f9014d6e35.jpg',
+      'https://i.pinimg.com/736x/1e/fa/d3/1efad3e8d5aa375231ffe5f9014d6e35.jpg',
+      'https://i.pinimg.com/736x/49/d4/94/49d49423f20a3fa2d8a81520fe9a6c2a.jpg'
+    ]
+  },
+  {
+    id: 'gd_g2',
+    images: [
+      'https://i.pinimg.com/736x/a5/3b/5b/a53b5b52c8ae1b0de0320e75fd37aebc.jpg',
+      'https://i.pinimg.com/736x/17/f5/13/17f51330c76fd79471ff8ed6dfc5ef7f.jpg',
+      'https://i.pinimg.com/736x/a7/70/5b/a7705be7828dacd5ff976bf807b7834b.jpg'
+    ]
+  },
+  {
+    id: 'gd_g3',
+    images: [
+      'https://i.pinimg.com/736x/ae/56/e0/ae56e0ef88ddde04f5d6d698be49355c.jpg',
+      'https://i.pinimg.com/1200x/99/ed/d6/99edd6b5739e931b1960b1ff6e666e05.jpg'
+    ]
+  },
+  {
+    id: 'gd_g4',
+    images: [
+      'https://i.pinimg.com/736x/55/0d/2b/550d2b47e9139b41c524ec7b2faf8ebc.jpg',
+      'https://i.pinimg.com/736x/f2/c5/93/f2c59399abac35f00ac18f40e7bd6ec0.jpg'
+    ]
+  },
+  {
+    id: 'gd_s1',
+    images: ['https://i.pinimg.com/1200x/28/61/91/28619195b1de86e0f620af129de8ab4d.jpg']
+  },
+  {
+    id: 'gd_s2',
+    images: ['https://i.pinimg.com/736x/e8/23/93/e82393d794c32303acfd9ca18df7e2ca.jpg']
+  },
+  {
+    id: 'gd_s3',
+    images: ['https://i.pinimg.com/736x/8b/05/73/8b0573f4fe50e7566242f2a546b10e4b.jpg']
+  },
+  {
+    id: 'gd_s4',
+    images: ['https://i.pinimg.com/1200x/81/5c/31/815c319db1b5f892cf87c8b9d0b2c468.jpg']
+  },
+  {
+    id: 'gd_s5',
+    images: ['https://i.pinimg.com/1200x/9a/43/59/9a4359b9cfd642c7b391787dea7f06f2.jpg']
+  },
+  {
+    id: 'gd_s6',
+    images: ['https://i.pinimg.com/1200x/e4/da/b9/e4dab90f93cdf5839766272ccc810a4a.jpg']
+  },
+  {
+    id: 'gd_s7',
+    images: ['https://i.pinimg.com/736x/28/6f/ff/286fff7242db10e86b2157dd30b1e9f1.jpg']
+  },
+  {
+    id: 'gd_g5',
+    images: [
+      'https://i.pinimg.com/1200x/95/09/8f/95098f7f3710bb7d4858c484e43dd31a.jpg',
+      'https://i.pinimg.com/1200x/f0/ba/2d/f0ba2df432a7b181f02d9d228c921e8f.jpg'
+    ]
+  },
+  {
+    id: 'gd_g6',
+    images: [
+      'https://i.pinimg.com/1200x/53/46/3e/53463ec0ce10da160b6d4855991b26cf.jpg',
+      'https://i.pinimg.com/736x/b5/cd/e0/b5cde0d20be19e8bc0a5fbeeafe42f7c.jpg'
+    ]
+  },
+  {
+    id: 'gd_s8',
+    images: ['https://i.pinimg.com/1200x/71/54/a5/7154a58db9307c400333acc9301b1804.jpg']
+  },
+  {
+    id: 'gd_s9',
+    images: ['https://i.pinimg.com/1200x/33/69/b5/3369b5307ee11175fd73425a5c8cc783.jpg']
+  },
+  {
+    id: 'gd_s10',
+    images: ['https://i.pinimg.com/1200x/32/96/a0/3296a01436023518feeadf00bd8a3533.jpg']
+  },
+  {
+    id: 'gd_s11',
+    images: ['https://i.pinimg.com/736x/d7/e9/eb/d7e9eb96a59f04e0bb9b2fa75b15460f.jpg']
+  },
+  {
+    id: 'gd_s12',
+    images: ['https://i.pinimg.com/736x/0a/1a/f2/0a1af2b0140704432293f926822d7a32.jpg']
+  },
+  {
+    id: 'gd_s13',
+    images: ['https://i.pinimg.com/1200x/41/cb/e6/41cbe637a07d3374085068b09020cdae.jpg']
+  },
+  {
+    id: 'gd_s14',
+    images: ['https://i.pinimg.com/1200x/29/dd/19/29dd195b8feefb4110937f7e2e903116.jpg']
+  },
+  {
+    id: 'gd_daesung',
+    title: '與 GD、大聲聚會',
+    images: [
+      'https://i.pinimg.com/1200x/ce/19/98/ce1998cfa3a9dc21fdb78e0c837db446.jpg',
+      'https://i.pinimg.com/736x/e8/9a/55/e89a55bf796e4dd858114af0f6bdcd8d.jpg',
+      'https://i.pinimg.com/736x/54/81/51/548151a8258babe8f07110951a99115f.jpg',
+      'https://i.pinimg.com/736x/01/14/78/0114789446cd08bb165d20cd9876b324.jpg'
+    ]
+  }
+];
+
+// 單次固定照片組
+const CAR_SET_4 = [
+  'https://i.pinimg.com/736x/30/56/19/30561968f3d25e9c83ff6f53e8d89400.jpg',
+  'https://i.pinimg.com/736x/d7/dc/85/d7dc85b6c9f71061e24f4eacccfe4dd5.jpg',
+  'https://i.pinimg.com/736x/cf/b4/16/cfb41643162490631069a14bb3786083.jpg',
+  'https://i.pinimg.com/1200x/90/48/6a/90486a77fe1045938dc6015c98ccba61.jpg'
+];
+
+const EVENT_SET_3 = [
+  'https://images.plurk.com/2sASb4CxbR73NlWSwXPnOf.png',
+  'https://i.pinimg.com/736x/14/b6/61/14b661e6d91214935199aa98e199e393.jpg',
+  'https://i.pinimg.com/1200x/a6/8d/72/a68d7219beb565eae760423ce41fb14b.jpg'
+];
+
+const EVENT_SET_7 = [
+  'https://i.pinimg.com/736x/4a/c8/a7/4ac8a72f524b0d6ed5adee400c8d3078.jpg',
+  'https://i.pinimg.com/736x/8e/83/08/8e830871ee8801fe8ebb1f4ae6ee85f6.jpg',
+  'https://i.pinimg.com/736x/53/cf/48/53cf486c2550f5189b1e824cb47a1882.jpg',
+  'https://i.pinimg.com/736x/45/a7/52/45a752155d2d06bc7d6d9b205f3b71df.jpg',
+  'https://i.pinimg.com/736x/a8/f2/b4/a8f2b4ec19ae051eec8cfa7bc14565c3.jpg',
+  'https://i.pinimg.com/1200x/58/da/cf/58dacf1ae4fec8e2940f08106cf7242f.jpg',
+  'https://i.pinimg.com/736x/2e/76/2c/2e762c3bd3e8f30a6828663c3705a25b.jpg'
+];
+
+// 所有未分類匯總（相簿頁面 All 標籤）
+const ALL_UNCATEGORIZED_PHOTOS = [
+  ...POOL_GYM,
+  ...POOL_CAR,
+  ...POOL_SELFIE,
+  ...POOL_OUTING,
+  ...CAR_SET_4,
+  ...EVENT_SET_3,
+  ...EVENT_SET_7,
+  ...POOL_GD.flatMap(item => item.images)
+];
+
+// 視訊通話預設片段
 const VIDEO_STREAMS = [
-  { id: 1, title: 'Studio Fitting', poster: 'https://images.plurk.com/wGRATa3N4kmnXq7NfNW5q.jpg', src: '/video/call_1.mp4' },
-  { id: 2, title: 'In the Van', poster: 'https://i.pinimg.com/736x/17/b6/1e/17b61e7e3cfb485941687fb05647a3fe.jpg', src: '/video/call_2.mp4' },
-  { id: 3, title: 'Waiting Room', poster: 'https://images.plurk.com/5pOLToEI89ynuGrE6eK9zq.jpg', src: '/video/call_3.mp4' },
-  { id: 4, title: 'Hotel Rest', poster: 'https://images.plurk.com/2W5EnleU58XmoB8Eny9om4.jpg', src: '/video/call_4.mp4' },
-  { id: 5, title: 'Night Walk', poster: 'https://i.pinimg.com/736x/c8/c3/e6/c8c3e646c47bd83dbeb285393405087a.jpg', src: '/video/call_5.mp4' }
+  { id: 1, title: 'Studio Fitting', poster: 'https://images.plurk.com/wGRATa3N4kmnXq7NfNW5q.jpg' },
+  { id: 2, title: 'In the Van', poster: 'https://i.pinimg.com/736x/17/b6/1e/17b61e7e3cfb485941687fb05647a3fe.jpg' },
+  { id: 3, title: 'Waiting Room', poster: 'https://images.plurk.com/5pOLToEI89ynuGrE6eK9zq.jpg' },
+  { id: 4, title: 'Hotel Rest', poster: 'https://images.plurk.com/2W5EnleU58XmoB8Eny9om4.jpg' },
+  { id: 5, title: 'Night Walk', poster: 'https://i.pinimg.com/736x/c8/c3/e6/c8c3e646c47bd83dbeb285393405087a.jpg' }
 ];
 
-// 新聞與站姐情報資料（大小標排版、多層次顏色）
+// 情報頁面資料
 const INTEL_FEED_DATA = [
   {
     id: 'n1',
-    type: 'official',
     badge: '獨家通稿',
     badgeColor: 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30',
     source: 'DISPATCH ENTERTAINMENT',
@@ -182,7 +413,6 @@ const INTEL_FEED_DATA = [
   },
   {
     id: 'n2',
-    type: 'fansite',
     badge: '站姐大砲預覽',
     badgeColor: 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30',
     source: 'BLACK VELVET 417 @fansite',
@@ -194,7 +424,6 @@ const INTEL_FEED_DATA = [
   },
   {
     id: 'n3',
-    type: 'brand',
     badge: '品牌動態',
     badgeColor: 'bg-amber-500/20 text-amber-300 border border-amber-500/30',
     source: 'VOGUE KOREA OFFICIAL',
@@ -203,202 +432,7 @@ const INTEL_FEED_DATA = [
     subTitle: '在光影交錯間展現從容不迫的紳士氣場。',
     summary: '極簡剪裁襯衫搭配冷色調針織，將克制與禁慾感拿捏得淋漓盡致。',
     heroImage: 'https://images.plurk.com/wGRATa3N4kmnXq7NfNW5q.jpg'
-  },
-  {
-    id: 'n4',
-    type: 'schedule',
-    badge: '現場快訊',
-    badgeColor: 'bg-rose-500/20 text-rose-300 border border-rose-500/30',
-    source: 'DAILY DRAMA REPORT',
-    time: '2 天前',
-    mainTitle: '夜間封街拍攝路透：黑色長風衣夜雨奔跑戲碼',
-    subTitle: '零下低溫中連續拍攝四個小時，敬業精神獲劇組大讚。',
-    summary: '現場工作人員透露，即使在休息帳篷內也一直在與導演討論走位，直到凌晨三點才正式收工撤場。',
-    heroImage: null
   }
-];
-
-const SCRIPT_SCENARIOS = {
-  arenaA: {
-    label: '🐈‍⬛',
-    steps: [
-      {
-        delay: 300,
-        type: 'text',
-        content: '《Arena Homme+》A cut 樣片出來了。',
-        notify: 'Soo: 《Arena Homme+》A cut 樣片出來了。'
-      },
-      {
-        delay: 1200,
-        type: 'album_grid',
-        title: 'Arena Homme+ Nov 2026 - Series A',
-        images: ARENA_ALL_IMAGES.slice(0, 11),
-        notify: 'Soo 已傳送照片相簿 (11張)'
-      }
-    ]
-  },
-  arenaB: {
-    label: '🐆',
-    steps: [
-      {
-        delay: 300,
-        type: 'text',
-        content: 'B 組色調稍微暗一點，看合不合你胃口。',
-        notify: 'Soo: B 組色調稍微暗一點...'
-      },
-      {
-        delay: 1200,
-        type: 'album_grid',
-        title: 'Arena Homme+ Nov 2026 - Series B',
-        images: ARENA_ALL_IMAGES.slice(11, 20),
-        notify: 'Soo 已傳送照片相簿 (9張)'
-      }
-    ]
-  },
-  arenaC: {
-    label: '🪵',
-    steps: [
-      {
-        delay: 300,
-        type: 'text',
-        content: 'C cut 拍得比較隨性。',
-        notify: 'Soo: C cut 拍得比較隨性。'
-      },
-      {
-        delay: 1200,
-        type: 'album_grid',
-        title: 'Arena Homme+ Nov 2026 - Series C',
-        images: ARENA_ALL_IMAGES.slice(20, 30),
-        notify: 'Soo 已傳送照片相簿 (10張)'
-      }
-    ]
-  },
-  arenaD: {
-    label: '🐺',
-    steps: [
-      {
-        delay: 300,
-        type: 'text',
-        content: '最後一組特寫。',
-        notify: 'Soo: 最後一組特寫。'
-      },
-      {
-        delay: 1200,
-        type: 'album_grid',
-        title: 'Arena Homme+ Nov 2026 - Series D',
-        images: ARENA_ALL_IMAGES.slice(30, 36),
-        notify: 'Soo 已傳送照片相簿 (6張)'
-      }
-    ]
-  },
-  carSelfie4: {
-    label: '🚗',
-    steps: [
-      {
-        delay: 400,
-        type: 'grid4',
-        images: [
-          'https://i.pinimg.com/736x/17/b6/1e/17b61e7e3cfb485941687fb05647a3fe.jpg',
-          'https://i.pinimg.com/1200x/59/67/d1/5967d1cd4f2c5523a27d5913a66271fa.jpg',
-          'https://i.pinimg.com/736x/53/42/e7/5342e7ed2ea38ed256fe6c18438ff942.jpg',
-          'https://i.pinimg.com/1200x/98/3d/57/983d579ed770c086cd7e39cf388ec5fe.jpg'
-        ],
-        notify: 'Soo已傳送照片'
-      },
-      {
-        delay: 1500,
-        type: 'text',
-        content: '哪張比較好？',
-        notify: '哪張比較好？'
-      }
-    ]
-  },
-  mirrorSelfie: {
-    label: '🪞',
-    steps: [
-      {
-        delay: 400,
-        type: 'photo',
-        imageUrl: 'https://i.pinimg.com/736x/c8/c3/e6/c8c3e646c47bd83dbeb285393405087a.jpg',
-        notify: 'Soo已傳送照片'
-      },
-      {
-        delay: 1200,
-        type: 'text',
-        content: '剛換完造型。',
-        notify: '剛換完造型。'
-      }
-    ]
-  },
-  dailySeries: {
-    label: '💬',
-    steps: [
-      {
-        delay: 400,
-        type: 'audio',
-        audioSrc: '/audio/i_miss_u.mp3',
-        durationText: '0:03',
-        notify: 'Soo傳送了語音訊息'
-      },
-      {
-        delay: 3500,
-        type: 'audio',
-        audioSrc: '/audio/i_miss_u_longer.mp3',
-        durationText: '0:05',
-        notify: 'Soo傳送了語音訊息'
-      },
-      {
-        delay: 7000,
-        type: 'audio',
-        audioSrc: '/audio/shall_i_go_now.mp3',
-        durationText: '0:04',
-        notify: 'Soo傳送了語音訊息'
-      }
-    ]
-  },
-  plotDate: {
-    label: '🎬',
-    steps: [
-      {
-        delay: 400,
-        type: 'audio',
-        audioSrc: '/audio/lets_date.mp3',
-        durationText: '0:04',
-        notify: 'Soo傳送了語音訊息'
-      }
-    ]
-  },
-  plotLove: {
-    label: '♥️',
-    steps: [
-      {
-        delay: 400,
-        type: 'audio',
-        audioSrc: '/audio/love_u.mp3',
-        durationText: '0:03',
-        notify: 'Soo傳送了語音訊息'
-      }
-    ]
-  },
-  goodNight: {
-    label: '🌙💤',
-    steps: [
-      {
-        delay: 400,
-        type: 'audio',
-        audioSrc: '/audio/good_night_normal.mp3',
-        durationText: '0:05',
-        notify: 'Soo傳送了語音訊息'
-      }
-    ]
-  }
-};
-
-const USER_MOCK_REPLIES = [
-  '好，我聽到了～',
-  '吃飯了嗎？',
-  '有點想你了！',
-  '待會見～'
 ];
 
 export default function App() {
@@ -413,25 +447,23 @@ export default function App() {
   const [inputText, setInputText] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [hasNotifPermission, setHasNotifPermission] = useState(false);
-  const [delayCountdown, setDelayCountdown] = useState(null);
 
-  // 晨喚與通話狀態
+  // 晨喚與通話
   const [isAlarmActive, setIsAlarmActive] = useState(true);
   const [hasAwoken, setHasAwoken] = useState(false);
   const [callStatus, setCallStatus] = useState('idle');
   const [callDuration, setCallDuration] = useState(0);
 
-  // 視訊通話狀態與影片切換
+  // 視訊通話
   const [isVideoCalling, setIsVideoCalling] = useState(false);
   const [videoDuration, setVideoDuration] = useState(0);
   const [selectedVideoIndex, setSelectedVideoIndex] = useState(0);
 
-  // 彈出模組面板 ('none' | 'album' | 'calendar' | 'voices' | 'news')
+  // 模組面板 ('none' | 'album' | 'calendar' | 'voices' | 'news')
   const [isPlusMenuOpen, setIsPlusMenuOpen] = useState(false);
   const [activeModal, setActiveModal] = useState(null);
   const [activeAlbumTab, setActiveAlbumTab] = useState('arena');
 
-  // 音訊參照
   const ringAudioRef = useRef(null);
   const voice5AudioRef = useRef(null);
   const voiceIntervalTimerRef = useRef(null);
@@ -506,7 +538,125 @@ export default function App() {
     sendPushNotification(text);
   };
 
-  // 晨喚與整點排程檢查（每 10 秒執行一次）
+  // 隨機不重複（消耗池）抽選函式
+  const pickRandomUnspent = (poolKey, items) => {
+    const storageKey = `soo_spent_${poolKey}`;
+    let spentIds = JSON.parse(localStorage.getItem(storageKey) || '[]');
+
+    let available = items.filter(item => {
+      const id = typeof item === 'string' ? item : item.id;
+      return !spentIds.includes(id);
+    });
+
+    if (available.length === 0) {
+      spentIds = [];
+      localStorage.removeItem(storageKey);
+      available = items;
+    }
+
+    const chosen = available[Math.floor(Math.random() * available.length)];
+    const chosenId = typeof chosen === 'string' ? chosen : chosen.id;
+    spentIds.push(chosenId);
+    localStorage.setItem(storageKey, JSON.stringify(spentIds));
+
+    return chosen;
+  };
+
+  // 觸發隨機不重複單照發送
+  const triggerRandomSinglePhoto = (poolKey, pool, promptText) => {
+    const imgUrl = pickRandomUnspent(poolKey, pool);
+    setMessages(prev => [
+      ...prev,
+      {
+        id: Date.now(),
+        role: 'assistant',
+        type: 'photo',
+        imageUrl: imgUrl,
+        time: getCurrentTime()
+      }
+    ]);
+    if (promptText) {
+      setTimeout(() => {
+        setMessages(prev => [
+          ...prev,
+          {
+            id: Date.now() + 1,
+            role: 'assistant',
+            type: 'text',
+            content: promptText,
+            time: getCurrentTime()
+          }
+        ]);
+        sendPushNotification(`Soo: ${promptText}`);
+      }, 800);
+    } else {
+      sendPushNotification('Soo 傳送了一張照片');
+    }
+  };
+
+  // 觸發隨機不重複志龍同遊組
+  const triggerRandomGD = () => {
+    const item = pickRandomUnspent('gd', POOL_GD);
+    if (item.images.length === 1) {
+      setMessages(prev => [
+        ...prev,
+        {
+          id: Date.now(),
+          role: 'assistant',
+          type: 'photo',
+          imageUrl: item.images[0],
+          time: getCurrentTime()
+        }
+      ]);
+    } else {
+      setMessages(prev => [
+        ...prev,
+        {
+          id: Date.now(),
+          role: 'assistant',
+          type: 'album_grid',
+          title: item.title || '同遊活動花絮',
+          images: item.images,
+          time: getCurrentTime()
+        }
+      ]);
+    }
+    sendPushNotification('Soo 傳送了照片組');
+  };
+
+  // 發送自訂相簿照片組
+  const sendAlbumBatch = (title, images, promptText) => {
+    setMessages(prev => [
+      ...prev,
+      {
+        id: Date.now(),
+        role: 'assistant',
+        type: 'album_grid',
+        title: title,
+        images: images,
+        time: getCurrentTime()
+      }
+    ]);
+    if (promptText) {
+      setTimeout(() => {
+        setMessages(prev => [
+          ...prev,
+          {
+            id: Date.now() + 1,
+            role: 'assistant',
+            type: 'text',
+            content: promptText,
+            time: getCurrentTime()
+          }
+        ]);
+        sendPushNotification(`Soo: ${promptText}`);
+      }, 900);
+    } else {
+      sendPushNotification(`Soo 已傳送照片相簿 (${images.length}張)`);
+    }
+  };
+
+  // 晨喚與整點排程檢查
   useEffect(() => {
     const timer = setInterval(() => {
       const now = new Date();
@@ -558,7 +708,7 @@ export default function App() {
     return () => clearInterval(timer);
   }, [isAlarmActive, hasAwoken]);
 
-  // 來電鈴聲控制
+  // 通話音效控制
   useEffect(() => {
     if (callStatus === 'ringing') {
       if (ringAudioRef.current) {
@@ -566,13 +716,10 @@ export default function App() {
         ringAudioRef.current.play().catch(e => console.log('Ring error:', e));
       }
     } else {
-      if (ringAudioRef.current) {
-        ringAudioRef.current.pause();
-      }
+      if (ringAudioRef.current) ringAudioRef.current.pause();
     }
   }, [callStatus]);
 
-  // 通話中計時
   useEffect(() => {
     let durationTimer = null;
     if (callStatus === 'connected') {
@@ -638,83 +785,11 @@ export default function App() {
     setCallStatus('connected');
   };
 
-  const playScript = (key) => {
-    const scenario = SCRIPT_SCENARIOS[key];
-    if (!scenario) return;
-
-    scenario.steps.forEach((step, idx) => {
-      setTimeout(() => {
-        setMessages(prev => [
-          ...prev,
-          {
-            id: Date.now() + idx,
-            role: 'assistant',
-            ...step,
-            time: getCurrentTime() // 一律採用當前時間
-          }
-        ]);
-        if (step.notify) {
-          sendPushNotification(step.notify);
-        }
-      }, step.delay);
-    });
-  };
-
-  const startOneMinuteNotificationTest = async () => {
-    if (!('Notification' in window) || Notification.permission !== 'granted') {
-      alert('請先點擊上方綠色「允許推播」按鈕開啟通知權限！');
-      return;
-    }
-
-    setDelayCountdown(60);
-
-    const keys = Object.keys(SCRIPT_SCENARIOS);
-    const randomKey = keys[Math.floor(Math.random() * keys.length)];
-    const chosenScenario = SCRIPT_SCENARIOS[randomKey];
-    const previewText = chosenScenario?.steps[0]?.notify || 'Soo: 剛結束拍攝，你在幹嘛？';
-
-    if ('serviceWorker' in navigator) {
-      try {
-        const reg = await navigator.serviceWorker.ready;
-        if (reg.active) {
-          reg.active.postMessage({
-            type: 'SCHEDULE_NOTIFICATION',
-            delay: 60000,
-            title: 'Soo',
-            options: {
-              body: previewText,
-              icon: 'https://images.plurk.com/7lPN93L87TwPEfErIseop9.jpg',
-              badge: 'https://images.plurk.com/7lPN93L87TwPEfErIseop9.jpg'
-            }
-          });
-        }
-      } catch (e) {
-        console.error('SW postMessage error:', e);
-      }
-    }
-
-    setTimeout(() => {
-      playScript(randomKey);
-      setDelayCountdown(null);
-    }, 60000);
-
-    alert('⏱ 倒數 60 秒已交給背景！請現在關閉螢幕或退到主畫面測試。');
-  };
-
   const requestNotification = async () => {
-    const isStandalone = window.navigator.standalone || window.matchMedia('(display-mode: standalone)').matches;
-    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-
-    if (isIOS && !isStandalone) {
-      alert('【重要提醒】\niPhone 必須先點擊 Safari 底部的「分享」按鈕，選擇「加入主畫面」，然後「從桌面打開 App」才能開啟通知喔！');
-      return;
-    }
-
     if (!('Notification' in window)) {
       alert('此環境不支援通知，請確認已加入主畫面並從桌面開啟。');
       return;
     }
-
     try {
       const perm = await Notification.requestPermission();
       if (perm === 'granted') {
@@ -775,7 +850,7 @@ export default function App() {
       {/* 通話中語音 */}
       <audio ref={voice5AudioRef} src="/audio/5_get_up_yell.mp3" onEnded={handleVoice5Ended} preload="auto" />
 
-      {/* 主聊天容器：底色設定為 20~30% 乾淨白灰色 (#ECEEF1) */}
+      {/* 主聊天容器：20~30% 乾淨灰白底色 */}
       <div className="w-full sm:max-w-[420px] h-[100dvh] sm:h-[92vh] sm:max-h-[880px] bg-[#ECEEF1] sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden relative border-0 sm:border sm:border-slate-700">
         
         {/* 全螢幕語音通話介面 */}
@@ -833,10 +908,9 @@ export default function App() {
           </div>
         )}
 
-        {/* 📹 全螢幕視訊通話介面（支援多段視訊影片切換） */}
+        {/* 📹 全螢幕視訊通話介面 */}
         {isVideoCalling && (
           <div className="absolute inset-0 bg-black z-50 flex flex-col justify-between items-center py-12 px-6 text-white animate-fade-in">
-            {/* 視訊畫面播放器 */}
             <div className="absolute inset-0 z-0 overflow-hidden">
               <img 
                 src={VIDEO_STREAMS[selectedVideoIndex].poster} 
@@ -846,12 +920,10 @@ export default function App() {
               <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-transparent to-black/85" />
             </div>
 
-            {/* 頂部資訊與切換鏡頭按鈕 */}
             <div className="z-10 flex flex-col items-center mt-4 space-y-1">
               <span className="text-xl font-medium tracking-wide">Soo</span>
               <span className="text-xs text-emerald-400 font-mono tracking-widest">{formatSeconds(videoDuration)}</span>
               
-              {/* 切換視訊影片小標籤 */}
               <div className="flex space-x-1.5 mt-2">
                 {VIDEO_STREAMS.map((v, i) => (
                   <button
@@ -867,14 +939,12 @@ export default function App() {
               </div>
             </div>
 
-            {/* 右上角使用者自身鏡頭縮圖 */}
             <div className="z-10 absolute top-16 right-5 w-24 h-36 rounded-2xl overflow-hidden border-2 border-white/40 shadow-2xl bg-slate-800">
               <div className="w-full h-full bg-slate-700/80 flex items-center justify-center text-xs text-white/50">
                 本機鏡頭
               </div>
             </div>
 
-            {/* 底部掛斷按鈕 */}
             <div className="z-10 mb-6">
               <button
                 onClick={() => {
@@ -916,14 +986,13 @@ export default function App() {
               <div className="flex flex-col">
                 <span className="font-medium text-sm leading-tight text-white tracking-wide">Soo</span>
                 <span className="text-[10px] text-emerald-400 font-mono">
-                  {delayCountdown ? `倒數 ${delayCountdown}s 發送...` : (isAlarmActive ? (hasAwoken ? '晨喚已解除・排程中' : '晨喚待命・08:00 起') : '晨喚已關閉')}
+                  {isAlarmActive ? (hasAwoken ? '晨喚已解除・排程中' : '晨喚待命・08:00 起') : '晨喚已關閉'}
                 </span>
               </div>
             </div>
           </div>
 
           <div className="flex items-center space-x-2.5">
-            {/* 語音通話圖示 */}
             <button
               onClick={() => setCallStatus('ringing')}
               title="語音通話"
@@ -934,7 +1003,6 @@ export default function App() {
               </svg>
             </button>
 
-            {/* 視訊通話圖示 */}
             <button
               onClick={() => setIsVideoCalling(true)}
               title="視訊通話"
@@ -1003,7 +1071,6 @@ export default function App() {
                   </div>
                 )}
 
-                {/* 通話記錄氣泡 */}
                 {msg.type === 'call_record' ? (
                   <div className="flex items-center space-x-2.5 bg-white px-3.5 py-2.5 rounded-2xl rounded-tl-none shadow-sm border border-slate-200">
                     <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 ${
@@ -1050,17 +1117,6 @@ export default function App() {
                       共 {msg.images.length} 張照片・點擊查看
                     </span>
                   </div>
-                ) : msg.type === 'grid4' ? (
-                  <div className="grid grid-cols-2 gap-1 max-w-[240px] rounded-2xl overflow-hidden p-1 bg-white shadow-sm border border-slate-200">
-                    {msg.images.map((img, i) => (
-                      <img 
-                        key={i} 
-                        src={img} 
-                        alt="selfie" 
-                        className="w-full h-28 object-cover rounded-lg hover:opacity-95 transition cursor-pointer" 
-                      />
-                    ))}
-                  </div>
                 ) : msg.type === 'photo' ? (
                   <div className="max-w-[70%] rounded-2xl overflow-hidden shadow-md border border-slate-200">
                     <img src={msg.imageUrl} alt="selfie" className="w-full max-h-72 object-cover" />
@@ -1102,31 +1158,127 @@ export default function App() {
           <div ref={messagesEndRef} />
         </div>
 
-        {/* 劇本控制板 */}
+        {/* 劇本控制板（全白圓鈕，含畫報、自拍、活動與隨機不重複按鈕） */}
         <div className="bg-slate-900/10 px-2.5 py-2 flex space-x-2 overflow-x-auto border-t border-slate-200/80 z-10 scrollbar-none shrink-0">
+          {/* 隨機不重複按鈕群 */}
           <button
-            onClick={startOneMinuteNotificationTest}
+            onClick={() => triggerRandomSinglePhoto('gym', POOL_GYM, '今天課表做完了。')}
+            title="隨機不重複: 健身"
             className="text-[12px] whitespace-nowrap bg-white hover:bg-slate-50 text-slate-800 font-medium px-3 py-1.5 rounded-full shadow-sm border border-slate-200 transition shrink-0 active:scale-95"
           >
-            🕰️
+            🏋️
           </button>
 
           <button
-            onClick={() => setCallStatus('ringing')}
+            onClick={() => triggerRandomSinglePhoto('car', POOL_CAR, '在路上了。')}
+            title="隨機不重複: 車內自拍"
             className="text-[12px] whitespace-nowrap bg-white hover:bg-slate-50 text-slate-800 font-medium px-3 py-1.5 rounded-full shadow-sm border border-slate-200 transition shrink-0 active:scale-95"
           >
-            📞
+            🚘
           </button>
 
-          {Object.entries(SCRIPT_SCENARIOS).map(([key, item]) => (
-            <button
-              key={key}
-              onClick={() => playScript(key)}
-              className="text-[12px] whitespace-nowrap bg-white hover:bg-slate-50 text-slate-800 font-medium px-3 py-1.5 rounded-full shadow-sm border border-slate-200 transition shrink-0 active:scale-95"
-            >
-              {item.label}
-            </button>
-          ))}
+          <button
+            onClick={() => triggerRandomSinglePhoto('selfie', POOL_SELFIE, '隨手拍一張。')}
+            title="隨機不重複: 其他自拍"
+            className="text-[12px] whitespace-nowrap bg-white hover:bg-slate-50 text-slate-800 font-medium px-3 py-1.5 rounded-full shadow-sm border border-slate-200 transition shrink-0 active:scale-95"
+          >
+            📷
+          </button>
+
+          <button
+            onClick={triggerRandomGD}
+            title="隨機不重複: 志龍同遊/活動"
+            className="text-[12px] whitespace-nowrap bg-white hover:bg-slate-50 text-slate-800 font-medium px-3 py-1.5 rounded-full shadow-sm border border-slate-200 transition shrink-0 active:scale-95"
+          >
+            🐲
+          </button>
+
+          <button
+            onClick={() => triggerRandomSinglePhoto('outing', POOL_OUTING, '出來透透氣。')}
+            title="隨機不重複: 出門玩"
+            className="text-[12px] whitespace-nowrap bg-white hover:bg-slate-50 text-slate-800 font-medium px-3 py-1.5 rounded-full shadow-sm border border-slate-200 transition shrink-0 active:scale-95"
+          >
+            🎡
+          </button>
+
+          {/* 固定畫報相簿群 */}
+          <button
+            onClick={() => sendAlbumBatch('TIME HOMME 25FW 【Breeze from the touch】 - I', TIME_HOMME_PART1, 'TIME HOMME 新一季畫報出爐了。')}
+            title="TIME HOMME Part 1"
+            className="text-[12px] whitespace-nowrap bg-white hover:bg-slate-50 text-slate-800 font-medium px-3 py-1.5 rounded-full shadow-sm border border-slate-200 transition shrink-0 active:scale-95"
+          >
+            ⏳
+          </button>
+
+          <button
+            onClick={() => sendAlbumBatch('TIME HOMME 25FW 【Breeze from the touch】 - II', TIME_HOMME_PART2, '這組質地稍微硬挺一點。')}
+            title="TIME HOMME Part 2"
+            className="text-[12px] whitespace-nowrap bg-white hover:bg-slate-50 text-slate-800 font-medium px-3 py-1.5 rounded-full shadow-sm border border-slate-200 transition shrink-0 active:scale-95"
+          >
+            🪨
+          </button>
+
+          <button
+            onClick={() => sendAlbumBatch('Delvaux Shanghai - Tempête XL Waves 16/10/2026', DELVAUX_IMAGES, '上海 Delvaux 活動現場照。')}
+            title="Delvaux Shanghai"
+            className="text-[12px] whitespace-nowrap bg-white hover:bg-slate-50 text-slate-800 font-medium px-3 py-1.5 rounded-full shadow-sm border border-slate-200 transition shrink-0 active:scale-95"
+          >
+            💼
+          </button>
+
+          {/* 單次自拍與活動組 */}
+          <button
+            onClick={() => sendAlbumBatch('車內隨拍組', CAR_SET_4, '剛剛在車上隨便拍的。')}
+            title="單次車內自拍組"
+            className="text-[12px] whitespace-nowrap bg-white hover:bg-slate-50 text-slate-800 font-medium px-3 py-1.5 rounded-full shadow-sm border border-slate-200 transition shrink-0 active:scale-95"
+          >
+            🚗
+          </button>
+
+          <button
+            onClick={() => sendAlbumBatch('出席活動照', EVENT_SET_3, '活動現場。')}
+            title="單次出席活動組 (3張)"
+            className="text-[12px] whitespace-nowrap bg-white hover:bg-slate-50 text-slate-800 font-medium px-3 py-1.5 rounded-full shadow-sm border border-slate-200 transition shrink-0 active:scale-95"
+          >
+            ✨
+          </button>
+
+          <button
+            onClick={() => sendAlbumBatch('活動全記錄', EVENT_SET_7, '收工了，今天這套造型拍了幾張。')}
+            title="單次出席活動 (7張)"
+            className="text-[12px] whitespace-nowrap bg-white hover:bg-slate-50 text-slate-800 font-medium px-3 py-1.5 rounded-full shadow-sm border border-slate-200 transition shrink-0 active:scale-95"
+          >
+            🖤
+          </button>
+
+          {/* Arena 與日常台詞 */}
+          <button
+            onClick={() => sendAlbumBatch('Arena Homme+ Nov 2026 - Series A', ARENA_ALL_IMAGES.slice(0, 11), '《Arena Homme+》A cut 樣片出來了。')}
+            className="text-[12px] whitespace-nowrap bg-white hover:bg-slate-50 text-slate-800 font-medium px-3 py-1.5 rounded-full shadow-sm border border-slate-200 transition shrink-0 active:scale-95"
+          >
+            🐈‍⬛
+          </button>
+
+          <button
+            onClick={() => sendAlbumBatch('Arena Homme+ Nov 2026 - Series B', ARENA_ALL_IMAGES.slice(11, 20), 'B 組色調稍微暗一點。')}
+            className="text-[12px] whitespace-nowrap bg-white hover:bg-slate-50 text-slate-800 font-medium px-3 py-1.5 rounded-full shadow-sm border border-slate-200 transition shrink-0 active:scale-95"
+          >
+            🐆
+          </button>
+
+          <button
+            onClick={() => sendAlbumBatch('Arena Homme+ Nov 2026 - Series C', ARENA_ALL_IMAGES.slice(20, 30), 'C cut 拍得比較隨性。')}
+            className="text-[12px] whitespace-nowrap bg-white hover:bg-slate-50 text-slate-800 font-medium px-3 py-1.5 rounded-full shadow-sm border border-slate-200 transition shrink-0 active:scale-95"
+          >
+            🪵
+          </button>
+
+          <button
+            onClick={() => sendAlbumBatch('Arena Homme+ Nov 2026 - Series D', ARENA_ALL_IMAGES.slice(30, 36), '最後一組特寫。')}
+            className="text-[12px] whitespace-nowrap bg-white hover:bg-slate-50 text-slate-800 font-medium px-3 py-1.5 rounded-full shadow-sm border border-slate-200 transition shrink-0 active:scale-95"
+          >
+            🐺
+          </button>
         </div>
 
         {/* ➕ 彈出擴充選單面板 */}
@@ -1205,7 +1357,7 @@ export default function App() {
           </button>
         </div>
 
-        {/* 彈出視窗 1️⃣：相簿功能（無縫連續三排九宮格） */}
+        {/* 彈出視窗 1️⃣：相簿功能（Arena、TIME HOMME、Delvaux 與全未分類） */}
         {activeModal === 'album' && (
           <div className="absolute inset-0 bg-slate-950/95 z-50 flex flex-col text-white backdrop-blur-md animate-fade-in">
             <div className="pt-10 pb-3 px-4 bg-[#212E3E] flex items-center justify-between shadow">
@@ -1214,28 +1366,44 @@ export default function App() {
             </div>
 
             {/* 相簿標籤分頁 */}
-            <div className="flex border-b border-white/10 px-4 pt-2 bg-slate-900/60">
+            <div className="flex border-b border-white/10 px-3 pt-2 bg-slate-900/60 overflow-x-auto scrollbar-none">
               <button
                 onClick={() => setActiveAlbumTab('arena')}
-                className={`pb-2 mr-4 text-xs font-medium tracking-wide border-b-2 transition ${
+                className={`pb-2 mr-3 text-xs whitespace-nowrap font-medium tracking-wide border-b-2 transition ${
                   activeAlbumTab === 'arena' ? 'border-emerald-400 text-emerald-400' : 'border-transparent text-slate-400'
                 }`}
               >
-                Arena Homme+ Nov 2026 ({ARENA_ALL_IMAGES.length})
+                Arena Homme+ ({ARENA_ALL_IMAGES.length})
+              </button>
+              <button
+                onClick={() => setActiveAlbumTab('time')}
+                className={`pb-2 mr-3 text-xs whitespace-nowrap font-medium tracking-wide border-b-2 transition ${
+                  activeAlbumTab === 'time' ? 'border-emerald-400 text-emerald-400' : 'border-transparent text-slate-400'
+                }`}
+              >
+                TIME HOMME 25FW ({TIME_HOMME_PART1.length + TIME_HOMME_PART2.length})
+              </button>
+              <button
+                onClick={() => setActiveAlbumTab('delvaux')}
+                className={`pb-2 mr-3 text-xs whitespace-nowrap font-medium tracking-wide border-b-2 transition ${
+                  activeAlbumTab === 'delvaux' ? 'border-emerald-400 text-emerald-400' : 'border-transparent text-slate-400'
+                }`}
+              >
+                Delvaux 2026 ({DELVAUX_IMAGES.length})
               </button>
               <button
                 onClick={() => setActiveAlbumTab('uncategorized')}
-                className={`pb-2 text-xs font-medium tracking-wide border-b-2 transition ${
+                className={`pb-2 text-xs whitespace-nowrap font-medium tracking-wide border-b-2 transition ${
                   activeAlbumTab === 'uncategorized' ? 'border-emerald-400 text-emerald-400' : 'border-transparent text-slate-400'
                 }`}
               >
-                未分類歸檔 ({UNCATEGORIZED_PHOTOS.length})
+                未分類歸檔 ({ALL_UNCATEGORIZED_PHOTOS.length})
               </button>
             </div>
 
-            {/* 無縫連續三排縮圖 */}
+            {/* 無縫連續三排相片牆 */}
             <div className="flex-1 overflow-y-auto p-2">
-              {activeAlbumTab === 'arena' ? (
+              {activeAlbumTab === 'arena' && (
                 <div className="grid grid-cols-3 gap-1 rounded-xl overflow-hidden">
                   {ARENA_ALL_IMAGES.map((img, i) => (
                     <a key={i} href={img} target="_blank" rel="noreferrer" className="block aspect-[3/4] bg-slate-800 overflow-hidden">
@@ -1243,9 +1411,31 @@ export default function App() {
                     </a>
                   ))}
                 </div>
-              ) : (
+              )}
+
+              {activeAlbumTab === 'time' && (
                 <div className="grid grid-cols-3 gap-1 rounded-xl overflow-hidden">
-                  {UNCATEGORIZED_PHOTOS.map((img, i) => (
+                  {[...TIME_HOMME_PART1, ...TIME_HOMME_PART2].map((img, i) => (
+                    <a key={i} href={img} target="_blank" rel="noreferrer" className="block aspect-[3/4] bg-slate-800 overflow-hidden">
+                      <img src={img} alt="TIME HOMME Cut" loading="lazy" className="w-full h-full object-cover hover:scale-105 transition" />
+                    </a>
+                  ))}
+                </div>
+              )}
+
+              {activeAlbumTab === 'delvaux' && (
+                <div className="grid grid-cols-3 gap-1 rounded-xl overflow-hidden">
+                  {DELVAUX_IMAGES.map((img, i) => (
+                    <a key={i} href={img} target="_blank" rel="noreferrer" className="block aspect-[3/4] bg-slate-800 overflow-hidden">
+                      <img src={img} alt="Delvaux Cut" loading="lazy" className="w-full h-full object-cover hover:scale-105 transition" />
+                    </a>
+                  ))}
+                </div>
+              )}
+
+              {activeAlbumTab === 'uncategorized' && (
+                <div className="grid grid-cols-3 gap-1 rounded-xl overflow-hidden">
+                  {ALL_UNCATEGORIZED_PHOTOS.map((img, i) => (
                     <a key={i} href={img} target="_blank" rel="noreferrer" className="block aspect-[3/4] bg-slate-800 overflow-hidden">
                       <img src={img} alt="snap" loading="lazy" className="w-full h-full object-cover hover:scale-105 transition" />
                     </a>
@@ -1256,7 +1446,7 @@ export default function App() {
           </div>
         )}
 
-        {/* 彈出視窗 2️⃣：行事曆功能（7x5 格子框架） */}
+        {/* 彈出視窗 2️⃣：行事曆功能 */}
         {activeModal === 'calendar' && (
           <div className="absolute inset-0 bg-slate-950/95 z-50 flex flex-col text-white backdrop-blur-md animate-fade-in">
             <div className="pt-10 pb-3 px-4 bg-[#212E3E] flex items-center justify-between shadow">
@@ -1328,7 +1518,7 @@ export default function App() {
           </div>
         )}
 
-        {/* 彈出視窗 4️⃣：情報與動態（真實新聞與站姐圖文混排頁面） */}
+        {/* 彈出視窗 4️⃣：情報與動態 */}
         {activeModal === 'news' && (
           <div className="absolute inset-0 bg-[#0F172A] z-50 flex flex-col text-slate-100 backdrop-blur-md animate-fade-in">
             <div className="pt-10 pb-3 px-4 bg-[#1E293B] flex items-center justify-between border-b border-slate-700/60 shadow">
@@ -1344,7 +1534,6 @@ export default function App() {
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
               {INTEL_FEED_DATA.map((item) => (
                 <article key={item.id} className="bg-[#1E293B]/70 rounded-2xl border border-slate-700/50 p-4 space-y-2.5 shadow-sm hover:border-slate-500/50 transition">
-                  {/* 標籤列 */}
                   <div className="flex items-center justify-between text-[10px]">
                     <span className={`px-2 py-0.5 rounded-full font-semibold ${item.badgeColor}`}>
                       {item.badge}
@@ -1356,7 +1545,6 @@ export default function App() {
                     </div>
                   </div>
 
-                  {/* 大小標題層次 */}
                   <div className="space-y-1">
                     <h3 className="text-[14px] font-bold text-white leading-snug tracking-tight">
                       {item.mainTitle}
@@ -1368,12 +1556,10 @@ export default function App() {
                     )}
                   </div>
 
-                  {/* 內文簡述 */}
                   <p className="text-[11.5px] text-slate-400 leading-relaxed font-light">
                     {item.summary}
                   </p>
 
-                  {/* 附加預覽大圖 */}
                   {item.heroImage && (
                     <div className="rounded-xl overflow-hidden aspect-[16/9] w-full bg-slate-800 shadow-inner mt-2">
                       <img 
