@@ -3,13 +3,19 @@ import React, { useState, useEffect, useRef } from 'react';
 // Google 試算表設定 (綁定 Soo_Master_Database)
 const SPREADSHEET_ID = '11P8tG-MhZiwrBcGf9TyFirQNwPxKC2YPVbv4XHMEV-A';
 
-// 最原始穩定的 CSV 解析函式
+// 最穩定、鎖定欄位範圍的 Google 試算表 CSV 解析器
 const fetchSheetData = async (sheetName) => {
   try {
-    const url = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheetName)}&t=${Date.now()}`;
+    // 加入 range=A1:L200 明確鎖定範圍，防止格式跑版與空行干擾
+    const url = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheetName)}&range=A1:L200&t=${Date.now()}`;
     const res = await fetch(url);
     if (!res.ok) return [];
     const text = await res.text();
+
+    if (text.trim().startsWith('<!DOCTYPE') || text.trim().startsWith('<html')) {
+      console.warn(`[${sheetName}] Google 回傳異常頁面，稍後重試`);
+      return [];
+    }
 
     const lines = text.split('\n').filter(l => l.trim().length > 0);
     if (lines.length <= 1) return [];
@@ -50,7 +56,7 @@ const fetchSheetData = async (sheetName) => {
   }
 };
 
-// 音訊路徑安全解析（支援 random_like 代碼與自動補副檔名）
+// 音訊路徑安全解析（支援 random_like 與指定檔名）
 const formatAudioUrl = (raw) => {
   if (!raw) return '';
   let clean = raw.trim().replace(/^["']|["']$/g, '');
@@ -255,6 +261,7 @@ export default function App() {
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   };
 
+  // 訊息本機儲存
   const [messages, setMessages] = useState(() => {
     try {
       const saved = localStorage.getItem('soo_chat_messages');
@@ -268,10 +275,12 @@ export default function App() {
   const [inputText, setInputText] = useState('');
   const [isTyping, setIsTyping] = useState(false);
 
+  // 試算表資料狀態
   const [sheetMedia, setSheetMedia] = useState([]);
   const [sheetEvents, setSheetEvents] = useState([]);
   const [sheetNews, setSheetNews] = useState([]);
 
+  // 追問對話隊列
   const [followUpQueue, setFollowUpQueue] = useState(() => {
     try {
       const saved = localStorage.getItem('soo_follow_up_queue');
@@ -327,6 +336,7 @@ export default function App() {
     }
   }, [followUpQueue]);
 
+  // 載入試算表資料（帶緩衝保護）
   const loadAllSheets = async () => {
     const [eventsData, mediaData, newsData] = await Promise.all([
       fetchSheetData('events'),
@@ -369,7 +379,7 @@ export default function App() {
     ]);
   };
 
-  // 通話紀錄卡片：支援指定 role ('user' | 'assistant') 與自訂文字
+  // 通話卡片氣泡：支援自訂身分與文字
   const addCallRecord = (statusText = '未接來電', role = 'assistant', durationText = null) => {
     setMessages(prev => [
       ...prev,
@@ -535,7 +545,7 @@ export default function App() {
     setFollowUpQueue(newFollowUps);
   };
 
-  // 1. 上方通話按鈕：我主動打給他
+  // 1. 上方通話按鈕：我打給他
   const handleUserOutgoingCall = () => {
     const isBusy = Math.random() < 0.25;
 
@@ -567,12 +577,11 @@ export default function App() {
     setCallStatus('connected');
   };
 
-  // 2. 上方視訊按鈕：我主動打視訊給他
+  // 2. 上方視訊按鈕：我打視訊給他
   const handleUserOutgoingVideo = () => {
     const isBusy = Math.random() < 0.25;
 
     if (isBusy) {
-      // 被拒接：產生「取消視訊」紀錄氣泡，隨後傳在忙
       addCallRecord('取消視訊', 'user');
 
       const busyReplies = ['在忙', '晚點回你'];
@@ -592,7 +601,6 @@ export default function App() {
       return;
     }
 
-    // 順利接通：直接開啟全螢幕視訊，絕不回在忙
     setIsVideoCalling(true);
   };
 
@@ -640,11 +648,9 @@ export default function App() {
     setCallAudioIndex(0);
 
     if (wasRinging) {
-      // 響鈴中拒接
       addCallRecord(callType === 'video' ? '未接視訊' : '未接來電', 'assistant');
       triggerMissedCallFollowUp();
     } else {
-      // 通話中掛斷：由我主動撥出的顯示在右側(user)，其餘顯示在左側(assistant)
       const recordRole = (currentMode === 'user_outgoing') ? 'user' : 'assistant';
       addCallRecord(isConnected ? `通話時間 ${finalDurationText}` : '通話結束', recordRole, isConnected ? finalDurationText : null);
     }
@@ -1107,25 +1113,25 @@ export default function App() {
             🌙💤
           </button>
 
-          <button onClick={() => triggerCategoryRandom('gym')} title="試算表類別: 健身" className="text-[12px] whitespace-nowrap bg-white hover:bg-slate-50 text-slate-800 font-medium px-3 py-1.5 rounded-full shadow-sm border border-slate-200 transition shrink-0 active:scale-95">
+          <button onClick={() => triggerCategoryRandom('gym')} title="類別: 健身" className="text-[12px] whitespace-nowrap bg-white hover:bg-slate-50 text-slate-800 font-medium px-3 py-1.5 rounded-full shadow-sm border border-slate-200 transition shrink-0 active:scale-95">
             🏋️
           </button>
-          <button onClick={() => triggerCategoryRandom('car')} title="試算表類別: 車內自拍" className="text-[12px] whitespace-nowrap bg-white hover:bg-slate-50 text-slate-800 font-medium px-3 py-1.5 rounded-full shadow-sm border border-slate-200 transition shrink-0 active:scale-95">
+          <button onClick={() => triggerCategoryRandom('car')} title="類別: 車內自拍" className="text-[12px] whitespace-nowrap bg-white hover:bg-slate-50 text-slate-800 font-medium px-3 py-1.5 rounded-full shadow-sm border border-slate-200 transition shrink-0 active:scale-95">
             🚘
           </button>
-          <button onClick={() => triggerCategoryRandom('selfie')} title="試算表類別: 自拍" className="text-[12px] whitespace-nowrap bg-white hover:bg-slate-50 text-slate-800 font-medium px-3 py-1.5 rounded-full shadow-sm border border-slate-200 transition shrink-0 active:scale-95">
+          <button onClick={() => triggerCategoryRandom('selfie')} title="類別: 自拍" className="text-[12px] whitespace-nowrap bg-white hover:bg-slate-50 text-slate-800 font-medium px-3 py-1.5 rounded-full shadow-sm border border-slate-200 transition shrink-0 active:scale-95">
             📷
           </button>
-          <button onClick={() => triggerCategoryRandom('gd')} title="試算表類別: 志龍同遊" className="text-[12px] whitespace-nowrap bg-white hover:bg-slate-50 text-slate-800 font-medium px-3 py-1.5 rounded-full shadow-sm border border-slate-200 transition shrink-0 active:scale-95">
+          <button onClick={() => triggerCategoryRandom('gd')} title="類別: 志龍同遊" className="text-[12px] whitespace-nowrap bg-white hover:bg-slate-50 text-slate-800 font-medium px-3 py-1.5 rounded-full shadow-sm border border-slate-200 transition shrink-0 active:scale-95">
             🐲
           </button>
-          <button onClick={() => triggerCategoryRandom('outing')} title="試算表類別: 出門玩" className="text-[12px] whitespace-nowrap bg-white hover:bg-slate-50 text-slate-800 font-medium px-3 py-1.5 rounded-full shadow-sm border border-slate-200 transition shrink-0 active:scale-95">
+          <button onClick={() => triggerCategoryRandom('outing')} title="類別: 出門玩" className="text-[12px] whitespace-nowrap bg-white hover:bg-slate-50 text-slate-800 font-medium px-3 py-1.5 rounded-full shadow-sm border border-slate-200 transition shrink-0 active:scale-95">
             🎡
           </button>
-          <button onClick={() => triggerCategoryRandom('magazine')} title="試算表類別: 雜誌畫報" className="text-[12px] whitespace-nowrap bg-white hover:bg-slate-50 text-slate-800 font-medium px-3 py-1.5 rounded-full shadow-sm border border-slate-200 transition shrink-0 active:scale-95">
+          <button onClick={() => triggerCategoryRandom('magazine')} title="類別: 雜誌畫報" className="text-[12px] whitespace-nowrap bg-white hover:bg-slate-50 text-slate-800 font-medium px-3 py-1.5 rounded-full shadow-sm border border-slate-200 transition shrink-0 active:scale-95">
             🐈‍⬛
           </button>
-          <button onClick={() => triggerCategoryRandom('official')} title="試算表類別: 出席活動" className="text-[12px] whitespace-nowrap bg-white hover:bg-slate-50 text-slate-800 font-medium px-3 py-1.5 rounded-full shadow-sm border border-slate-200 transition shrink-0 active:scale-95">
+          <button onClick={() => triggerCategoryRandom('official')} title="類別: 出席活動" className="text-[12px] whitespace-nowrap bg-white hover:bg-slate-50 text-slate-800 font-medium px-3 py-1.5 rounded-full shadow-sm border border-slate-200 transition shrink-0 active:scale-95">
             ✨
           </button>
         </div>
