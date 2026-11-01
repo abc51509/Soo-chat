@@ -3,70 +3,40 @@ import React, { useState, useEffect, useRef } from 'react';
 // Google 試算表設定 (綁定 Soo_Master_Database)
 const SPREADSHEET_ID = '11P8tG-MhZiwrBcGf9TyFirQNwPxKC2YPVbv4XHMEV-A';
 
-// 健全強固的 RFC 4180 CSV 解析器（支援儲存格內換行、雙引號與逗號）
-const parseCSV = (text) => {
-  const rows = [];
-  let currentRow = [];
-  let currentVal = '';
-  let inQuotes = false;
-
-  for (let i = 0; i < text.length; i++) {
-    const char = text[i];
-    const nextChar = text[i + 1];
-
-    if (char === '"') {
-      if (inQuotes && nextChar === '"') {
-        currentVal += '"';
-        i++;
-      } else {
-        inQuotes = !inQuotes;
-      }
-    } else if (char === ',' && !inQuotes) {
-      currentRow.push(currentVal.trim());
-      currentVal = '';
-    } else if ((char === '\r' || char === '\n') && !inQuotes) {
-      if (char === '\r' && nextChar === '\n') i++;
-      currentRow.push(currentVal.trim());
-      if (currentRow.some(val => val.length > 0)) {
-        rows.push(currentRow);
-      }
-      currentRow = [];
-      currentVal = '';
-    } else {
-      currentVal += char;
-    }
-  }
-
-  if (currentVal.length > 0 || currentRow.length > 0) {
-    currentRow.push(currentVal.trim());
-    if (currentRow.some(val => val.length > 0)) {
-      rows.push(currentRow);
-    }
-  }
-
-  return rows;
-};
-
-// 抓取試算表資料並轉為物件陣列
+// 使用 Google Visualization JSON API：免疫任何換行符號、逗號或特殊字元
 const fetchSheetData = async (sheetName) => {
   try {
-    const url = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheetName)}&t=${Date.now()}`;
+    const url = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(sheetName)}&t=${Date.now()}`;
     const res = await fetch(url);
     if (!res.ok) {
       console.error(`連線至分頁 [${sheetName}] 失敗:`, res.status);
       return [];
     }
     const text = await res.text();
-    const rows = parseCSV(text);
-    if (rows.length <= 1) return [];
+    
+    // 擷取 Google 回傳的 JSON 區塊
+    const jsonStart = text.indexOf('{');
+    const jsonEnd = text.lastIndexOf('}');
+    if (jsonStart === -1 || jsonEnd === -1) return [];
 
-    // 標題標準化（去除特殊符號並轉小寫）
-    const headers = rows[0].map(h => h.toLowerCase().replace(/[^a-z0-9_]/g, ''));
+    const rawData = JSON.parse(text.substring(jsonStart, jsonEnd + 1));
+    const table = rawData.table;
+    if (!table || !table.rows || table.rows.length === 0) return [];
 
-    return rows.slice(1).map(row => {
+    // 取得欄位名稱（標題列標準化為小寫代碼）
+    const headers = table.cols.map((col, idx) => {
+      const label = (col.label || '').trim().toLowerCase().replace(/[^a-z0-9_]/g, '');
+      return label || `col_${idx}`;
+    });
+
+    // 逐列轉為 key-value 物件
+    return table.rows.map(row => {
       const entry = {};
-      headers.forEach((h, idx) => {
-        entry[h] = row[idx] ? row[idx].trim() : '';
+      (row.c || []).forEach((cell, idx) => {
+        const headerKey = headers[idx];
+        if (headerKey) {
+          entry[headerKey] = cell && cell.v !== null && cell.v !== undefined ? String(cell.v).trim() : '';
+        }
       });
       return entry;
     });
@@ -76,7 +46,7 @@ const fetchSheetData = async (sheetName) => {
   }
 };
 
-// 支援 random_like 代碼與自動容錯格式化音訊路徑
+// 音訊路徑安全解析校正（支援 random_like 代碼與自動補副檔名）
 const formatAudioUrl = (raw) => {
   if (!raw) return '';
   let clean = raw.trim().replace(/^["']|["']$/g, '');
@@ -233,6 +203,7 @@ const ALL_VOICE_LIST = [
   { id: 'v17', title: '夜間: 晚安', src: '/audio/good_night_normal.mp3', duration: '0:05' }
 ];
 
+// 語音劇本組合
 const SCRIPT_SCENARIOS = {
   dailySeries: {
     label: '💬',
@@ -297,6 +268,7 @@ export default function App() {
   const [sheetEvents, setSheetEvents] = useState([]);
   const [sheetNews, setSheetNews] = useState([]);
 
+  // 追問對話隊列 (follow_up_1, follow_up_2, follow_up_3)
   const [followUpQueue, setFollowUpQueue] = useState(() => {
     try {
       const saved = localStorage.getItem('soo_follow_up_queue');
@@ -352,7 +324,6 @@ export default function App() {
     }
   }, [followUpQueue]);
 
-  // 抓取試算表資料
   const loadAllSheets = async () => {
     const [eventsData, mediaData, newsData] = await Promise.all([
       fetchSheetData('events'),
@@ -482,7 +453,7 @@ export default function App() {
     return chosen;
   };
 
-  // 點擊控制列：抓取對應分類資料
+  // 點擊控制列：嚴格鎖定同一筆資料
   const triggerCategoryRandom = (catKey) => {
     const normalizedKey = catKey.toLowerCase().trim();
     const pool = sheetMedia.filter(m => {
