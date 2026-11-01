@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 // Google 試算表設定 (綁定 Soo_Master_Database)
 const SPREADSHEET_ID = '11P8tG-MhZiwrBcGf9TyFirQNwPxKC2YPVbv4XHMEV-A';
 
-// 當初完全正常的原始 CSV 解析工具
+// 最原始、最直接的 CSV 解析函式
 const fetchSheetData = async (sheetName) => {
   try {
     const url = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheetName)}&t=${Date.now()}`;
@@ -223,7 +223,7 @@ export default function App() {
   });
 
   // 通話與視訊狀態
-  const [callStatus, setCallStatus] = useState('idle'); // 'idle' | 'ringing' | 'connected'
+  const [callStatus, setCallStatus] = useState('idle');
   const [callDuration, setCallDuration] = useState(0);
   const [isVideoCalling, setIsVideoCalling] = useState(false);
   const [videoDuration, setVideoDuration] = useState(0);
@@ -239,7 +239,6 @@ export default function App() {
   const triggeredSlots = useRef(new Set());
   const messagesEndRef = useRef(null);
 
-  // 儲存至 LocalStorage
   useEffect(() => {
     try {
       localStorage.setItem('soo_chat_messages', JSON.stringify(messages));
@@ -314,88 +313,6 @@ export default function App() {
     ]);
   };
 
-  // 晨喚邏輯
-  useEffect(() => {
-    const checkMorningSchedule = () => {
-      const now = new Date();
-      const todayStr = getTodayDateStr();
-      const isTodayAwoken = (awokenDate === todayStr);
-      if (isTodayAwoken) return;
-
-      const h = now.getHours();
-      const m = now.getMinutes();
-      const totalMinutes = h * 60 + m;
-
-      if (totalMinutes >= 8 * 60 && totalMinutes < 11 * 60) {
-        if (!triggeredSlots.current.has('slot_08_00')) {
-          triggeredSlots.current.add('slot_08_00');
-          addCallRecord('未接來電', 'assistant');
-          sendVoiceMessage(WAKEUP_VOICES[1]);
-        }
-      }
-
-      if (totalMinutes >= 11 * 60) {
-        if (!triggeredSlots.current.has('slot_11_00')) {
-          triggeredSlots.current.add('slot_11_00');
-          addCallRecord('未接來電', 'assistant');
-          sendVoiceMessage(WAKEUP_VOICES[5]);
-        }
-      }
-
-      const halfHourSlots = [
-        { key: 'slot_11_30', time: 11 * 60 + 30, label: '11:30' },
-        { key: 'slot_12_00', time: 12 * 60, label: '12:00' },
-        { key: 'slot_12_30', time: 12 * 60 + 30, label: '12:30' },
-        { key: 'slot_13_00', time: 13 * 60, label: '13:00' }
-      ];
-
-      halfHourSlots.forEach(slot => {
-        if (totalMinutes >= slot.time && !triggeredSlots.current.has(slot.key)) {
-          triggeredSlots.current.add(slot.key);
-          addCallRecord('未接來電', 'assistant');
-          sendVoiceMessage(WAKEUP_VOICES[5]);
-        }
-      });
-    };
-
-    checkMorningSchedule();
-    const timer = setInterval(checkMorningSchedule, 10000);
-    return () => clearInterval(timer);
-  }, [awokenDate]);
-
-  // 整點日常隨機發送
-  useEffect(() => {
-    const timer = setInterval(() => {
-      const now = new Date();
-      const h = now.getHours();
-      const m = now.getMinutes();
-      const timeKey = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
-
-      if (h === 0 && m === 0) {
-        triggeredSlots.current.clear();
-      }
-
-      const isTargetHour = (h >= 7 && h <= 23) || (h >= 0 && h <= 2);
-      if (m === 0 && isTargetHour && !triggeredSlots.current.has(timeKey)) {
-        triggeredSlots.current.add(timeKey);
-        if (h !== 8 && h !== 11) {
-          const isVoice = Math.random() < 0.3;
-          if (isVoice) {
-            const chosenVoice = HOURLY_VOICE_MESSAGES[Math.floor(Math.random() * HOURLY_VOICE_MESSAGES.length)];
-            sendVoiceMessage(chosenVoice);
-          } else {
-            const randomText = HOURLY_TEXT_MESSAGES[Math.floor(Math.random() * HOURLY_TEXT_MESSAGES.length)];
-            setMessages(prev => [
-              ...prev,
-              { id: Date.now() + Math.random(), role: 'assistant', type: 'text', content: randomText, time: getCurrentTime() }
-            ]);
-          }
-        }
-      }
-    }, 10000);
-    return () => clearInterval(timer);
-  }, []);
-
   // 隨機不重複抽選
   const pickRandomUnspent = (poolKey, items) => {
     if (!items || items.length === 0) return null;
@@ -421,8 +338,23 @@ export default function App() {
     return chosen;
   };
 
-  // 點擊控制列：純粹發送照片，上方徹底不加任何 caption 條
+  // 診斷觸發函式（針對 🏋️ 特別檢查）
   const triggerCategoryRandom = (catKey) => {
+    // 1️⃣ 檢查整張 sheet 是否沒抓到
+    if (!sheetMedia || sheetMedia.length === 0) {
+      alert('1️⃣');
+      return;
+    }
+
+    // 2️⃣ 檢查物件裡面有沒有 category 欄位
+    const firstRow = sheetMedia[0] || {};
+    const hasCategoryKey = Object.keys(firstRow).some(k => k === 'category' || k.includes('category'));
+    if (!hasCategoryKey) {
+      alert('2️⃣');
+      return;
+    }
+
+    // 3️⃣ 檢查是否有符合 gym 的列
     const normalizedKey = catKey.toLowerCase().trim();
     const pool = sheetMedia.filter(m => {
       const itemCat = (m.category || m.category_name || '').toLowerCase().trim();
@@ -430,17 +362,23 @@ export default function App() {
     });
 
     if (pool.length === 0) {
-      alert(`試算表 media 標籤中尚未找到分類為 "${catKey}" 的資料，請確認試算表 media 頁面的 category 欄位。`);
+      alert('3️⃣');
       return;
     }
 
     const item = pickRandomUnspent(catKey, pool);
     if (!item) return;
 
+    // 4️⃣ 檢查圖片網址是否存在
     const rawImgs = (item.images || item.image_url || item.image || '').trim();
     const imgList = rawImgs.split(/[\s,]+/).filter(url => url.startsWith('http'));
 
-    // 1. 發送照片（多圖上方標題為空，不重複 caption）
+    if (imgList.length === 0) {
+      alert('4️⃣');
+      return;
+    }
+
+    // 發送單圖
     if (imgList.length === 1) {
       setMessages(prev => [
         ...prev,
@@ -453,6 +391,7 @@ export default function App() {
         }
       ]);
     } else if (imgList.length > 1) {
+      // 發送多圖（上方無標題）
       setMessages(prev => [
         ...prev,
         {
@@ -466,7 +405,7 @@ export default function App() {
       ]);
     }
 
-    // 2. 發送試算表專屬 caption
+    // 發送 caption
     const textToSend = (item.caption || '').trim();
     if (textToSend) {
       setTimeout(() => {
@@ -483,7 +422,7 @@ export default function App() {
       }, 700);
     }
 
-    // 3. 處理 audio_after
+    // 處理語音
     const audioAfter = (item.audio_after || '').trim();
     if (audioAfter) {
       let finalAudio = audioAfter;
@@ -503,7 +442,7 @@ export default function App() {
       }, textToSend ? 1400 : 800);
     }
 
-    // 4. 裝載 follow_up_1, 2, 3 至隊列
+    // 裝載追問
     const newFollowUps = [];
     if (item.follow_up_1 && item.follow_up_1.trim()) newFollowUps.push(item.follow_up_1.trim());
     if (item.follow_up_2 && item.follow_up_2.trim()) newFollowUps.push(item.follow_up_2.trim());
@@ -539,7 +478,7 @@ export default function App() {
       return;
     }
 
-    // 接通：進入全螢幕播放 phone_call.mp3，絕不回在忙
+    // 接通：進入全螢幕播放 phone_call.mp3，絕對不回在忙
     setCallStatus('connected');
   };
 
@@ -570,7 +509,7 @@ export default function App() {
     setIsVideoCalling(true);
   };
 
-  // 使用者傳送訊息處理（優先消耗 follow_up 對話鏈）
+  // 使用者傳訊
   const handleSend = () => {
     if (!inputText.trim() || isTyping) return;
     const currentInput = inputText.trim();
@@ -585,7 +524,6 @@ export default function App() {
     setInputText('');
     setIsTyping(true);
 
-    // 判定是否解除晨喚
     if (currentInput.includes('起床')) {
       const todayStr = getTodayDateStr();
       setAwokenDate(todayStr);
@@ -603,7 +541,6 @@ export default function App() {
       return;
     }
 
-    // 檢查是否有排隊中的 follow_up 追問回覆
     if (followUpQueue.length > 0) {
       const [nextReply, ...remaining] = followUpQueue;
       setFollowUpQueue(remaining);
@@ -618,7 +555,6 @@ export default function App() {
       return;
     }
 
-    // 一般日常隨機回覆
     setTimeout(() => {
       const reply = USER_MOCK_REPLIES[Math.floor(Math.random() * USER_MOCK_REPLIES.length)];
       setMessages(prev => [
@@ -629,7 +565,6 @@ export default function App() {
     }, 1000);
   };
 
-  // 清空本機暫存聊天紀錄
   const handleClearMessages = () => {
     if (window.confirm(`目前共有 ${messages.length} 則訊息，確定要清空所有紀錄嗎？`)) {
       const initMsg = [{ id: Date.now(), role: 'assistant', type: 'text', content: '今天有好好吃飯嗎？', time: getCurrentTime() }];
@@ -702,11 +637,6 @@ export default function App() {
     ]);
   };
 
-  const handleAcceptCall = () => {
-    if (ringAudioRef.current) ringAudioRef.current.pause();
-    setCallStatus('connected');
-  };
-
   // 相簿群組化
   const albumGroups = React.useMemo(() => {
     const groups = {};
@@ -744,22 +674,11 @@ export default function App() {
               )}
             </div>
 
-            {callStatus === 'ringing' ? (
-              <div className="w-full flex justify-around items-center px-6 mb-8">
-                <button onClick={handleEndCall} className="w-16 h-16 rounded-full bg-rose-600 hover:bg-rose-500 active:scale-95 transition flex items-center justify-center shadow-lg">
-                  <svg className="w-7 h-7 fill-white rotate-[135deg]" viewBox="0 0 24 24"><path d="M6.62 10.79a15.05 15.05 0 006.59 6.59l2.2-2.2a1 1 0 011.02-.24 11.72 11.72 0 003.68.59 1 1 0 011 1v3.5a1 1 0 01-1 1A17 17 0 013 4a1 1 0 011-1h3.5a1 1 0 011 1c0 1.25.2 2.48.59 3.68a1 1 0 01-.24 1.02l-2.23 2.09z" /></svg>
-                </button>
-                <button onClick={handleAcceptCall} className="w-16 h-16 rounded-full bg-[#5FBDB9] hover:bg-[#52ada9] active:scale-95 transition flex items-center justify-center shadow-lg animate-bounce">
-                  <svg className="w-7 h-7 fill-white" viewBox="0 0 24 24"><path d="M6.62 10.79a15.05 15.05 0 006.59 6.59l2.2-2.2a1 1 0 011.02-.24 11.72 11.72 0 003.68.59 1 1 0 011 1v3.5a1 1 0 01-1 1A17 17 0 013 4a1 1 0 011-1h3.5a1 1 0 011 1c0 1.25.2 2.48.59 3.68a1 1 0 01-.24 1.02l-2.23 2.09z" /></svg>
-                </button>
-              </div>
-            ) : (
-              <div className="w-full flex justify-center items-center mb-8">
-                <button onClick={handleEndCall} title="掛斷" className="w-16 h-16 rounded-full bg-rose-600 hover:bg-rose-500 active:scale-95 transition flex items-center justify-center shadow-lg">
-                  <svg className="w-7 h-7 fill-white rotate-[135deg]" viewBox="0 0 24 24"><path d="M6.62 10.79a15.05 15.05 0 006.59 6.59l2.2-2.2a1 1 0 011.02-.24 11.72 11.72 0 003.68.59 1 1 0 011 1v3.5a1 1 0 01-1 1A17 17 0 013 4a1 1 0 011-1h3.5a1 1 0 011 1c0 1.25.2 2.48.59 3.68a1 1 0 01-.24 1.02l-2.23 2.09z" /></svg>
-                </button>
-              </div>
-            )}
+            <div className="w-full flex justify-center items-center mb-8">
+              <button onClick={handleEndCall} title="掛斷" className="w-16 h-16 rounded-full bg-rose-600 hover:bg-rose-500 active:scale-95 transition flex items-center justify-center shadow-lg">
+                <svg className="w-7 h-7 fill-white rotate-[135deg]" viewBox="0 0 24 24"><path d="M6.62 10.79a15.05 15.05 0 006.59 6.59l2.2-2.2a1 1 0 011.02-.24 11.72 11.72 0 003.68.59 1 1 0 011 1v3.5a1 1 0 01-1 1A17 17 0 013 4a1 1 0 011-1h3.5a1 1 0 011 1c0 1.25.2 2.48.59 3.68a1 1 0 01-.24 1.02l-2.23 2.09z" /></svg>
+              </button>
+            </div>
           </div>
         )}
 
@@ -829,7 +748,7 @@ export default function App() {
             </div>
             <div className="flex items-center space-x-1.5">
               <span className="font-semibold text-base leading-none text-white tracking-wide">Soo</span>
-              <span className={`w-2 h-2 rounded-full ${awokenDate === getTodayDateStr() ? 'bg-[#81D4D2]' : 'bg-amber-400'}`} title={awokenDate === getTodayDateStr() ? '今日已起床' : '晨喚待命/催促中'}></span>
+              <span className={`w-2 h-2 rounded-full ${awokenDate === getTodayDateStr() ? 'bg-[#81D4D2]' : 'bg-amber-400'}`}></span>
             </div>
           </div>
 
@@ -845,11 +764,9 @@ export default function App() {
               </span>
             </button>
 
-            {/* 我主動通話按鈕 */}
             <button onClick={handleUserOutgoingCall} title="通話" className="w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 active:scale-95 flex items-center justify-center transition">
               <svg className="w-3.5 h-3.5 fill-white" viewBox="0 0 24 24"><path d="M6.62 10.79a15.05 15.05 0 006.59 6.59l2.2-2.2a1 1 0 011.02-.24 11.72 11.72 0 003.68.59 1 1 0 011 1v3.5a1 1 0 01-1 1A17 17 0 013 4a1 1 0 011-1h3.5a1 1 0 011 1c0 1.25.2 2.48.59 3.68a1 1 0 01-.24 1.02l-2.23 2.09z" /></svg>
             </button>
-            {/* 我主動視訊按鈕 */}
             <button onClick={handleUserOutgoingVideo} title="視訊通話" className="w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 active:scale-95 flex items-center justify-center transition">
               <svg className="w-4 h-4 fill-white" viewBox="0 0 24 24"><path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z" /></svg>
             </button>
