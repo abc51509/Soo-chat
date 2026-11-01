@@ -3,7 +3,53 @@ import React, { useState, useEffect, useRef } from 'react';
 // Google 試算表設定 (綁定 Soo_Master_Database)
 const SPREADSHEET_ID = '11P8tG-MhZiwrBcGf9TyFirQNwPxKC2YPVbv4XHMEV-A';
 
-// 原始 CSV 解析
+// 標準健全的 CSV 狀態機解析：嚴格分行，不再讓引號跨行吞噬幾十列
+const parseCsvRobust = (text) => {
+  const rows = [];
+  let currentRow = [];
+  let currentField = '';
+  let inQuotes = false;
+
+  for (let i = 0; i < text.length; i++) {
+    const char = text[i];
+    const nextChar = text[i + 1];
+
+    if (char === '"') {
+      if (inQuotes && nextChar === '"') {
+        currentField += '"';
+        i++; // 跳過轉義雙引號
+      } else {
+        inQuotes = !inQuotes;
+      }
+    } else if (char === ',' && !inQuotes) {
+      currentRow.push(currentField.trim());
+      currentField = '';
+    } else if ((char === '\r' || char === '\n') && !inQuotes) {
+      if (char === '\r' && nextChar === '\n') {
+        i++;
+      }
+      currentRow.push(currentField.trim());
+      if (currentRow.some(c => c.length > 0)) {
+        rows.push(currentRow);
+      }
+      currentRow = [];
+      currentField = '';
+    } else {
+      currentField += char;
+    }
+  }
+
+  if (currentField.length > 0 || currentRow.length > 0) {
+    currentRow.push(currentField.trim());
+    if (currentRow.some(c => c.length > 0)) {
+      rows.push(currentRow);
+    }
+  }
+
+  return rows;
+};
+
+// 治本讀取：固定 A-L 欄索引映射，不再動態受標題污染影響
 const fetchSheetData = async (sheetName) => {
   try {
     const url = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheetName)}&t=${Date.now()}`;
@@ -11,38 +57,28 @@ const fetchSheetData = async (sheetName) => {
     if (!res.ok) return [];
     const text = await res.text();
     
-    const lines = text.split('\n').filter(l => l.trim().length > 0);
-    if (lines.length <= 1) return [];
+    const rows = parseCsvRobust(text);
+    if (rows.length <= 1) return [];
 
-    const parseRow = (rowStr) => {
-      const result = [];
-      let current = '';
-      let inQuotes = false;
-      for (let i = 0; i < rowStr.length; i++) {
-        const char = rowStr[i];
-        if (char === '"') {
-          inQuotes = !inQuotes;
-        } else if (char === ',' && !inQuotes) {
-          result.push(current.trim().replace(/^"|"$/g, ''));
-          current = '';
-        } else {
-          current += char;
-        }
-      }
-      result.push(current.trim().replace(/^"|"$/g, ''));
-      return result;
-    };
-
-    const rawHeaders = parseRow(lines[0]);
-    const headers = rawHeaders.map(h => h.toLowerCase().replace(/[^a-z0-9_]/g, ''));
-
-    return lines.slice(1).map(line => {
-      const values = parseRow(line);
-      const entry = { _rawValues: values };
-      headers.forEach((h, idx) => {
-        entry[h] = values[idx] ? values[idx].trim() : '';
-      });
-      return entry;
+    // 固定 A 到 L 欄順序：
+    // 0: id, 1: event_id, 2: date, 3: category, 4: sub_type, 5: album_name,
+    // 6: images, 7: caption, 8: audio_after, 9: follow_up_1, 10: follow_up_2, 11: follow_up_3
+    return rows.slice(1).map(row => {
+      const getVal = (idx) => (row[idx] ? row[idx].trim().replace(/^"|"$/g, '') : '');
+      return {
+        id: getVal(0),
+        event_id: getVal(1),
+        date: getVal(2),
+        category: getVal(3),
+        sub_type: getVal(4),
+        album_name: getVal(5),
+        images: getVal(6),
+        caption: getVal(7),
+        audio_after: getVal(8),
+        follow_up_1: getVal(9),
+        follow_up_2: getVal(10),
+        follow_up_3: getVal(11)
+      };
     });
   } catch (err) {
     console.error(`讀取試算表 [${sheetName}] 失敗:`, err);
@@ -347,7 +383,7 @@ export default function App() {
     let spentIds = JSON.parse(localStorage.getItem(storageKey) || '[]');
 
     let available = items.filter(item => {
-      const id = item.id || JSON.stringify(item);
+      const id = item.id || item.images || JSON.stringify(item);
       return !spentIds.includes(id);
     });
 
@@ -358,103 +394,20 @@ export default function App() {
     }
 
     const chosen = available[Math.floor(Math.random() * available.length)];
-    const chosenId = chosen.id || JSON.stringify(chosen);
+    const chosenId = chosen.id || chosen.images || JSON.stringify(chosen);
     spentIds.push(chosenId);
     localStorage.setItem(storageKey, JSON.stringify(spentIds));
 
     return chosen;
   };
 
-  // 診斷列印彈窗（點擊 🏋️ 直接寫出抓到的內容）
-  const triggerGymDiagnostic = () => {
-    const totalCount = sheetMedia.length;
-    if (totalCount === 0) {
-      alert('【診斷報告】sheetMedia 是空的 (長度 0)。完全沒有抓到任何列！請檢查試算表分頁名稱是否為 media。');
-      return;
-    }
-
-    // 收集所有出現過的欄位名稱與 category 值
-    const allCategories = Array.from(new Set(sheetMedia.map(m => m.category || '(空)')));
-    const sampleRows = sheetMedia.slice(0, 3).map((m, idx) => {
-      const keys = Object.keys(m).filter(k => k !== '_rawValues');
-      const details = keys.map(k => `${k}: "${m[k]}"`).join('\n   ');
-      return `第 ${idx + 1} 筆:\n   ${details}`;
-    }).join('\n\n');
-
-    const message = `【診斷報告 - media 抓取現況】\n` +
-      `總筆數: ${totalCount} 筆\n` +
-      `所有 category 值: [${allCategories.join(', ')}]\n\n` +
-      `前 3 筆真實解析資料如下:\n${sampleRows}`;
-
-    alert(message);
-
-    // 檢查是否有 gym
-    const pool = sheetMedia.filter(m => (m.category || '').toLowerCase().trim() === 'gym');
-    if (pool.length === 0) {
-      return;
-    }
-
-    // 若有抓到則正常發送
-    const item = pickRandomUnspent('gym', pool);
-    if (!item) return;
-
-    const rawImgs = (item.images || '').trim();
-    const imgList = rawImgs.split(/[\s,]+/).filter(url => url.startsWith('http'));
-
-    if (imgList.length === 1) {
-      setMessages(prev => [
-        ...prev,
-        {
-          id: Date.now() + Math.random(),
-          role: 'assistant',
-          type: 'photo',
-          imageUrl: imgList[0],
-          time: getCurrentTime()
-        }
-      ]);
-    } else if (imgList.length > 1) {
-      setMessages(prev => [
-        ...prev,
-        {
-          id: Date.now() + Math.random(),
-          role: 'assistant',
-          type: 'album_grid',
-          title: '',
-          images: imgList,
-          time: getCurrentTime()
-        }
-      ]);
-    }
-
-    const textToSend = (item.caption || '').trim();
-    if (textToSend) {
-      setTimeout(() => {
-        setMessages(prev => [
-          ...prev,
-          {
-            id: Date.now() + Math.random(),
-            role: 'assistant',
-            type: 'text',
-            content: textToSend,
-            time: getCurrentTime()
-          }
-        ]);
-      }, 700);
-    }
-  };
-
-  // 其他分類維持原本觸發
+  // 正常點擊分類觸發
   const triggerCategoryRandom = (catKey) => {
-    if (catKey === 'gym') {
-      triggerGymDiagnostic();
-      return;
-    }
-
     const target = catKey.toLowerCase().trim();
     const pool = sheetMedia.filter(m => (m.category || '').toLowerCase().trim() === target);
 
     if (pool.length === 0) {
-      alert(`找不到分類為 "${catKey}" 的資料`);
+      alert(`試算表 media 標籤中尚未找到分類為 "${catKey}" 的資料`);
       return;
     }
 
@@ -922,7 +875,6 @@ export default function App() {
 
         {/* 劇本控制板 */}
         <div className="bg-slate-900/10 px-2.5 py-2 flex space-x-2 overflow-x-auto border-t border-slate-200/80 z-10 scrollbar-none shrink-0">
-          {/* 🏋️ 專門負責寫出診斷報告 */}
           <button onClick={() => triggerCategoryRandom('gym')} title="試算表類別: 健身" className="text-[12px] whitespace-nowrap bg-white hover:bg-slate-50 text-slate-800 font-medium px-3 py-1.5 rounded-full shadow-sm border border-slate-200 transition shrink-0 active:scale-95">
             🏋️
           </button>
@@ -1105,7 +1057,7 @@ export default function App() {
                     <span className="text-xs font-medium text-slate-200">{item.title}</span>
                     <span className="text-[10px] text-slate-500 font-mono">{item.duration}</span>
                   </div>
-                  <AudioBubble audioSrc={item.src} durationText={item.duration} />
+                  <AudioBubble audioSrc={formatAudioUrl(item.src)} durationText={item.duration} />
                 </div>
               ))}
             </div>
