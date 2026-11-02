@@ -1,60 +1,3 @@
-這套架構將你指定的第一階段功能完整實作，包含：
-
-1. **三表合一（Master Sheet）與單次讀取分流**：
-* 試算表以 `media` 作為單一 Master 表格。
-* 擴充支援 `end_date`、`news_title`、`news_source`、`news_summary`。
-* 前端單次讀取後自動分流：有 `images` 進入相簿與抽卡池、有 `date` 投影至行事曆、有 `news_title`/`news_summary` 渲染至情報專區。
-
-
-2. **`dialogues` 與 `food_weights` 試算表連線**：
-* 所有日常對話、語音、拒接回覆、連環未接與起床台詞全部由試算表 `dialogues` 分頁動態供應。
-* 獨立讀取 `food_weights` 分頁（含 `food_name`、`weight`、`soo_comment`）。
-
-
-3. **連續氣泡連發引擎（敲鍵盤打字效果）**：
-* 支援字串中使用分號 `;` 切分多個句子。
-* 逐一依序顯示「輸入中...」動態並以擬真節奏（500ms～900ms 階梯延遲）彈出獨立對話氣泡。
-
-
-4. **追問時效過期與話題轉移中斷機制**：
-* 追問隊列具備 5 分鐘時效，逾時未回覆自動放棄並清空隊列。
-* 偵測到使用者轉移話題（如觸發吃什麼或起床）時，優先強行截斷舊對話串。
-
-
-5. **「吃什麼」權重輪盤**：
-* 輸入包含「吃什麼」、「想吃」、「晚餐」、「午餐」等關鍵字時，依照試算表權重比例精準抽出品項，並連發專屬推薦台詞。
-
-
-6. **階梯式晨喚補償排程**：
-* 改用區間階段判定（08:30~09:30、09:30~10:30、10:30~11:30、11:30後每半小時），解決錯過單一時間點陷入真空期的問題。
-* 只要當日尚未輸入「起床」解除，任何時間打開頁面即自動比對當前時段補發未接來電紀錄與專屬催促語音。
-
-
-
----
-
-### Google 試算表建議結構
-
-#### 1. `media` 分頁（三表合一 Master Sheet 欄位順序）
-
-`id` | `event_id` | `date` | `end_date` | `category` | `sub_type` | `album_name` | `images` | `caption` | `audio_after` | `follow_ups` | `news_title` | `news_source` | `news_summary`
-
-#### 2. `dialogues` 分頁欄位順序
-
-`id` | `type` | `trigger_content` | `follow_ups` | `audio_after`
-*(支援的 `type`: `text`, `audio`, `missed_call`, `missed_urgent`, `call_rejected`, `video_rejected`, `system_awake`)*
-
-#### 3. `food_weights` 分頁欄位順序
-
-`id` | `food_name` | `weight` | `soo_comment`
-
----
-
-### 完整 `src/App.jsx` 程式碼
-
-請整份複製覆蓋至 `src/App.jsx`：
-
-```jsx
 import React, { useState, useEffect, useRef } from 'react';
 
 // Google 試算表設定 (綁定 Soo_Master_Database)
@@ -1285,5 +1228,3 @@ export default function App() {
     </div>
   );
 }
-
-```
