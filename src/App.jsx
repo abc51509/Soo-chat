@@ -77,7 +77,7 @@ const getYouTubeEmbedUrl = (rawUrl) => {
   return `https://www.youtube.com/embed/${videoId}?autoplay=0&controls=1&playsinline=1&modestbranding=1`;
 };
 
-// 影片來源格式化（支援純檔名、public/video/ 相對路徑與外部 URL）
+// 影片來源格式化
 const formatVideoSource = (raw) => {
   if (!raw) return { type: 'none', url: '' };
   const clean = raw.trim();
@@ -267,7 +267,9 @@ export default function App() {
 
   const [isPlusMenuOpen, setIsPlusMenuOpen] = useState(false);
   const [activeModal, setActiveModal] = useState(null);
-  const [activeAlbumTab, setActiveAlbumTab] = useState('all');
+  
+  // 相簿內頁選中狀態 (null = 四宮格相簿目錄列表；有值 = 該相簿三宮格圖片清單)
+  const [selectedAlbumName, setSelectedAlbumName] = useState(null);
   
   // FEED 詳情頁狀態與滾動記憶
   const [selectedFeedItem, setSelectedFeedItem] = useState(null);
@@ -322,7 +324,6 @@ export default function App() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isTyping]);
 
-  // 返回列表時，精準還原滾動位置
   useEffect(() => {
     if (!selectedFeedItem && feedListScrollRef.current && feedScrollPosition > 0) {
       feedListScrollRef.current.scrollTop = feedScrollPosition;
@@ -350,9 +351,9 @@ export default function App() {
     const deltaX = e.changedTouches[0].clientX - touchStartX.current;
     const deltaY = e.changedTouches[0].clientY - touchStartY.current;
 
-    // 水平滑動大於 75px，且垂直偏移小於 60px（判定為向右滑動返回）
     if (deltaX > 75 && Math.abs(deltaY) < 60) {
-      handleBackToFeedList();
+      if (selectedFeedItem) handleBackToFeedList();
+      else if (selectedAlbumName) setSelectedAlbumName(null);
     }
   };
 
@@ -774,17 +775,32 @@ export default function App() {
     return () => clearInterval(videoTimer);
   }, [isVideoCalling]);
 
-  // Master Media 分流：相簿
-  const albumGroups = React.useMemo(() => {
-    const groups = {};
+  // Master Media 分流：相簿聚合陣列結構（支援四宮格橫向滑動與多圖去重）
+  const albumList = React.useMemo(() => {
+    const map = {};
     masterMedia.forEach(m => {
       const albumKey = m.album_name ? m.album_name.trim() : '未分類歸檔';
-      if (!groups[albumKey]) groups[albumKey] = [];
+      if (!map[albumKey]) {
+        map[albumKey] = {
+          album_name: albumKey,
+          images: [],
+          date: m.date || ''
+        };
+      }
       const raw = (m.images || '').trim();
       const imgs = raw.split(/[\s,]+/).filter(u => u.startsWith('http'));
-      groups[albumKey].push(...imgs);
+      map[albumKey].images.push(...imgs);
     });
-    return groups;
+
+    return Object.values(map).map(a => {
+      const uniqueImgs = Array.from(new Set(a.images));
+      return {
+        ...a,
+        images: uniqueImgs,
+        cover: uniqueImgs[0] || null,
+        count: uniqueImgs.length
+      };
+    }).filter(a => a.count > 0);
   }, [masterMedia]);
 
   // Master Media 分流：行事曆
@@ -797,20 +813,20 @@ export default function App() {
     }));
   }, [masterMedia]);
 
-  // Master Media 分流：FEED (全方位跨列聚合)
+  // Master Media 分流：FEED (支援多影片解析引擎)
   const feedItems = React.useMemo(() => {
     const grouped = {};
 
     masterMedia.forEach(m => {
       const newsTitleVal = getField(m, 'news_title', 'newstitle', 'title');
       const newsSummaryVal = getField(m, 'news_summary', 'newssummary', 'summary');
-      const videoUrlVal = getField(m, 'video_url', 'videourl', 'video');
-      const videoCaptionVal = getField(m, 'video_caption', 'videocaption', 'video_desc', 'videodesc', 'video_title');
+      const rawVideoUrl = getField(m, 'video_url', 'videourl', 'video');
+      const rawVideoCaption = getField(m, 'video_caption', 'videocaption', 'video_desc', 'videodesc', 'video_title');
       const albumNameVal = getField(m, 'album_name', 'albumname', 'album');
       const interviewIdVal = getField(m, 'interview_id', 'interviewid', 'interview');
       const newsSourceVal = getField(m, 'news_source', 'newssource', 'source');
 
-      const hasFeedContent = (newsTitleVal || newsSummaryVal || videoUrlVal || albumNameVal || interviewIdVal || '').length > 0;
+      const hasFeedContent = (newsTitleVal || newsSummaryVal || rawVideoUrl || albumNameVal || interviewIdVal || '').length > 0;
       if (!hasFeedContent) return;
 
       const groupKey = albumNameVal || newsTitleVal || m.id || 'feed_item';
@@ -825,8 +841,7 @@ export default function App() {
           main_title: newsTitleVal || albumNameVal,
           sub_title: getField(m, 'news_subtitle', 'newssubtitle', 'subtitle'),
           summary: newsSummaryVal,
-          video_url: videoUrlVal,
-          video_caption: videoCaptionVal,
+          videos: [],
           credits: getField(m, 'credits', 'credit'),
           main_images: [],
           layout_images: []
@@ -837,9 +852,21 @@ export default function App() {
       if (newsSourceVal && !grouped[groupKey].source) grouped[groupKey].source = newsSourceVal;
       if (getField(m, 'news_subtitle') && !grouped[groupKey].sub_title) grouped[groupKey].sub_title = getField(m, 'news_subtitle');
       if (newsSummaryVal && !grouped[groupKey].summary) grouped[groupKey].summary = newsSummaryVal;
-      if (videoUrlVal && !grouped[groupKey].video_url) grouped[groupKey].video_url = videoUrlVal;
-      if (videoCaptionVal && !grouped[groupKey].video_caption) grouped[groupKey].video_caption = videoCaptionVal;
       if (getField(m, 'credits') && !grouped[groupKey].credits) grouped[groupKey].credits = getField(m, 'credits');
+
+      if (rawVideoUrl) {
+        const urlList = rawVideoUrl.split(/;|\n/).map(s => s.trim()).filter(Boolean);
+        const captionList = (rawVideoCaption || '').split(/;|\n/).map(s => s.trim());
+
+        urlList.forEach((url, uIdx) => {
+          if (!grouped[groupKey].videos.some(v => v.url === url)) {
+            grouped[groupKey].videos.push({
+              url: url,
+              caption: captionList[uIdx] || ''
+            });
+          }
+        });
+      }
 
       const raw = getField(m, 'images', 'image');
       const imgs = raw.split(/[\s,]+/).map(u => u.trim()).filter(u => u.startsWith('http'));
@@ -893,7 +920,7 @@ export default function App() {
     return groups;
   }, [interviewData]);
 
-  // 當前選中項目的訪談紀錄（比對 interview_id）
+  // 當前選中項目的訪談紀錄
   const currentInterviewDialogue = React.useMemo(() => {
     if (!selectedFeedItem?.interview_id) return [];
     const targetKey = selectedFeedItem.interview_id.trim();
@@ -905,6 +932,12 @@ export default function App() {
     );
     return matchedKey ? interviewGroups[matchedKey] : [];
   }, [selectedFeedItem, interviewGroups]);
+
+  // 找出目前選中相簿的全部圖片
+  const currentAlbumData = React.useMemo(() => {
+    if (!selectedAlbumName) return null;
+    return albumList.find(a => a.album_name === selectedAlbumName) || null;
+  }, [selectedAlbumName, albumList]);
 
   return (
     <div className="flex h-[100dvh] w-screen bg-slate-900 justify-center items-center select-none overflow-hidden sm:p-3">
@@ -1153,7 +1186,7 @@ export default function App() {
         {/* ➕ 彈出擴充選單面板 */}
         {isPlusMenuOpen && (
           <div className="bg-[#4E727A]/95 backdrop-blur-md px-4 py-3 flex justify-around border-t border-[#3D5C63] z-20 animate-fade-in shadow-xl">
-            <button onClick={() => { setActiveModal('album'); setIsPlusMenuOpen(false); }} className="flex flex-col items-center space-y-1 text-white active:scale-90 transition">
+            <button onClick={() => { setActiveModal('album'); setSelectedAlbumName(null); setIsPlusMenuOpen(false); }} className="flex flex-col items-center space-y-1 text-white active:scale-90 transition">
               <div className="w-11 h-11 rounded-2xl bg-white/10 flex items-center justify-center text-lg shadow-sm">🖼️</div>
               <span className="text-[11px] text-teal-100">相簿</span>
             </button>
@@ -1197,39 +1230,133 @@ export default function App() {
           </button>
         </div>
 
-        {/* 彈出視窗 1️⃣：相簿功能 */}
+        {/* 彈出視窗 1️⃣：相簿功能 (🌟 四宮格橫向滑動目錄 + 點進三宮格全部預覽) */}
         {activeModal === 'album' && (
-          <div className="absolute inset-0 bg-slate-950/95 z-50 flex flex-col text-white backdrop-blur-md animate-fade-in">
-            <div className="pt-12 pb-3 px-4 bg-[#4E727A] flex items-center justify-between shadow border-b border-[#3D5C63]">
-              <span className="font-medium text-base tracking-wide">照片庫 (Albums)</span>
-              <button onClick={() => setActiveModal(null)} className="text-sm text-teal-100 hover:text-white px-2 py-1">關閉</button>
-            </div>
+          <div className="absolute inset-0 bg-[#0B1120] z-50 flex flex-col text-slate-100 backdrop-blur-md animate-fade-in">
+            {selectedAlbumName && currentAlbumData ? (
+              /* 第二層：點進相簿後的「三宮格全部圖片預覽」 */
+              <div 
+                className="flex-1 flex flex-col overflow-hidden"
+                onTouchStart={handleTouchStart}
+                onTouchEnd={handleTouchEnd}
+              >
+                <div className="pt-12 pb-3 px-4 bg-[#4E727A] flex items-center justify-between border-b border-[#3D5C63] shadow shrink-0">
+                  <button 
+                    onClick={() => setSelectedAlbumName(null)}
+                    className="flex items-center space-x-1 text-xs text-teal-100 hover:text-white px-2 py-1 rounded bg-white/10 transition active:scale-95"
+                  >
+                    <span>‹ 所有相簿</span>
+                  </button>
+                  <span className="text-xs font-medium text-teal-50 truncate max-w-[200px] px-2">
+                    {currentAlbumData.album_name}
+                  </span>
+                  <button 
+                    onClick={() => { setSelectedAlbumName(null); setActiveModal(null); }} 
+                    className="text-xs text-teal-100 hover:text-white px-2 py-1"
+                  >
+                    關閉
+                  </button>
+                </div>
 
-            <div className="flex border-b border-white/10 px-3 pt-2 bg-slate-900/60 overflow-x-auto scrollbar-none">
-              {Object.keys(albumGroups).map(name => (
-                <button
-                  key={name}
-                  onClick={() => setActiveAlbumTab(name)}
-                  className={`pb-2 mr-3 text-xs whitespace-nowrap font-medium tracking-wide border-b-2 transition ${
-                    activeAlbumTab === name || (activeAlbumTab === 'all' && name === Object.keys(albumGroups)[0])
-                      ? 'border-[#81D4D2] text-[#81D4D2]'
-                      : 'border-transparent text-slate-400'
-                  }`}
-                >
-                  {name} ({albumGroups[name]?.length || 0})
-                </button>
-              ))}
-            </div>
-
-            <div className="flex-1 overflow-y-auto p-2">
-              <div className="grid grid-cols-3 gap-1 rounded-xl overflow-hidden">
-                {(albumGroups[activeAlbumTab === 'all' ? Object.keys(albumGroups)[0] : activeAlbumTab] || []).map((img, i) => (
-                  <a key={i} href={img} target="_blank" rel="noreferrer" className="block aspect-[3/4] bg-slate-800 overflow-hidden">
-                    <img src={img} alt="album snap" loading="lazy" className="w-full h-full object-cover hover:scale-105 transition" />
-                  </a>
-                ))}
+                <div className="flex-1 overflow-y-auto p-2">
+                  <div className="grid grid-cols-3 gap-1 rounded-xl overflow-hidden">
+                    {currentAlbumData.images.map((img, i) => (
+                      <a 
+                        key={i} 
+                        href={img} 
+                        target="_blank" 
+                        rel="noreferrer" 
+                        className="block aspect-[3/4] bg-slate-800 overflow-hidden relative group"
+                      >
+                        <img 
+                          src={img} 
+                          alt={`Shot ${i + 1}`} 
+                          loading="lazy" 
+                          className="w-full h-full object-cover group-hover:scale-105 transition duration-200" 
+                        />
+                      </a>
+                    ))}
+                  </div>
+                </div>
               </div>
-            </div>
+            ) : (
+              /* 第一層：四宮格橫向滑動相簿目錄牆 */
+              <div className="flex-1 flex flex-col overflow-hidden">
+                <div className="pt-12 pb-3 px-4 bg-[#4E727A] flex items-center justify-between border-b border-[#3D5C63] shadow shrink-0">
+                  <div className="flex flex-col">
+                    <span className="font-semibold text-base tracking-wide text-white">ALBUMS</span>
+                    <span className="text-[10px] text-teal-100/70">精選圖輯・橫向滑動瀏覽</span>
+                  </div>
+                  <button 
+                    onClick={() => setActiveModal(null)} 
+                    className="text-xs text-teal-100 hover:text-white px-2.5 py-1 rounded-md bg-white/10"
+                  >
+                    關閉
+                  </button>
+                </div>
+
+                {/* 橫向滑動 2x2 四宮格卡片牆 */}
+                <div className="flex-1 overflow-x-auto overflow-y-hidden p-4 flex items-center snap-x snap-mandatory scrollbar-none">
+                  {/* 將相簿以 4 個為一頁切分 */}
+                  {Array.from({ length: Math.ceil(albumList.length / 4) }).map((_, pageIdx) => {
+                    const pageAlbums = albumList.slice(pageIdx * 4, pageIdx * 4 + 4);
+                    return (
+                      <div 
+                        key={pageIdx} 
+                        className="min-w-full h-full grid grid-cols-2 grid-rows-2 gap-3.5 snap-center shrink-0"
+                      >
+                        {pageAlbums.map((album, aIdx) => (
+                          <div
+                            key={aIdx}
+                            onClick={() => setSelectedAlbumName(album.album_name)}
+                            className="bg-[#1E293B]/80 rounded-2xl border border-slate-700/60 p-2.5 flex flex-col justify-between shadow-md hover:border-[#81D4D2]/70 cursor-pointer transition active:scale-[0.97] overflow-hidden"
+                          >
+                            {/* 封面大圖 */}
+                            <div className="rounded-xl overflow-hidden aspect-[4/3] w-full bg-slate-800 shadow-inner relative shrink-0">
+                              {album.cover ? (
+                                <img 
+                                  src={album.cover} 
+                                  alt={album.album_name} 
+                                  loading="lazy" 
+                                  className="w-full h-full object-cover object-[center_20%]" 
+                                />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center text-slate-500 text-xs font-mono">
+                                  NO COVER
+                                </div>
+                              )}
+                              <span className="absolute bottom-1.5 right-1.5 bg-black/70 backdrop-blur-sm text-[#81D4D2] text-[9.5px] px-2 py-0.5 rounded-md font-mono font-semibold">
+                                {album.count}P
+                              </span>
+                            </div>
+
+                            {/* 相簿名稱：太長自動換行 */}
+                            <div className="mt-2 flex-1 flex flex-col justify-between">
+                              <h4 className="text-[12.5px] font-bold text-white leading-snug whitespace-normal line-clamp-2">
+                                {album.album_name}
+                              </h4>
+                              <div className="flex items-center justify-between text-[10px] text-slate-400 font-mono mt-1 pt-1 border-t border-white/5">
+                                <span>{album.date ? album.date.split('-')[0] : 'ARCHIVE'}</span>
+                                <span className="text-[#81D4D2] font-sans">展開 ➔</span>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* 底部滑動頁碼指示點 */}
+                {Math.ceil(albumList.length / 4) > 1 && (
+                  <div className="py-2.5 flex justify-center items-center space-x-1.5 shrink-0">
+                    {Array.from({ length: Math.ceil(albumList.length / 4) }).map((_, dotIdx) => (
+                      <span key={dotIdx} className="w-1.5 h-1.5 rounded-full bg-white/20"></span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
 
@@ -1294,7 +1421,7 @@ export default function App() {
           </div>
         )}
 
-        {/* 彈出視窗 3️⃣：FEED (雙排四宮格目錄 + 滑動手勢返回 + 頂部簡約留白) */}
+        {/* 彈出視窗 3️⃣：FEED (雙排四宮格目錄 + 多影片垂直渲染 + 手勢返回) */}
         {activeModal === 'feed' && (
           <div className="absolute inset-0 bg-[#0B1120] z-50 flex flex-col text-slate-100 backdrop-blur-md animate-fade-in">
             
@@ -1305,7 +1432,6 @@ export default function App() {
                 onTouchStart={handleTouchStart}
                 onTouchEnd={handleTouchEnd}
               >
-                {/* 頂部導航列：完全留白，無 Title 文字 */}
                 <div className="pt-12 pb-3 px-4 bg-[#4E727A] flex items-center justify-between border-b border-[#3D5C63] shadow shrink-0">
                   <button 
                     onClick={handleBackToFeedList}
@@ -1313,7 +1439,6 @@ export default function App() {
                   >
                     <span>‹ 返回</span>
                   </button>
-                  {/* 中間完全留白 */}
                   <div className="flex-1"></div>
                   <button 
                     onClick={() => { setSelectedFeedItem(null); setActiveModal(null); }} 
@@ -1358,41 +1483,44 @@ export default function App() {
                     </div>
                   )}
 
-                  {/* 3. Video 區塊 (支援 YouTube Embed 與本地 MP4 檔名播放，下方帶置中換行說明文字) */}
-                  {selectedFeedItem.video_url && (() => {
-                    const videoInfo = formatVideoSource(selectedFeedItem.video_url);
-                    if (videoInfo.type === 'none') return null;
+                  {/* 3. 多影片區塊 */}
+                  {selectedFeedItem.videos && selectedFeedItem.videos.length > 0 && (
+                    <div className="space-y-4">
+                      {selectedFeedItem.videos.map((vid, vIdx) => {
+                        const videoInfo = formatVideoSource(vid.url);
+                        if (videoInfo.type === 'none') return null;
 
-                    return (
-                      <div className="space-y-2">
-                        <div className="rounded-2xl overflow-hidden aspect-video w-full bg-black shadow-lg border border-white/10 flex items-center justify-center">
-                          {videoInfo.type === 'youtube' ? (
-                            <iframe 
-                              src={videoInfo.url} 
-                              title="Video Player"
-                              className="w-full h-full border-0"
-                              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                              allowFullScreen
-                            />
-                          ) : (
-                            <video 
-                              src={videoInfo.url} 
-                              controls 
-                              playsInline 
-                              className="w-full h-full object-contain bg-black"
-                            />
-                          )}
-                        </div>
+                        return (
+                          <div key={vIdx} className="space-y-2">
+                            <div className="rounded-2xl overflow-hidden aspect-video w-full bg-black shadow-lg border border-white/10 flex items-center justify-center">
+                              {videoInfo.type === 'youtube' ? (
+                                <iframe 
+                                  src={videoInfo.url} 
+                                  title={`Video Player ${vIdx + 1}`}
+                                  className="w-full h-full border-0"
+                                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                  allowFullScreen
+                                />
+                              ) : (
+                                <video 
+                                  src={videoInfo.url} 
+                                  controls 
+                                  playsInline 
+                                  className="w-full h-full object-contain bg-black"
+                                />
+                              )}
+                            </div>
 
-                        {/* 影片置中說明文字 (支援 Alt+Enter 換行) */}
-                        {selectedFeedItem.video_caption && (
-                          <p className="text-[11.5px] text-slate-400 font-light text-center leading-relaxed px-4 whitespace-pre-wrap">
-                            {selectedFeedItem.video_caption}
-                          </p>
-                        )}
-                      </div>
-                    );
-                  })()}
+                            {vid.caption && (
+                              <p className="text-[11.5px] text-slate-400 font-light text-center leading-relaxed px-4 whitespace-pre-wrap">
+                                {vid.caption}
+                              </p>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
 
                   {/* 4. Summary 摘要內文 */}
                   {selectedFeedItem.summary && (
@@ -1401,7 +1529,7 @@ export default function App() {
                     </div>
                   )}
 
-                  {/* 5. Layout Design 排版圖片區 (sub_type === 'layout') */}
+                  {/* 5. Layout Design 排版圖片區 */}
                   {selectedFeedItem.layout_images && selectedFeedItem.layout_images.length > 0 && (
                     <div className="space-y-3">
                       {selectedFeedItem.layout_images.map((layoutImg, lIdx) => (
@@ -1412,7 +1540,7 @@ export default function App() {
                     </div>
                   )}
 
-                  {/* 6. Interview 訪談對話室 (Q 頭像在頂部並與氣泡頂端平齊 items-start) */}
+                  {/* 6. Interview 訪談對話室 */}
                   {currentInterviewDialogue.length > 0 && (
                     <div className="space-y-3.5 pt-4 border-t border-white/10">
                       {currentInterviewDialogue.map((row, idx) => {
@@ -1439,14 +1567,12 @@ export default function App() {
                             key={idx} 
                             className={`w-full flex ${isSoo ? 'justify-end items-start' : 'justify-start items-start'} space-x-2`}
                           >
-                            {/* 採訪者 Q 靠左，頂部對齊頭像框 */}
                             {!isSoo && (
                               <div className="w-7 h-7 rounded-full bg-slate-700/90 flex items-center justify-center text-[11px] font-semibold text-slate-200 shrink-0 mt-0.5 border border-slate-600 shadow-sm">
                                 Q
                               </div>
                             )}
 
-                            {/* 氣泡本體 */}
                             <div className={`max-w-[80%] rounded-2xl px-3.5 py-2.5 text-[12.5px] leading-relaxed shadow-sm bg-white/10 text-slate-100 border border-white/10 ${
                               isSoo ? 'rounded-tr-none' : 'rounded-tl-none'
                             }`}>
@@ -1458,7 +1584,7 @@ export default function App() {
                     </div>
                   )}
 
-                  {/* 7. 剩餘的所有照片 (Remaining Images 直排瀑布流) */}
+                  {/* 7. 剩餘的所有照片 */}
                   {selectedFeedItem.remaining_images && selectedFeedItem.remaining_images.length > 0 && (
                     <div className="space-y-3 pt-2">
                       {selectedFeedItem.remaining_images.map((imgUrl, rIdx) => (
@@ -1474,7 +1600,7 @@ export default function App() {
                     </div>
                   )}
 
-                  {/* 8. Credits (置底團隊名單) */}
+                  {/* 8. Credits */}
                   {selectedFeedItem.credits && (
                     <div className="bg-black/50 p-4 rounded-2xl border border-white/10 text-[10.5px] text-slate-400 leading-relaxed font-mono mt-6">
                       <span className="text-[#81D4D2] font-semibold block mb-1">CREDITS</span>
@@ -1484,7 +1610,7 @@ export default function App() {
                 </div>
               </div>
             ) : (
-              /* FEED 列表 View (雙欄四宮格 + 智能人像裁切 + 來源加重置左) */
+              /* FEED 列表 View */
               <div className="flex-1 flex flex-col overflow-hidden">
                 <div className="pt-12 pb-3 px-4 bg-[#4E727A] flex items-center justify-between border-b border-[#3D5C63] shadow shrink-0">
                   <div className="flex flex-col">
@@ -1508,7 +1634,6 @@ export default function App() {
                           className="bg-[#1E293B]/75 rounded-2xl border border-slate-700/60 p-2.5 flex flex-col justify-between space-y-2 shadow-sm hover:border-[#81D4D2]/60 hover:bg-[#1E293B] cursor-pointer transition active:scale-[0.97]"
                         >
                           <div>
-                            {/* Source 放大加粗在左，日期等寬在右 */}
                             <div className="flex items-center justify-between text-[10px] mb-1.5">
                               <span className="font-bold text-xs text-[#81D4D2] tracking-wide truncate max-w-[55%]">
                                 {item.source || 'FEED'}
@@ -1518,7 +1643,6 @@ export default function App() {
                               </span>
                             </div>
 
-                            {/* 預覽縮圖：採用 4:3 比例與 object-[center_20%] 智能鎖定臉部重心 */}
                             {item.hero_image && (
                               <div className="rounded-xl overflow-hidden aspect-[4/3] w-full bg-slate-800 shadow-inner mb-2 relative">
                                 <img 
@@ -1530,7 +1654,6 @@ export default function App() {
                               </div>
                             )}
 
-                            {/* 標題與簡介 */}
                             <div className="space-y-0.5">
                               <h3 className="text-[12.5px] font-bold text-white leading-tight line-clamp-2">
                                 {item.main_title}
@@ -1543,7 +1666,6 @@ export default function App() {
                             </div>
                           </div>
 
-                          {/* 底部行動字樣：繼續閱讀 */}
                           <div className="pt-1.5 flex items-center justify-end text-[10.5px] text-[#81D4D2] font-medium border-t border-white/5">
                             <span>繼續閱讀 ➔</span>
                           </div>
