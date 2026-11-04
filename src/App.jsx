@@ -227,7 +227,7 @@ export default function App() {
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   };
 
-  // 🌟 拔除預設訊息，改為純淨空陣列
+  // 拔除預設訊息，初始為空陣列
   const [messages, setMessages] = useState(() => {
     try {
       const saved = localStorage.getItem('soo_chat_messages');
@@ -642,7 +642,7 @@ export default function App() {
     }, 800);
   };
 
-  // 🌟 清空對話：清空為空陣列
+  // 清空對話記錄為純淨空陣列
   const handleClearMessages = () => {
     if (window.confirm(`目前共有 ${messages.length} 則訊息，確定要清空所有紀錄嗎？`)) {
       setMessages([]);
@@ -913,7 +913,7 @@ export default function App() {
           </div>
         )}
 
-        {/* 📹 全螢幕視訊通話 */}
+        {/* 全螢幕視訊通話 */}
         {isVideoCalling && (
           <div className="absolute inset-0 bg-black z-50 flex flex-col justify-between items-center py-12 px-6 text-white animate-fade-in">
             <div className="absolute inset-0 z-0 overflow-hidden">
@@ -1256,7 +1256,7 @@ export default function App() {
           </div>
         )}
 
-        {/* 彈出視窗 3️⃣：FEED (直排畫報美學，修復雙模影片與置中說明) */}
+        {/* 彈出視窗 3️⃣：FEED (直排畫報美學，video_caption 支援 whitespace-pre-wrap 換行) */}
         {activeModal === 'feed' && (
           <div className="absolute inset-0 bg-[#0B1120] z-50 flex flex-col text-slate-100 backdrop-blur-md animate-fade-in">
             
@@ -1313,7 +1313,7 @@ export default function App() {
                     </div>
                   )}
 
-                  {/* 3. Video 區塊 (支援 YouTube Embed 與本地 MP4 檔名播放，下方帶置中說明文字) */}
+                  {/* 3. Video 區塊 (支援 YouTube Embed 與本地 MP4 檔名播放，下方帶置中換行說明文字) */}
                   {selectedFeedItem.video_url && (() => {
                     const videoInfo = formatVideoSource(selectedFeedItem.video_url);
                     if (videoInfo.type === 'none') return null;
@@ -1339,9 +1339,9 @@ export default function App() {
                           )}
                         </div>
 
-                        {/* 🌟 影片置中說明文字 (video_caption) */}
+                        {/* 影片置中說明文字 (支援 Alt+Enter 換行) */}
                         {selectedFeedItem.video_caption && (
-                          <p className="text-[11.5px] text-slate-400 font-light text-center leading-normal px-4">
+                          <p className="text-[11.5px] text-slate-400 font-light text-center leading-relaxed px-4 whitespace-pre-wrap">
                             {selectedFeedItem.video_caption}
                           </p>
                         )}
@@ -1394,12 +1394,14 @@ export default function App() {
                             key={idx} 
                             className={`w-full flex items-end ${isSoo ? 'justify-end' : 'justify-start'} space-x-2`}
                           >
+                            {/* 採訪者 Q 靠左，圓形頭像框 */}
                             {!isSoo && (
                               <div className="w-7 h-7 rounded-full bg-slate-700/90 flex items-center justify-center text-[11px] font-semibold text-slate-200 shrink-0 mb-1 border border-slate-600 shadow-sm">
                                 Q
                               </div>
                             )}
 
+                            {/* 氣泡本體 */}
                             <div className={`max-w-[80%] rounded-2xl px-3.5 py-2.5 text-[12.5px] leading-relaxed shadow-sm bg-white/10 text-slate-100 border border-white/10 ${
                               isSoo ? 'rounded-tr-none' : 'rounded-tl-none'
                             }`}>
