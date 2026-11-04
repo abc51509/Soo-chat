@@ -122,6 +122,21 @@ const formatAudioUrl = (raw) => {
   return '/' + clean;
 };
 
+// 原生通知發送輔助器
+const sendNotification = (title, body) => {
+  if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+    try {
+      new Notification(title, {
+        body,
+        icon: 'https://images.plurk.com/6PooPJr1YbOhrMp5CCFdbl.jpg',
+        badge: 'https://images.plurk.com/6PooPJr1YbOhrMp5CCFdbl.jpg'
+      });
+    } catch (e) {
+      console.log('通知派送失敗:', e);
+    }
+  }
+};
+
 // 語音氣泡元件（加長寬度，貼近短檔名）
 const AudioBubble = ({ audioSrc }) => {
   const [isPlaying, setIsPlaying] = useState(false);
@@ -245,6 +260,15 @@ export default function App() {
   const ringingTimeoutRef = useRef(null);
   const messagesEndRef = useRef(null);
 
+  // 🌟 初始化請求瀏覽器系統通知權限
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      if (Notification.permission === 'default') {
+        Notification.requestPermission().catch(err => console.log('通知授權請求失敗:', err));
+      }
+    }
+  }, []);
+
   useEffect(() => {
     try {
       localStorage.setItem('soo_chat_messages', JSON.stringify(messages));
@@ -365,6 +389,10 @@ export default function App() {
         }
       ]);
 
+      if (i === 0 && document.hidden) {
+        sendNotification('Soo 傳來了新訊息', bubbles[i]);
+      }
+
       if (i < bubbles.length - 1) {
         await new Promise(r => setTimeout(r, 300));
       }
@@ -393,6 +421,10 @@ export default function App() {
         time: getCurrentTime()
       }
     ]);
+
+    if (document.hidden) {
+      sendNotification('Soo 傳送了一則語音訊息', '點擊開啟查看');
+    }
   };
 
   const addCallRecord = (statusText = '未接來電', role = 'assistant', durationText = null) => {
@@ -473,11 +505,17 @@ export default function App() {
     setCallType(type);
     setCallStatus('ringing');
 
+    if (document.hidden) {
+      sendNotification('Soo 正在來電...', '請開啟畫面接聽');
+    }
+
     clearTimeout(ringingTimeoutRef.current);
     ringingTimeoutRef.current = setTimeout(() => {
       setCallStatus(current => {
         if (current === 'ringing') {
           addCallRecord(type === 'video' ? '未接視訊' : '未接來電', 'assistant');
+
+          sendNotification('未接來電', 'Soo 剛剛嘗試撥打電話給您');
 
           if (scenario === 'urgent_chain') {
             setTimeout(() => {
@@ -614,6 +652,7 @@ export default function App() {
         localStorage.setItem(storageKey, JSON.stringify(triggeredSteps));
 
         addCallRecord('未接來電', 'assistant');
+        sendNotification('未接來電 (Soo)', '快起床囉！');
         setTimeout(() => {
           sendVoiceMessage(voiceToPlay);
         }, 1000);
@@ -1278,7 +1317,7 @@ export default function App() {
           </button>
         </div>
 
-        {/* 🌟 彈出視窗 1️⃣：ALBUM (標題靠左大寫、無副標、無按鈕、兩欄靠頂不置中、移除底部圓點) */}
+        {/* 彈出視窗 1️⃣：ALBUM */}
         {activeModal === 'album' && (
           <div 
             className="absolute inset-0 bg-[#0B1120] z-50 flex flex-col text-white backdrop-blur-md animate-fade-in"
@@ -1320,7 +1359,6 @@ export default function App() {
                   <span className="font-bold text-xl tracking-wider text-white">ALBUM</span>
                 </div>
 
-                {/* 🌟 靠上對齊 items-start，奇數本絕不置中浮在半空 */}
                 <div className="flex-1 flex overflow-x-auto snap-x snap-mandatory scrollbar-none p-4 items-start pt-6">
                   {albumPages.length > 0 ? (
                     albumPages.map((pageGroup, pIdx) => (
@@ -1372,7 +1410,7 @@ export default function App() {
           </div>
         )}
 
-        {/* 🌟 彈出視窗 2️⃣：CALENDAR (標題靠左大寫、只列當月、無按鈕) */}
+        {/* 彈出視窗 2️⃣：CALENDAR */}
         {activeModal === 'calendar' && (
           <div 
             className="absolute inset-0 bg-slate-950/95 z-50 flex flex-col text-white backdrop-blur-md animate-fade-in"
@@ -1441,7 +1479,7 @@ export default function App() {
           </div>
         )}
 
-        {/* 🌟 彈出視窗 3️⃣：FEED (標題靠左大寫、Source 加倍放大、無按鈕) */}
+        {/* 彈出視窗 3️⃣：FEED (內頁頂部完全留白無標題，列表時間下移至 Read More 前面，Source 空間翻倍) */}
         {activeModal === 'feed' && (
           <div 
             className="absolute inset-0 bg-[#0B1120] z-50 flex flex-col text-slate-100 backdrop-blur-md animate-fade-in"
@@ -1450,11 +1488,8 @@ export default function App() {
           >
             {selectedFeedItem ? (
               <div className="flex-1 flex flex-col overflow-hidden">
-                <div className="pt-12 pb-5 px-5 bg-[#4E727A] flex items-center justify-start border-b border-[#3D5C63] shadow-md shrink-0">
-                  <span className="font-bold text-xl text-white truncate max-w-[320px]">
-                    {selectedFeedItem.main_title}
-                  </span>
-                </div>
+                {/* 🌟 頂部 Bar 完全留白，高度一致無文字 */}
+                <div className="pt-12 pb-5 px-5 bg-[#4E727A] border-b border-[#3D5C63] shadow-md shrink-0 h-24"></div>
 
                 <div className="flex-1 overflow-y-auto p-4 space-y-5">
                   <div className="space-y-1">
@@ -1628,13 +1663,10 @@ export default function App() {
                           className="bg-[#1E293B]/75 rounded-2xl border border-slate-700/60 p-2.5 flex flex-col justify-between space-y-2 shadow-sm hover:border-[#81D4D2]/60 hover:bg-[#1E293B] cursor-pointer transition active:scale-[0.97]"
                         >
                           <div>
-                            {/* 🌟 Source 加倍放大（text-xl font-black） */}
-                            <div className="flex items-baseline justify-between mb-1.5">
-                              <span className="font-black text-xl text-[#81D4D2] tracking-tight truncate max-w-[65%] leading-none">
+                            {/* 🌟 頂部整行完整讓給 Source，不再受時間壓縮 */}
+                            <div className="mb-2">
+                              <span className="font-black text-xl text-[#81D4D2] tracking-tight truncate block leading-tight">
                                 {item.source || 'FEED'}
-                              </span>
-                              <span className="text-slate-400 font-mono text-[9px] shrink-0">
-                                {item.time_text}
                               </span>
                             </div>
 
@@ -1661,8 +1693,14 @@ export default function App() {
                             </div>
                           </div>
 
-                          <div className="pt-1.5 flex items-center justify-end text-[10.5px] text-[#81D4D2] font-medium border-t border-white/5">
-                            <span>繼續閱讀 ➔</span>
+                          {/* 🌟 時間改到 Read More 前面，兩端齊平 */}
+                          <div className="pt-2 flex items-center justify-between text-[10px] border-t border-white/5">
+                            <span className="text-slate-400 font-mono text-[9px] truncate mr-1">
+                              {item.time_text}
+                            </span>
+                            <span className="text-[#81D4D2] font-semibold tracking-wide shrink-0">
+                              Read More ➔
+                            </span>
                           </div>
                         </article>
                       ))}
@@ -1678,7 +1716,7 @@ export default function App() {
           </div>
         )}
 
-        {/* 🌟 彈出視窗 4️⃣：FILE (標題靠左大寫、無按鈕、播放泡泡向左加長緊貼檔名) */}
+        {/* 彈出視窗 4️⃣：FILE */}
         {activeModal === 'voices' && (
           <div 
             className="absolute inset-0 bg-slate-950/95 z-50 flex flex-col text-white backdrop-blur-md animate-fade-in"
@@ -1691,11 +1729,10 @@ export default function App() {
 
             <div className="flex-1 overflow-y-auto p-4 space-y-3">
               {dynamicVoiceList.map((item) => (
-                <div key={item.id} className="bg-slate-900/80 p-3 rounded-2xl border border-white/5 flex items-center justify-between space-x-3">
+                <div key={item.id} className="bg-slate-900/80 p-3.5 rounded-2xl border border-white/5 flex items-center justify-between space-x-3">
                   <span className="text-[13px] font-medium text-slate-200 truncate shrink-0 max-w-[40%]">
                     {item.title}
                   </span>
-                  {/* 加長後的波形播放泡泡 */}
                   <AudioBubble audioSrc={item.src} />
                 </div>
               ))}
