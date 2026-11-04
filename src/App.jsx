@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 // Google 試算表設定 (綁定 Soo_Master_Database)
 const SPREADSHEET_ID = '11P8tG-MhZiwrBcGf9TyFirQNwPxKC2YPVbv4XHMEV-A';
 
-// 通用 Google Visualization JSON 讀取解析器 (雙軌保留原始標籤與乾淨標籤)
+// 通用 Google Visualization JSON 讀取解析器
 const fetchSheetData = async (sheetName) => {
   try {
     const url = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:json&headers=1&sheet=${encodeURIComponent(sheetName)}&t=${Date.now()}`;
@@ -296,7 +296,7 @@ export default function App() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isTyping]);
 
-  // 動態語音庫清單：直接從 dialogues 表格中篩選 type === 'audio'
+  // 動態語音庫清單
   const dynamicVoiceList = React.useMemo(() => {
     const audioDiags = dialogueList.filter(d => (d.type || '').trim().toLowerCase() === 'audio');
 
@@ -604,7 +604,7 @@ export default function App() {
     sendVoiceMessage({ src: picked.src, duration: picked.duration });
   };
 
-  // 🌟 修正後的晨喚機制：嚴格時間區間 + 13:00 嚴格截斷
+  // 晨喚機制：嚴格時間區間 + 13:00 嚴格截斷
   useEffect(() => {
     const checkWakeupSchedule = () => {
       const todayStr = getTodayDateStr();
@@ -613,7 +613,6 @@ export default function App() {
       const now = new Date();
       const currentVal = now.getHours() * 60 + now.getMinutes();
 
-      // 嚴格截斷：早上 07:00 前 (420) 或下午 13:00 後 (780)，完全不觸發晨喚
       if (currentVal < 420 || currentVal > 780) return;
 
       const storageKey = `soo_wakeup_done_${todayStr}`;
@@ -622,28 +621,19 @@ export default function App() {
       let stepToRun = null;
       let voiceToPlay = null;
 
-      // 1：07:00 - 07:59
       if (currentVal >= 420 && currentVal < 480 && !triggeredSteps.includes('s1')) {
         stepToRun = 's1';
         voiceToPlay = { src: '/audio/1_get up_cozy.mp3', duration: '0:03' };
-      } 
-      // 2：08:00 - 09:29
-      else if (currentVal >= 480 && currentVal < 570 && !triggeredSteps.includes('s2')) {
+      } else if (currentVal >= 480 && currentVal < 570 && !triggeredSteps.includes('s2')) {
         stepToRun = 's2';
         voiceToPlay = { src: '/audio/2_plz_get_up.mp3', duration: '0:04' };
-      } 
-      // 3：09:30 - 11:29
-      else if (currentVal >= 570 && currentVal < 690 && !triggeredSteps.includes('s3')) {
+      } else if (currentVal >= 570 && currentVal < 690 && !triggeredSteps.includes('s3')) {
         stepToRun = 's3';
         voiceToPlay = { src: '/audio/3_can_u_get_up.mp3', duration: '0:03' };
-      } 
-      // 4：11:30 - 11:59
-      else if (currentVal >= 690 && currentVal < 720 && !triggeredSteps.includes('s4')) {
+      } else if (currentVal >= 690 && currentVal < 720 && !triggeredSteps.includes('s4')) {
         stepToRun = 's4';
         voiceToPlay = { src: '/audio/4_time_to_get_up_now.mp3', duration: '0:03' };
-      } 
-      // 5：12:00 - 13:00
-      else if (currentVal >= 720 && currentVal <= 780 && !triggeredSteps.includes('s5')) {
+      } else if (currentVal >= 720 && currentVal <= 780 && !triggeredSteps.includes('s5')) {
         stepToRun = 's5';
         voiceToPlay = { src: '/audio/5_get_up_yell.mp3', duration: '0:04' };
       }
@@ -862,7 +852,7 @@ export default function App() {
     }));
   }, [masterMedia]);
 
-  // Master Media 分流：FEED (支援多影片解析引擎)
+  // Master Media 分流：FEED
   const feedItems = React.useMemo(() => {
     const grouped = {};
 
@@ -948,7 +938,7 @@ export default function App() {
     });
   }, [masterMedia]);
 
-  // 訪談分組（依 interview_id）
+  // 訪談分組
   const interviewGroups = React.useMemo(() => {
     const groups = {};
     interviewData.forEach((row, rowIdx) => {
@@ -1072,35 +1062,46 @@ export default function App() {
           </div>
         )}
 
-        {/* 頂部導航列 */}
-        <div className="pt-12 pb-3.5 bg-[#4E727A] text-white flex items-center justify-between px-4 z-20 shrink-0 shadow-sm border-b border-[#3D5C63]">
-          <div className="flex items-center space-x-3">
-            <div className="w-12 h-12 rounded-full bg-slate-800/30 overflow-hidden ring-2 ring-white/25 shadow-inner shrink-0">
+        {/* 🌟 頂部導航列 (聊天主頁：向下加寬、頭貼放大、名字放大、按鈕放大、橘點移除) */}
+        <div className="pt-12 pb-5 bg-[#4E727A] text-white flex items-center justify-between px-5 z-20 shrink-0 shadow-md border-b border-[#3D5C63]">
+          <div className="flex items-center space-x-3.5">
+            {/* 頭像放大 */}
+            <div className="w-14 h-14 rounded-full bg-slate-800/30 overflow-hidden ring-2 ring-white/30 shadow-md shrink-0">
               <img src="https://images.plurk.com/6PooPJr1YbOhrMp5CCFdbl.jpg" alt="avatar" className="w-full h-full object-cover" />
             </div>
-            <div className="flex items-center space-x-1.5">
-              <span className="font-semibold text-base leading-none text-white tracking-wide">Soo</span>
-              <span className={`w-2 h-2 rounded-full ${awokenDate === getTodayDateStr() ? 'bg-[#81D4D2]' : 'bg-amber-400'}`}></span>
+            {/* 名字放大，已拔除橘色在線點 */}
+            <div className="flex items-center">
+              <span className="font-bold text-lg text-white tracking-wide">Soo</span>
             </div>
           </div>
 
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-2.5">
             <button
               onClick={handleClearMessages}
               title="清空聊天記錄"
-              className="bg-black/20 hover:bg-black/30 active:scale-95 text-white/90 text-[11px] px-2.5 py-1 rounded-full transition flex items-center space-x-1 border border-white/10"
+              className="bg-black/25 hover:bg-black/35 active:scale-95 text-white/95 text-[11.5px] px-3 py-1.5 rounded-full transition flex items-center space-x-1.5 border border-white/15"
             >
               <span>清空</span>
-              <span className="bg-[#81D4D2] text-[#0F3332] font-semibold text-[10px] px-1.5 py-0.2 rounded-full font-mono">
+              <span className="bg-[#81D4D2] text-[#0F3332] font-bold text-[10.5px] px-1.5 py-0.2 rounded-full font-mono">
                 {messages.length}
               </span>
             </button>
 
-            <button onClick={handleUserOutgoingCall} title="通話" className="w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 active:scale-95 flex items-center justify-center transition">
-              <svg className="w-3.5 h-3.5 fill-white" viewBox="0 0 24 24"><path d="M6.62 10.79a15.05 15.05 0 006.59 6.59l2.2-2.2a1 1 0 011.02-.24 11.72 11.72 0 003.68.59 1 1 0 011 1v3.5a1 1 0 01-1 1A17 17 0 013 4a1 1 0 011-1h3.5a1 1 0 011 1c0 1.25.2 2.48.59 3.68a1 1 0 01-.24 1.02l-2.23 2.09z" /></svg>
+            {/* 通話按鈕放大 */}
+            <button 
+              onClick={handleUserOutgoingCall} 
+              title="通話" 
+              className="w-9 h-9 rounded-full bg-white/15 hover:bg-white/25 active:scale-95 flex items-center justify-center transition shadow-sm"
+            >
+              <svg className="w-4.5 h-4.5 fill-white" viewBox="0 0 24 24"><path d="M6.62 10.79a15.05 15.05 0 006.59 6.59l2.2-2.2a1 1 0 011.02-.24 11.72 11.72 0 003.68.59 1 1 0 011 1v3.5a1 1 0 01-1 1A17 17 0 013 4a1 1 0 011-1h3.5a1 1 0 011 1c0 1.25.2 2.48.59 3.68a1 1 0 01-.24 1.02l-2.23 2.09z" /></svg>
             </button>
-            <button onClick={handleUserOutgoingVideo} title="視訊通話" className="w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 active:scale-95 flex items-center justify-center transition">
-              <svg className="w-4 h-4 fill-white" viewBox="0 0 24 24"><path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z" /></svg>
+            {/* 視訊按鈕放大 */}
+            <button 
+              onClick={handleUserOutgoingVideo} 
+              title="視訊通話" 
+              className="w-9 h-9 rounded-full bg-white/15 hover:bg-white/25 active:scale-95 flex items-center justify-center transition shadow-sm"
+            >
+              <svg className="w-5 h-5 fill-white" viewBox="0 0 24 24"><path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z" /></svg>
             </button>
           </div>
         </div>
@@ -1207,9 +1208,8 @@ export default function App() {
           <div ref={messagesEndRef} />
         </div>
 
-        {/* 劇本控制板（整合 📞 💬 📼 快捷鍵 + 7 個生活圖卡） */}
+        {/* 劇本控制板 */}
         <div className="bg-slate-900/10 px-2.5 py-2 flex space-x-2 overflow-x-auto border-t border-slate-200/80 z-10 scrollbar-none shrink-0">
-          {/* 📞 觸發洙赫來電 */}
           <button 
             onClick={() => triggerIncomingCall('audio', 'normal')} 
             title="洙赫打電話給你" 
@@ -1217,8 +1217,6 @@ export default function App() {
           >
             📞
           </button>
-
-          {/* 💬 觸發洙赫日常文字 */}
           <button 
             onClick={triggerManualText} 
             title="洙赫傳日常訊息" 
@@ -1226,8 +1224,6 @@ export default function App() {
           >
             💬
           </button>
-
-          {/* 📼 觸發洙赫隨機語音 */}
           <button 
             onClick={triggerManualVoice} 
             title="洙赫傳隨機語音" 
@@ -1238,7 +1234,6 @@ export default function App() {
 
           <div className="w-[1px] h-6 bg-slate-300/80 my-auto shrink-0" />
 
-          {/* 生活與媒體抽卡鈕 */}
           <button onClick={() => triggerCategoryRandom('gym')} title="健身" className="text-[12px] whitespace-nowrap bg-white hover:bg-slate-50 text-slate-800 font-medium px-3 py-1.5 rounded-full shadow-sm border border-slate-200 transition shrink-0 active:scale-95">
             🏋️
           </button>
@@ -1262,24 +1257,51 @@ export default function App() {
           </button>
         </div>
 
-        {/* ➕ 彈出擴充選單面板 */}
+        {/* 🌟 ＋號打開：無中文，純單色幾何向量 Icon 按鈕 */}
         {isPlusMenuOpen && (
-          <div className="bg-[#4E727A]/95 backdrop-blur-md px-4 py-3 flex justify-around border-t border-[#3D5C63] z-20 animate-fade-in shadow-xl">
-            <button onClick={() => { setActiveModal('album'); setSelectedAlbumName(null); setIsPlusMenuOpen(false); }} className="flex flex-col items-center space-y-1 text-white active:scale-90 transition">
-              <div className="w-11 h-11 rounded-2xl bg-white/10 flex items-center justify-center text-lg shadow-sm">🖼️</div>
-              <span className="text-[11px] text-teal-100">相簿</span>
+          <div className="bg-[#4E727A]/95 backdrop-blur-md px-6 py-4 flex justify-around items-center border-t border-[#3D5C63] z-20 animate-fade-in shadow-xl">
+            {/* 相簿 (單色相框/圖片向量) */}
+            <button 
+              onClick={() => { setActiveModal('album'); setSelectedAlbumName(null); setIsPlusMenuOpen(false); }} 
+              title="Albums"
+              className="w-13 h-13 rounded-2xl bg-white/10 hover:bg-white/20 active:scale-90 flex items-center justify-center transition border border-white/10 shadow-sm"
+            >
+              <svg className="w-6 h-6 fill-white" viewBox="0 0 24 24">
+                <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/>
+              </svg>
             </button>
-            <button onClick={() => { setActiveModal('calendar'); setIsPlusMenuOpen(false); }} className="flex flex-col items-center space-y-1 text-white active:scale-90 transition">
-              <div className="w-11 h-11 rounded-2xl bg-white/10 flex items-center justify-center text-lg shadow-sm">📅</div>
-              <span className="text-[11px] text-teal-100">行事曆</span>
+
+            {/* 行事曆 (單色日曆向量) */}
+            <button 
+              onClick={() => { setActiveModal('calendar'); setIsPlusMenuOpen(false); }} 
+              title="Calendar"
+              className="w-13 h-13 rounded-2xl bg-white/10 hover:bg-white/20 active:scale-90 flex items-center justify-center transition border border-white/10 shadow-sm"
+            >
+              <svg className="w-6 h-6 fill-white" viewBox="0 0 24 24">
+                <path d="M19 4h-1V2h-2v2H8V2H6v2H5c-1.11 0-1.99.9-1.99 2L3 20c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V10h14v10zm0-12H5V6h14v2zm-7 5h5v5h-5z"/>
+              </svg>
             </button>
-            <button onClick={() => { setActiveModal('feed'); setIsPlusMenuOpen(false); }} className="flex flex-col items-center space-y-1 text-white active:scale-90 transition">
-              <div className="w-11 h-11 rounded-2xl bg-white/10 flex items-center justify-center text-lg shadow-sm">📰</div>
-              <span className="text-[11px] text-teal-100">FEED</span>
+
+            {/* FEED (單色報刊/畫報向量) */}
+            <button 
+              onClick={() => { setActiveModal('feed'); setIsPlusMenuOpen(false); }} 
+              title="Feed"
+              className="w-13 h-13 rounded-2xl bg-white/10 hover:bg-white/20 active:scale-90 flex items-center justify-center transition border border-white/10 shadow-sm"
+            >
+              <svg className="w-6 h-6 fill-white" viewBox="0 0 24 24">
+                <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/>
+              </svg>
             </button>
-            <button onClick={() => { setActiveModal('voices'); setIsPlusMenuOpen(false); }} className="flex flex-col items-center space-y-1 text-white active:scale-90 transition">
-              <div className="w-11 h-11 rounded-2xl bg-white/10 flex items-center justify-center text-lg shadow-sm">📼</div>
-              <span className="text-[11px] text-teal-100">語音庫</span>
+
+            {/* 語音庫 (單色錄音帶/卡帶向量) */}
+            <button 
+              onClick={() => { setActiveModal('voices'); setIsPlusMenuOpen(false); }} 
+              title="Audio Files"
+              className="w-13 h-13 rounded-2xl bg-white/10 hover:bg-white/20 active:scale-90 flex items-center justify-center transition border border-white/10 shadow-sm"
+            >
+              <svg className="w-6 h-6 fill-white" viewBox="0 0 24 24">
+                <path d="M19 4H5c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm-1 12H6c-.55 0-1-.45-1-1V9c0-.55.45-1 1-1h12c.55 0 1 .45 1 1v6c0 .55-.45 1-1 1zM7.5 11c-.83 0-1.5.67-1.5 1.5S6.67 14 7.5 14s1.5-.67 1.5-1.5S8.33 11 7.5 11zm9 0c-.83 0-1.5.67-1.5 1.5s.67 1.5 1.5 1.5 1.5-.67 1.5-1.5-.67-1.5-1.5-1.5z"/>
+              </svg>
             </button>
           </div>
         )}
@@ -1309,24 +1331,24 @@ export default function App() {
           </button>
         </div>
 
-        {/* 彈出視窗 1️⃣：相簿功能 */}
+        {/* 🌟 彈出視窗 1️⃣：相簿功能 (Bar加寬、字體放大、寫Albums) */}
         {activeModal === 'album' && (
           <div className="absolute inset-0 bg-[#0B1120] z-50 flex flex-col text-white backdrop-blur-md animate-fade-in">
             {selectedAlbumName && activeAlbumDetail ? (
               <div className="flex-1 flex flex-col overflow-hidden">
-                <div className="pt-12 pb-3 px-4 bg-[#4E727A] flex items-center justify-between border-b border-[#3D5C63] shadow shrink-0">
+                <div className="pt-12 pb-5 px-5 bg-[#4E727A] flex items-center justify-between border-b border-[#3D5C63] shadow-md shrink-0">
                   <button 
                     onClick={() => setSelectedAlbumName(null)}
-                    className="flex items-center space-x-1 text-xs text-teal-100 hover:text-white px-2 py-1 rounded bg-white/10 transition active:scale-95"
+                    className="flex items-center space-x-1 text-sm text-teal-100 hover:text-white px-2.5 py-1 rounded bg-white/10 transition active:scale-95 font-medium"
                   >
                     <span>‹ 返回相簿</span>
                   </button>
-                  <span className="text-xs font-medium text-teal-50 truncate max-w-[200px]">
+                  <span className="text-sm font-semibold text-teal-50 truncate max-w-[200px]">
                     {activeAlbumDetail.title}
                   </span>
                   <button 
                     onClick={() => { setSelectedAlbumName(null); setActiveModal(null); }} 
-                    className="text-xs text-teal-100 hover:text-white px-2 py-1"
+                    className="text-sm text-teal-100 hover:text-white px-2.5 py-1 font-medium"
                   >
                     關閉
                   </button>
@@ -1355,14 +1377,14 @@ export default function App() {
               </div>
             ) : (
               <div className="flex-1 flex flex-col overflow-hidden">
-                <div className="pt-12 pb-3 px-4 bg-[#4E727A] flex items-center justify-between border-b border-[#3D5C63] shadow shrink-0">
+                <div className="pt-12 pb-5 px-5 bg-[#4E727A] flex items-center justify-between border-b border-[#3D5C63] shadow-md shrink-0">
                   <div className="flex flex-col">
-                    <span className="font-semibold text-base tracking-wide text-white">相簿庫 (Albums)</span>
-                    <span className="text-[10px] text-teal-100/70">共 {albumList.length} 本畫報企劃</span>
+                    <span className="font-bold text-lg tracking-wide text-white">Albums</span>
+                    <span className="text-[11px] text-teal-100/75 mt-0.5 font-mono">共 {albumList.length} 本企劃畫報</span>
                   </div>
                   <button 
                     onClick={() => setActiveModal(null)} 
-                    className="text-xs text-teal-100 hover:text-white px-2.5 py-1 rounded-md bg-white/10"
+                    className="text-sm text-teal-100 hover:text-white px-3 py-1 rounded-md bg-white/10 font-medium"
                   >
                     關閉
                   </button>
@@ -1427,12 +1449,12 @@ export default function App() {
           </div>
         )}
 
-        {/* 彈出視窗 2️⃣：行事曆功能 */}
+        {/* 🌟 彈出視窗 2️⃣：行事曆功能 (Bar加寬、字體放大、寫Calendar) */}
         {activeModal === 'calendar' && (
           <div className="absolute inset-0 bg-slate-950/95 z-50 flex flex-col text-white backdrop-blur-md animate-fade-in">
-            <div className="pt-12 pb-3 px-4 bg-[#4E727A] flex items-center justify-between shadow border-b border-[#3D5C63]">
-              <span className="font-medium text-base tracking-wide">行程日曆 (Calendar)</span>
-              <button onClick={() => setActiveModal(null)} className="text-sm text-teal-100 hover:text-white px-2 py-1">關閉</button>
+            <div className="pt-12 pb-5 px-5 bg-[#4E727A] flex items-center justify-between shadow-md border-b border-[#3D5C63] shrink-0">
+              <span className="font-bold text-lg tracking-wide text-white">Calendar</span>
+              <button onClick={() => setActiveModal(null)} className="text-sm text-teal-100 hover:text-white px-3 py-1 rounded-md bg-white/10 font-medium">關閉</button>
             </div>
 
             <div className="flex-1 overflow-y-auto p-4 flex flex-col justify-between">
@@ -1488,7 +1510,7 @@ export default function App() {
           </div>
         )}
 
-        {/* 彈出視窗 3️⃣：FEED (雙排四宮格目錄 + 多影片垂直渲染 + 手勢返回) */}
+        {/* 🌟 彈出視窗 3️⃣：FEED (Bar同步加寬、字體放大) */}
         {activeModal === 'feed' && (
           <div className="absolute inset-0 bg-[#0B1120] z-50 flex flex-col text-slate-100 backdrop-blur-md animate-fade-in">
             {selectedFeedItem ? (
@@ -1497,24 +1519,23 @@ export default function App() {
                 onTouchStart={handleTouchStart}
                 onTouchEnd={handleTouchEnd}
               >
-                <div className="pt-12 pb-3 px-4 bg-[#4E727A] flex items-center justify-between border-b border-[#3D5C63] shadow shrink-0">
+                <div className="pt-12 pb-5 px-5 bg-[#4E727A] flex items-center justify-between border-b border-[#3D5C63] shadow-md shrink-0">
                   <button 
                     onClick={handleBackToFeedList}
-                    className="flex items-center space-x-1 text-xs text-teal-100 hover:text-white px-2 py-1 rounded bg-white/10 transition active:scale-95"
+                    className="flex items-center space-x-1 text-sm text-teal-100 hover:text-white px-2.5 py-1 rounded bg-white/10 transition active:scale-95 font-medium"
                   >
                     <span>‹ 返回</span>
                   </button>
                   <div className="flex-1"></div>
                   <button 
                     onClick={() => { setSelectedFeedItem(null); setActiveModal(null); }} 
-                    className="text-xs text-teal-100 hover:text-white px-2 py-1"
+                    className="text-sm text-teal-100 hover:text-white px-2.5 py-1 font-medium"
                   >
                     關閉
                   </button>
                 </div>
 
                 <div className="flex-1 overflow-y-auto p-4 space-y-5">
-                  {/* 1. Title, Subtitle, Author/Source & Date */}
                   <div className="space-y-1">
                     <h2 className="text-xl font-bold text-white tracking-tight leading-snug">
                       {selectedFeedItem.main_title}
@@ -1537,7 +1558,6 @@ export default function App() {
                     </div>
                   </div>
 
-                  {/* 2. 第一張主圖 (Hero Image) */}
                   {selectedFeedItem.hero_image && (
                     <div className="rounded-2xl overflow-hidden bg-slate-800 shadow-xl border border-white/5">
                       <img 
@@ -1548,7 +1568,6 @@ export default function App() {
                     </div>
                   )}
 
-                  {/* 3. 多影片區塊 */}
                   {selectedFeedItem.videos && selectedFeedItem.videos.length > 0 && (
                     <div className="space-y-4">
                       {selectedFeedItem.videos.map((vid, vIdx) => {
@@ -1587,14 +1606,12 @@ export default function App() {
                     </div>
                   )}
 
-                  {/* 4. Summary 摘要內文 */}
                   {selectedFeedItem.summary && (
                     <div className="bg-slate-800/40 p-4 rounded-2xl border border-white/5 text-[13px] leading-relaxed text-slate-300 font-light whitespace-pre-wrap">
                       {selectedFeedItem.summary}
                     </div>
                   )}
 
-                  {/* 5. Layout Design 排版圖片區 */}
                   {selectedFeedItem.layout_images && selectedFeedItem.layout_images.length > 0 && (
                     <div className="space-y-3">
                       {selectedFeedItem.layout_images.map((layoutImg, lIdx) => (
@@ -1605,7 +1622,6 @@ export default function App() {
                     </div>
                   )}
 
-                  {/* 6. Interview 訪談對話室 */}
                   {currentInterviewDialogue.length > 0 && (
                     <div className="space-y-3.5 pt-4 border-t border-white/10">
                       {currentInterviewDialogue.map((row, idx) => {
@@ -1649,7 +1665,6 @@ export default function App() {
                     </div>
                   )}
 
-                  {/* 7. 剩餘的所有照片 */}
                   {selectedFeedItem.remaining_images && selectedFeedItem.remaining_images.length > 0 && (
                     <div className="space-y-3 pt-2">
                       {selectedFeedItem.remaining_images.map((imgUrl, rIdx) => (
@@ -1665,7 +1680,6 @@ export default function App() {
                     </div>
                   )}
 
-                  {/* 8. Credits (置底團隊名單) */}
                   {selectedFeedItem.credits && (
                     <div className="bg-black/50 p-4 rounded-2xl border border-white/10 text-[10.5px] text-slate-400 leading-relaxed font-mono mt-6">
                       <span className="text-[#81D4D2] font-semibold block mb-1">CREDITS</span>
@@ -1676,11 +1690,11 @@ export default function App() {
               </div>
             ) : (
               <div className="flex-1 flex flex-col overflow-hidden">
-                <div className="pt-12 pb-3 px-4 bg-[#4E727A] flex items-center justify-between border-b border-[#3D5C63] shadow shrink-0">
+                <div className="pt-12 pb-5 px-5 bg-[#4E727A] flex items-center justify-between border-b border-[#3D5C63] shadow-md shrink-0">
                   <div className="flex flex-col">
-                    <span className="font-semibold text-base tracking-wide text-white">FEED</span>
+                    <span className="font-bold text-lg tracking-wide text-white">FEED</span>
                   </div>
-                  <button onClick={() => setActiveModal(null)} className="text-xs text-teal-100 hover:text-white px-2.5 py-1 rounded-md bg-white/10">
+                  <button onClick={() => setActiveModal(null)} className="text-sm text-teal-100 hover:text-white px-3 py-1 rounded-md bg-white/10 font-medium">
                     關閉
                   </button>
                 </div>
@@ -1747,15 +1761,15 @@ export default function App() {
           </div>
         )}
 
-        {/* 彈出視窗 4️⃣：語音原聲帶庫 */}
+        {/* 🌟 彈出視窗 4️⃣：語音原聲帶庫 (Bar同步加寬、字體放大) */}
         {activeModal === 'voices' && (
           <div className="absolute inset-0 bg-slate-950/95 z-50 flex flex-col text-white backdrop-blur-md animate-fade-in">
-            <div className="pt-12 pb-3 px-4 bg-[#4E727A] flex items-center justify-between shadow border-b border-[#3D5C63]">
+            <div className="pt-12 pb-5 px-5 bg-[#4E727A] flex items-center justify-between shadow-md border-b border-[#3D5C63]">
               <div className="flex flex-col">
-                <span className="font-medium text-base tracking-wide">原聲音訊庫 (Audio Files)</span>
-                <span className="text-[10px] text-teal-100/70">共 {dynamicVoiceList.length} 首語音紀錄</span>
+                <span className="font-bold text-lg tracking-wide">Audio Files</span>
+                <span className="text-[11px] text-teal-100/75 mt-0.5 font-mono">共 {dynamicVoiceList.length} 首語音紀錄</span>
               </div>
-              <button onClick={() => setActiveModal(null)} className="text-sm text-teal-100 hover:text-white px-2 py-1">關閉</button>
+              <button onClick={() => setActiveModal(null)} className="text-sm text-teal-100 hover:text-white px-3 py-1 rounded-md bg-white/10 font-medium">關閉</button>
             </div>
 
             <div className="flex-1 overflow-y-auto p-4 space-y-2.5">
