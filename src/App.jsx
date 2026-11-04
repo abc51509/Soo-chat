@@ -39,6 +39,25 @@ const fetchSheetData = async (sheetName) => {
   }
 };
 
+// 日期格式化：2026-10-12 或 2026/10/12 -> 2026, 10, 12
+const formatDateClean = (rawDate) => {
+  if (!rawDate) return '';
+  const parts = rawDate.replace(/[^\d]/g, ' ').trim().split(/\s+/);
+  if (parts.length >= 3) {
+    return `${parts[0]}, ${parts[1]}, ${parts[2]}`;
+  }
+  return rawDate;
+};
+
+// YouTube 嵌入網址轉換工具
+const getYouTubeEmbedUrl = (rawUrl) => {
+  if (!rawUrl) return null;
+  const match = rawUrl.match(/(?:youtu\.be\/|youtube\.com\/(?:shorts\/|embed\/|v\/|watch\?v=|watch\?.+&v=))([\w-]{11})/);
+  if (!match) return null;
+  const videoId = match[1];
+  return `https://www.youtube.com/embed/${videoId}?autoplay=0&controls=1&playsinline=1&modestbranding=1`;
+};
+
 // 音訊路徑安全解析補全
 const formatAudioUrl = (raw) => {
   if (!raw) return '';
@@ -698,33 +717,70 @@ export default function App() {
     }));
   }, [masterMedia]);
 
-  // Master Media 分流：FEED (全方位情報流，僅以 event_id 關聯)
+  // Master Media 分流：FEED (同 album_name 多列自動合併整合引擎)
   const feedItems = React.useMemo(() => {
-    return masterMedia.filter(m => (m.news_title || m.news_summary || m.event_id || '').trim().length > 0).map(m => {
+    // 依據 album_name 進行群組聚合
+    const grouped = {};
+
+    masterMedia.forEach(m => {
+      // 判斷是否屬於 FEED (有 news_title, news_summary, 或 interview_id)
+      const hasFeedContent = (m.news_title || m.news_summary || m.interview_id || '').trim().length > 0;
+      if (!hasFeedContent) return;
+
+      const groupKey = (m.album_name || m.news_title || m.id).trim();
+
+      if (!grouped[groupKey]) {
+        grouped[groupKey] = {
+          groupKey,
+          id: m.id,
+          interview_id: (m.interview_id || '').trim(),
+          time_text: formatDateClean(m.date),
+          main_title: m.news_title || m.album_name,
+          sub_title: m.news_subtitle || '',
+          summary: m.news_summary || '',
+          video_url: m.video_url || '',
+          main_images: [],
+          layout_images: []
+        };
+      }
+
+      // 如果其他列有補齊 interview_id 或 news_subtitle，同步覆蓋更新
+      if (m.interview_id && !grouped[groupKey].interview_id) grouped[groupKey].interview_id = m.interview_id.trim();
+      if (m.news_subtitle && !grouped[groupKey].sub_title) grouped[groupKey].sub_title = m.news_subtitle.trim();
+      if (m.news_summary && !grouped[groupKey].summary) grouped[groupKey].summary = m.news_summary.trim();
+      if (m.video_url && !grouped[groupKey].video_url) grouped[groupKey].video_url = m.video_url.trim();
+
+      // 解析該列圖片
       const raw = (m.images || '').trim();
       const imgs = raw.split(/[\s,]+/).filter(u => u.startsWith('http'));
-      const linkedEventId = (m.event_id || '').trim();
+
+      const isLayout = (m.sub_type || '').toLowerCase().trim() === 'layout';
+      if (isLayout) {
+        grouped[groupKey].layout_images.push(...imgs);
+      } else {
+        grouped[groupKey].main_images.push(...imgs);
+      }
+    });
+
+    return Object.values(grouped).map(item => {
+      // 去重
+      const allMainImgs = Array.from(new Set(item.main_images));
+      const allLayoutImgs = Array.from(new Set(item.layout_images));
 
       return {
-        id: m.id,
-        event_id: linkedEventId,
-        badge: m.category || 'OFFICIAL',
-        source: m.news_source || 'FEED',
-        time_text: m.date || '近期',
-        main_title: m.news_title || m.album_name,
-        sub_title: m.album_name,
-        summary: m.news_summary,
-        images: imgs,
-        hero_image: imgs[0] || null
+        ...item,
+        hero_image: allMainImgs[0] || allLayoutImgs[0] || null,
+        remaining_images: allMainImgs.slice(1),
+        layout_images: allLayoutImgs
       };
     });
   }, [masterMedia]);
 
-  // 訪談分組（依 event_id）
+  // 訪談分組（依 interview_id 完全獨立分組）
   const interviewGroups = React.useMemo(() => {
     const groups = {};
     interviewData.forEach(row => {
-      const idKey = (row.event_id || '').trim();
+      const idKey = (row.interview_id || '').trim();
       if (!idKey) return;
       if (!groups[idKey]) groups[idKey] = [];
       groups[idKey].push(row);
@@ -732,9 +788,9 @@ export default function App() {
     return groups;
   }, [interviewData]);
 
-  // 當前選中項目的訪談紀錄
-  const currentInterviewDialogue = selectedFeedItem?.event_id 
-    ? (interviewGroups[selectedFeedItem.event_id] || []) 
+  // 當前選中項目的訪談紀錄（比對 interview_id）
+  const currentInterviewDialogue = selectedFeedItem?.interview_id 
+    ? (interviewGroups[selectedFeedItem.interview_id] || []) 
     : [];
 
   return (
@@ -877,23 +933,15 @@ export default function App() {
                   </div>
                 )}
 
-                {/* 修復未接來電與通話記錄的 Icon 顯示與排版 */}
+                {/* 通話記錄：圖示完全一致，未接/取消用紅色呈現 */}
                 {msg.type === 'call_record' ? (
                   <div className="flex items-center space-x-2.5 bg-white px-3.5 py-2.5 rounded-2xl shadow-sm border border-slate-200">
                     <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
                       msg.durationText ? 'bg-teal-50 text-[#4E727A]' : 'bg-rose-50 text-rose-500'
                     }`}>
-                      {msg.durationText ? (
-                        /* 接通通話圖示 */
-                        <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
-                          <path d="M6.62 10.79a15.05 15.05 0 006.59 6.59l2.2-2.2a1 1 0 011.02-.24 11.72 11.72 0 003.68.59 1 1 0 011 1v3.5a1 1 0 01-1 1A17 17 0 013 4a1 1 0 011-1h3.5a1 1 0 011 1c0 1.25.2 2.48.59 3.68a1 1 0 01-.24 1.02l-2.23 2.09z" />
-                        </svg>
-                      ) : (
-                        /* 未接來電 / 未接視訊專屬圖示 (下斜話筒+箭頭) */
-                        <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
-                          <path d="M19.59 7L12 14.59 6.41 9H11V7H3v8h2v-4.59l7 7 9-9z" />
-                        </svg>
-                      )}
+                      <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
+                        <path d="M6.62 10.79a15.05 15.05 0 006.59 6.59l2.2-2.2a1 1 0 011.02-.24 11.72 11.72 0 003.68.59 1 1 0 011 1v3.5a1 1 0 01-1 1A17 17 0 013 4a1 1 0 011-1h3.5a1 1 0 011 1c0 1.25.2 2.48.59 3.68a1 1 0 01-.24 1.02l-2.23 2.09z" />
+                      </svg>
                     </div>
                     <div className="flex flex-col">
                       <span className={`text-xs font-medium ${msg.durationText ? 'text-slate-800' : 'text-rose-600'}`}>
@@ -1126,7 +1174,7 @@ export default function App() {
           </div>
         )}
 
-        {/* 彈出視窗 3️⃣：FEED (全方位情報流 + 詳情大圖瀑布流 + 訪談無縫內嵌) */}
+        {/* 彈出視窗 3️⃣：FEED (純粹直排美學，無多餘 tag 與 bar) */}
         {activeModal === 'feed' && (
           <div className="absolute inset-0 bg-[#0B1120] z-50 flex flex-col text-slate-100 backdrop-blur-md animate-fade-in">
             
@@ -1138,7 +1186,7 @@ export default function App() {
                     onClick={() => setSelectedFeedItem(null)}
                     className="flex items-center space-x-1 text-xs text-teal-100 hover:text-white px-2 py-1 rounded bg-white/10"
                   >
-                    <span>‹ 返回列表</span>
+                    <span>‹ 返回</span>
                   </button>
                   <span className="text-xs font-medium text-teal-50 truncate max-w-[200px]">
                     {selectedFeedItem.main_title}
@@ -1148,57 +1196,88 @@ export default function App() {
                   </button>
                 </div>
 
-                <div className="flex-1 overflow-y-auto p-4 space-y-6">
-                  {/* 標題與標籤 */}
-                  <div className="space-y-2">
-                    <div className="flex items-center space-x-2 text-[10.5px]">
-                      <span className="px-2 py-0.5 rounded-full font-semibold bg-[#81D4D2]/20 text-[#81D4D2] border border-[#81D4D2]/30">
-                        {selectedFeedItem.badge}
-                      </span>
-                      <span className="text-slate-400 font-mono">{selectedFeedItem.source} • {selectedFeedItem.time_text}</span>
-                    </div>
-                    <h2 className="text-lg font-bold text-white tracking-tight leading-snug">
+                <div className="flex-1 overflow-y-auto p-4 space-y-5">
+                  {/* 1. Title, Subtitle, Date */}
+                  <div className="space-y-1">
+                    <h2 className="text-xl font-bold text-white tracking-tight leading-snug">
                       {selectedFeedItem.main_title}
                     </h2>
                     {selectedFeedItem.sub_title && (
-                      <h4 className="text-xs font-medium text-[#81D4D2]/90">
+                      <h4 className="text-[13px] font-medium text-[#81D4D2]">
                         {selectedFeedItem.sub_title}
                       </h4>
                     )}
+                    {selectedFeedItem.time_text && (
+                      <p className="text-[11px] font-mono text-slate-400 pt-0.5">
+                        {selectedFeedItem.time_text}
+                      </p>
+                    )}
                   </div>
 
-                  {/* 內文摘要 */}
+                  {/* 2. 第一張圖 (Hero Image) */}
+                  {selectedFeedItem.hero_image && (
+                    <div className="rounded-2xl overflow-hidden bg-slate-800 shadow-xl border border-white/5">
+                      <img 
+                        src={selectedFeedItem.hero_image} 
+                        alt="Hero" 
+                        className="w-full h-auto object-cover" 
+                      />
+                    </div>
+                  )}
+
+                  {/* 3. Summary 摘要內文 */}
                   {selectedFeedItem.summary && (
-                    <div className="bg-slate-800/60 p-4 rounded-2xl border border-white/5 text-[13px] leading-relaxed text-slate-300 font-light whitespace-pre-wrap">
+                    <div className="bg-slate-800/40 p-4 rounded-2xl border border-white/5 text-[13px] leading-relaxed text-slate-300 font-light whitespace-pre-wrap">
                       {selectedFeedItem.summary}
                     </div>
                   )}
 
-                  {/* 若有對應的專訪內容，在此直接展開 */}
-                  {currentInterviewDialogue.length > 0 && (
-                    <div className="space-y-4 pt-4 border-t border-white/10">
-                      <div className="flex items-center space-x-2">
-                        <span className="text-xs font-semibold tracking-wider text-[#81D4D2] font-mono">INTERVIEW TRANSCRIPT</span>
-                        <div className="flex-1 h-[1px] bg-white/10"></div>
-                      </div>
+                  {/* 4. Video 串接預留區 (YouTube Embed) */}
+                  {selectedFeedItem.video_url && getYouTubeEmbedUrl(selectedFeedItem.video_url) && (
+                    <div className="rounded-2xl overflow-hidden aspect-video w-full bg-black shadow-lg border border-white/10">
+                      <iframe 
+                        src={getYouTubeEmbedUrl(selectedFeedItem.video_url)} 
+                        title="Video Player"
+                        className="w-full h-full border-0"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                        allowFullScreen
+                      />
+                    </div>
+                  )}
 
+                  {/* 5. Layout Design 排版圖片區 (sub_type === 'layout') */}
+                  {selectedFeedItem.layout_images && selectedFeedItem.layout_images.length > 0 && (
+                    <div className="space-y-3">
+                      {selectedFeedItem.layout_images.map((layoutImg, lIdx) => (
+                        <div key={lIdx} className="rounded-2xl overflow-hidden bg-slate-900 shadow-lg border border-white/10">
+                          <img src={layoutImg} alt={`Layout ${lIdx + 1}`} loading="lazy" className="w-full h-auto object-cover" />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* 6. Interview 左右對話泡泡 (徹底修復左右排版，無訪談則完全不渲染) */}
+                  {currentInterviewDialogue.length > 0 && (
+                    <div className="space-y-3.5 pt-4 border-t border-white/10">
                       {currentInterviewDialogue.map((row, idx) => {
-                        const isIntro = row.section_type === 'intro';
-                        const isCredit = row.section_type === 'credit';
-                        const isSoo = (row.speaker || '').trim().toLowerCase() === 'soo';
+                        const secType = (row.section_type || '').toLowerCase().trim();
+                        const isIntro = secType === 'intro';
+                        const isCredit = secType === 'credit';
+                        const speakerRaw = (row.speaker || '').trim().toLowerCase();
+                        const isSoo = speakerRaw === 'soo' || speakerRaw.includes('lee');
 
                         if (isIntro) {
                           return (
                             <div key={idx} className="bg-slate-900/90 p-4 rounded-2xl border border-[#81D4D2]/20 text-[12px] leading-relaxed text-slate-300">
                               <span className="text-[#81D4D2] font-mono text-[10px] block mb-1">EDITORIAL INTRO</span>
-                              {row.content}
+                              <p className="whitespace-pre-wrap">{row.content}</p>
                             </div>
                           );
                         }
 
                         if (isCredit) {
                           return (
-                            <div key={idx} className="bg-black/50 p-4 rounded-2xl border border-white/10 text-[10px] text-slate-400 leading-relaxed font-mono">
+                            <div key={idx} className="bg-black/50 p-4 rounded-2xl border border-white/10 text-[10px] text-slate-400 leading-relaxed font-mono mt-4">
                               <span className="text-[#81D4D2] font-semibold block mb-1">CREDITS</span>
                               <p className="whitespace-pre-wrap">{row.content}</p>
                             </div>
@@ -1206,27 +1285,32 @@ export default function App() {
                         }
 
                         return (
-                          <div key={idx} className={`flex items-end ${isSoo ? 'justify-end' : 'justify-start'} space-x-2`}>
+                          <div 
+                            key={idx} 
+                            className={`w-full flex items-end ${isSoo ? 'justify-end' : 'justify-start'} space-x-2`}
+                          >
+                            {/* 採訪者 Q 靠左 */}
                             {!isSoo && (
-                              <div className="w-6 h-6 rounded-full bg-slate-700 flex items-center justify-center text-[10px] font-bold text-slate-300 shrink-0 mb-1">
+                              <div className="w-7 h-7 rounded-full bg-slate-700/80 flex items-center justify-center text-[10px] font-bold text-slate-200 shrink-0 mb-1 border border-slate-600">
                                 Q
                               </div>
                             )}
 
-                            <div className={`max-w-[80%] rounded-2xl px-3.5 py-2.5 text-[12.5px] leading-relaxed shadow-sm ${
+                            <div className={`max-w-[78%] rounded-2xl px-3.5 py-2.5 text-[12.5px] leading-relaxed shadow-sm ${
                               isSoo 
-                                ? 'bg-[#1E293B] text-teal-50 border border-teal-500/30 rounded-tr-none' 
-                                : 'bg-white/10 text-slate-200 border border-white/10 rounded-tl-none'
+                                ? 'bg-[#1E293B] text-teal-50 border border-teal-500/40 rounded-tr-none' 
+                                : 'bg-white/15 text-slate-100 border border-white/10 rounded-tl-none'
                             }`}>
                               <div className="text-[9px] font-mono text-slate-400 mb-1">
-                                {isSoo ? 'Lee Soo-hyuk' : row.speaker || 'Q'}
+                                {isSoo ? 'Lee Soo-hyuk' : (row.speaker || 'Interviewer')}
                               </div>
                               <p className="whitespace-pre-wrap">{row.content}</p>
                             </div>
 
+                            {/* 洙赫 Soo 頭像靠右 */}
                             {isSoo && (
-                              <div className="w-6 h-6 rounded-full overflow-hidden shrink-0 mb-1 ring-1 ring-[#81D4D2]/40">
-                                <img src="https://images.plurk.com/6PooPJr1YbOhrMp5CCFdbl.jpg" alt="avatar" className="w-full h-full object-cover" />
+                              <div className="w-7 h-7 rounded-full overflow-hidden shrink-0 mb-1 ring-1 ring-[#81D4D2]/40">
+                                <img src="https://images.plurk.com/6PooPJr1YbOhrMp5CCFdbl.jpg" alt="Soo" className="w-full h-full object-cover" />
                               </div>
                             )}
                           </div>
@@ -1235,37 +1319,29 @@ export default function App() {
                     </div>
                   )}
 
-                  {/* 📷 直排大圖瀑布流 */}
-                  {selectedFeedItem.images && selectedFeedItem.images.length > 0 && (
-                    <div className="space-y-3 pt-4 border-t border-white/10">
-                      <div className="flex items-center space-x-2">
-                        <span className="text-xs font-semibold tracking-wider text-[#81D4D2] font-mono">GALLERY ({selectedFeedItem.images.length})</span>
-                        <div className="flex-1 h-[1px] bg-white/10"></div>
-                      </div>
-
-                      <div className="flex flex-col space-y-3">
-                        {selectedFeedItem.images.map((imgUrl, i) => (
-                          <div key={i} className="rounded-2xl overflow-hidden bg-slate-800/60 border border-white/10 shadow-lg">
-                            <img 
-                              src={imgUrl} 
-                              alt={`Shot ${i + 1}`} 
-                              loading="lazy" 
-                              className="w-full h-auto object-cover"
-                            />
-                          </div>
-                        ))}
-                      </div>
+                  {/* 7. 剩下的圖片 (Remaining Images 直排瀑布流，無 bar) */}
+                  {selectedFeedItem.remaining_images && selectedFeedItem.remaining_images.length > 0 && (
+                    <div className="space-y-3 pt-2">
+                      {selectedFeedItem.remaining_images.map((imgUrl, rIdx) => (
+                        <div key={rIdx} className="rounded-2xl overflow-hidden bg-slate-900 shadow-lg border border-white/10">
+                          <img 
+                            src={imgUrl} 
+                            alt={`Photo ${rIdx + 2}`} 
+                            loading="lazy" 
+                            className="w-full h-auto object-cover" 
+                          />
+                        </div>
+                      ))}
                     </div>
                   )}
                 </div>
               </div>
             ) : (
-              /* FEED 列表 View */
+              /* FEED 列表 View (無 Tag，純淨日期) */
               <div className="flex-1 flex flex-col overflow-hidden">
                 <div className="pt-12 pb-3 px-4 bg-[#4E727A] flex items-center justify-between border-b border-[#3D5C63] shadow shrink-0">
                   <div className="flex flex-col">
                     <span className="font-semibold text-base tracking-wide text-white">FEED</span>
-                    <span className="text-[10px] text-teal-100/70">特輯・專訪・官方動態・高清圖透</span>
                   </div>
                   <button onClick={() => setActiveModal(null)} className="text-xs text-teal-100 hover:text-white px-2.5 py-1 rounded-md bg-white/10">
                     關閉
@@ -1280,15 +1356,8 @@ export default function App() {
                         onClick={() => setSelectedFeedItem(item)}
                         className="bg-[#1E293B]/70 rounded-2xl border border-slate-700/50 p-4 space-y-2.5 shadow-sm hover:border-[#81D4D2]/50 hover:bg-[#1E293B] cursor-pointer transition active:scale-[0.98]"
                       >
-                        <div className="flex items-center justify-between text-[10px]">
-                          <span className="px-2 py-0.5 rounded-full font-semibold bg-[#81D4D2]/20 text-[#81D4D2] border border-[#81D4D2]/30">
-                            {item.badge}
-                          </span>
-                          <div className="flex items-center space-x-1.5 text-slate-400 font-mono">
-                            <span>{item.source}</span>
-                            <span>•</span>
-                            <span>{item.time_text}</span>
-                          </div>
+                        <div className="flex items-center justify-between text-[11px] font-mono text-slate-400">
+                          <span>{item.time_text}</span>
                         </div>
 
                         <div className="space-y-1">
@@ -1296,7 +1365,7 @@ export default function App() {
                             {item.main_title}
                           </h3>
                           {item.sub_title && (
-                            <h4 className="text-[12px] font-medium text-slate-300 leading-normal">
+                            <h4 className="text-[12px] font-medium text-[#81D4D2] leading-normal">
                               {item.sub_title}
                             </h4>
                           )}
@@ -1309,13 +1378,8 @@ export default function App() {
                         )}
 
                         {item.hero_image && (
-                          <div className="rounded-xl overflow-hidden aspect-[16/9] w-full bg-slate-800 shadow-inner mt-2 relative">
+                          <div className="rounded-xl overflow-hidden aspect-[16/9] w-full bg-slate-800 shadow-inner mt-2">
                             <img src={item.hero_image} alt="Hero" loading="lazy" className="w-full h-full object-cover" />
-                            {item.images.length > 1 && (
-                              <span className="absolute bottom-2 right-2 bg-black/60 backdrop-blur-sm text-white text-[9.5px] px-2 py-0.5 rounded-md font-mono">
-                                ＋{item.images.length}P
-                              </span>
-                            )}
                           </div>
                         )}
 
