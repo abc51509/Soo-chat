@@ -122,7 +122,7 @@ const formatAudioUrl = (raw) => {
   return '/' + clean;
 };
 
-// 語音氣泡元件（無時間標籤）
+// 語音氣泡元件（加長寬度，貼近短檔名）
 const AudioBubble = ({ audioSrc }) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const audioRef = useRef(null);
@@ -141,7 +141,7 @@ const AudioBubble = ({ audioSrc }) => {
   return (
     <div 
       onClick={togglePlay}
-      className="flex items-center space-x-2.5 bg-white px-3.5 py-2.5 rounded-2xl rounded-tl-none shadow-sm cursor-pointer hover:bg-slate-50 transition min-w-[90px] border border-slate-200/60"
+      className="flex items-center space-x-3 bg-white px-4 py-2.5 rounded-2xl rounded-tl-none shadow-sm cursor-pointer hover:bg-slate-50 transition w-full max-w-[200px] border border-slate-200/60"
     >
       <audio ref={audioRef} src={audioSrc} onEnded={() => setIsPlaying(false)} preload="auto" />
       <button 
@@ -159,8 +159,8 @@ const AudioBubble = ({ audioSrc }) => {
           </svg>
         )}
       </button>
-      <div className="flex items-center space-x-0.5 h-3">
-        {[40, 70, 100, 60, 85, 45, 90, 65, 30].map((h, i) => (
+      <div className="flex-1 flex items-center justify-between space-x-1 h-3 pr-1">
+        {[40, 70, 100, 60, 85, 45, 90, 65, 80, 50, 95, 30].map((h, i) => (
           <span 
             key={i} 
             className={`w-[2.5px] rounded-full transition-all duration-200 ${
@@ -1070,7 +1070,7 @@ export default function App() {
           </div>
         </div>
 
-        {/* 對話區（無置中文字） */}
+        {/* 對話區 */}
         <div className="flex-1 overflow-y-auto px-3.5 py-4 space-y-3.5 scroll-smooth">
           {messages.length > 0 && (
             <div className="text-center my-1">
@@ -1278,7 +1278,7 @@ export default function App() {
           </button>
         </div>
 
-        {/* 彈出視窗 1️⃣：Albums (無按鈕，純滑動返回) */}
+        {/* 🌟 彈出視窗 1️⃣：ALBUM (標題靠左大寫、無副標、無按鈕、兩欄靠頂不置中、移除底部圓點) */}
         {activeModal === 'album' && (
           <div 
             className="absolute inset-0 bg-[#0B1120] z-50 flex flex-col text-white backdrop-blur-md animate-fade-in"
@@ -1287,8 +1287,8 @@ export default function App() {
           >
             {selectedAlbumName && activeAlbumDetail ? (
               <div className="flex-1 flex flex-col overflow-hidden">
-                <div className="pt-12 pb-5 px-5 bg-[#4E727A] flex items-center justify-center border-b border-[#3D5C63] shadow-md shrink-0">
-                  <span className="font-bold text-lg text-white truncate max-w-[280px]">
+                <div className="pt-12 pb-5 px-5 bg-[#4E727A] flex items-center justify-start border-b border-[#3D5C63] shadow-md shrink-0">
+                  <span className="font-bold text-xl text-white truncate max-w-[320px]">
                     {activeAlbumDetail.title}
                   </span>
                 </div>
@@ -1316,19 +1316,17 @@ export default function App() {
               </div>
             ) : (
               <div className="flex-1 flex flex-col overflow-hidden">
-                <div className="pt-12 pb-5 px-5 bg-[#4E727A] flex items-center justify-center border-b border-[#3D5C63] shadow-md shrink-0">
-                  <div className="flex flex-col items-center">
-                    <span className="font-bold text-lg tracking-wide text-white">Albums</span>
-                    <span className="text-[11px] text-teal-100/75 mt-0.5 font-mono">共 {albumList.length} 本企劃畫報</span>
-                  </div>
+                <div className="pt-12 pb-5 px-5 bg-[#4E727A] flex items-center justify-start border-b border-[#3D5C63] shadow-md shrink-0">
+                  <span className="font-bold text-xl tracking-wider text-white">ALBUM</span>
                 </div>
 
-                <div className="flex-1 flex overflow-x-auto snap-x snap-mandatory scrollbar-none p-4 items-center">
+                {/* 🌟 靠上對齊 items-start，奇數本絕不置中浮在半空 */}
+                <div className="flex-1 flex overflow-x-auto snap-x snap-mandatory scrollbar-none p-4 items-start pt-6">
                   {albumPages.length > 0 ? (
                     albumPages.map((pageGroup, pIdx) => (
                       <div 
                         key={pIdx} 
-                        className="w-full shrink-0 snap-center grid grid-cols-2 gap-4 px-1"
+                        className="w-full shrink-0 snap-center grid grid-cols-2 gap-4 px-1 self-start"
                       >
                         {pageGroup.map((alb) => (
                           <div
@@ -1369,28 +1367,20 @@ export default function App() {
                     </div>
                   )}
                 </div>
-
-                {albumPages.length > 1 && (
-                  <div className="pb-4 flex justify-center space-x-1.5">
-                    {albumPages.map((_, dotIdx) => (
-                      <span key={dotIdx} className="w-1.5 h-1.5 rounded-full bg-white/20"></span>
-                    ))}
-                  </div>
-                )}
               </div>
             )}
           </div>
         )}
 
-        {/* 彈出視窗 2️⃣：Calendar (只列出當月行程，純滑動返回) */}
+        {/* 🌟 彈出視窗 2️⃣：CALENDAR (標題靠左大寫、只列當月、無按鈕) */}
         {activeModal === 'calendar' && (
           <div 
             className="absolute inset-0 bg-slate-950/95 z-50 flex flex-col text-white backdrop-blur-md animate-fade-in"
             onTouchStart={handleTouchStart}
             onTouchEnd={handleTouchEnd}
           >
-            <div className="pt-12 pb-5 px-5 bg-[#4E727A] flex items-center justify-center shadow-md border-b border-[#3D5C63] shrink-0">
-              <span className="font-bold text-lg tracking-wide text-white">Calendar</span>
+            <div className="pt-12 pb-5 px-5 bg-[#4E727A] flex items-center justify-start shadow-md border-b border-[#3D5C63] shrink-0">
+              <span className="font-bold text-xl tracking-wider text-white">CALENDAR</span>
             </div>
 
             <div className="flex-1 overflow-y-auto p-4 flex flex-col justify-between">
@@ -1430,7 +1420,7 @@ export default function App() {
                 </div>
               </div>
 
-              {/* 只列出當月重點行程 */}
+              {/* 當月行程 */}
               <div className="bg-white/5 rounded-2xl p-4 space-y-2 border border-white/10 mt-4 max-h-52 overflow-y-auto">
                 <span className="text-xs font-semibold text-[#81D4D2] tracking-wider block">11 月重點行程</span>
                 {currentMonthEvents.length > 0 ? (
@@ -1451,7 +1441,7 @@ export default function App() {
           </div>
         )}
 
-        {/* 彈出視窗 3️⃣：FEED (純滑動返回) */}
+        {/* 🌟 彈出視窗 3️⃣：FEED (標題靠左大寫、Source 加倍放大、無按鈕) */}
         {activeModal === 'feed' && (
           <div 
             className="absolute inset-0 bg-[#0B1120] z-50 flex flex-col text-slate-100 backdrop-blur-md animate-fade-in"
@@ -1460,8 +1450,8 @@ export default function App() {
           >
             {selectedFeedItem ? (
               <div className="flex-1 flex flex-col overflow-hidden">
-                <div className="pt-12 pb-5 px-5 bg-[#4E727A] flex items-center justify-center border-b border-[#3D5C63] shadow-md shrink-0">
-                  <span className="font-bold text-lg text-white truncate max-w-[280px]">
+                <div className="pt-12 pb-5 px-5 bg-[#4E727A] flex items-center justify-start border-b border-[#3D5C63] shadow-md shrink-0">
+                  <span className="font-bold text-xl text-white truncate max-w-[320px]">
                     {selectedFeedItem.main_title}
                   </span>
                 </div>
@@ -1621,8 +1611,8 @@ export default function App() {
               </div>
             ) : (
               <div className="flex-1 flex flex-col overflow-hidden">
-                <div className="pt-12 pb-5 px-5 bg-[#4E727A] flex items-center justify-center border-b border-[#3D5C63] shadow-md shrink-0">
-                  <span className="font-bold text-lg tracking-wide text-white">FEED</span>
+                <div className="pt-12 pb-5 px-5 bg-[#4E727A] flex items-center justify-start border-b border-[#3D5C63] shadow-md shrink-0">
+                  <span className="font-bold text-xl tracking-wider text-white">FEED</span>
                 </div>
 
                 <div 
@@ -1638,11 +1628,12 @@ export default function App() {
                           className="bg-[#1E293B]/75 rounded-2xl border border-slate-700/60 p-2.5 flex flex-col justify-between space-y-2 shadow-sm hover:border-[#81D4D2]/60 hover:bg-[#1E293B] cursor-pointer transition active:scale-[0.97]"
                         >
                           <div>
-                            <div className="flex items-center justify-between text-[10px] mb-1.5">
-                              <span className="font-bold text-xs text-[#81D4D2] tracking-wide truncate max-w-[55%]">
+                            {/* 🌟 Source 加倍放大（text-xl font-black） */}
+                            <div className="flex items-baseline justify-between mb-1.5">
+                              <span className="font-black text-xl text-[#81D4D2] tracking-tight truncate max-w-[65%] leading-none">
                                 {item.source || 'FEED'}
                               </span>
-                              <span className="text-slate-400 font-mono text-[9.5px]">
+                              <span className="text-slate-400 font-mono text-[9px] shrink-0">
                                 {item.time_text}
                               </span>
                             </div>
@@ -1687,23 +1678,24 @@ export default function App() {
           </div>
         )}
 
-        {/* 彈出視窗 4️⃣：Files (原聲音訊庫，標題寫Files，名稱只抓trigger_content，純滑動返回) */}
+        {/* 🌟 彈出視窗 4️⃣：FILE (標題靠左大寫、無按鈕、播放泡泡向左加長緊貼檔名) */}
         {activeModal === 'voices' && (
           <div 
             className="absolute inset-0 bg-slate-950/95 z-50 flex flex-col text-white backdrop-blur-md animate-fade-in"
             onTouchStart={handleTouchStart}
             onTouchEnd={handleTouchEnd}
           >
-            <div className="pt-12 pb-5 px-5 bg-[#4E727A] flex items-center justify-center shadow-md border-b border-[#3D5C63]">
-              <span className="font-bold text-lg tracking-wide text-white">Files</span>
+            <div className="pt-12 pb-5 px-5 bg-[#4E727A] flex items-center justify-start shadow-md border-b border-[#3D5C63]">
+              <span className="font-bold text-xl tracking-wider text-white">FILE</span>
             </div>
 
             <div className="flex-1 overflow-y-auto p-4 space-y-3">
               {dynamicVoiceList.map((item) => (
-                <div key={item.id} className="bg-slate-900/80 p-3.5 rounded-2xl border border-white/5 flex items-center justify-between">
-                  <span className="text-[13px] font-medium text-slate-200 truncate max-w-[65%]">
+                <div key={item.id} className="bg-slate-900/80 p-3 rounded-2xl border border-white/5 flex items-center justify-between space-x-3">
+                  <span className="text-[13px] font-medium text-slate-200 truncate shrink-0 max-w-[40%]">
                     {item.title}
                   </span>
+                  {/* 加長後的波形播放泡泡 */}
                   <AudioBubble audioSrc={item.src} />
                 </div>
               ))}
