@@ -132,34 +132,6 @@ const formatAudioUrl = (raw) => {
   return '/' + clean;
 };
 
-// 原始語音檔列表
-const RAW_AUDIO_FILES = [
-  '1_get up_cozy.mp3',
-  '2_plz_get_up.mp3',
-  '3_can_u_get_up.mp3',
-  '4_time_to_get_up_now.mp3',
-  '5_get_up_yell.mp3',
-  'Can_u_b_my_gf.mp3',
-  'Do_u_like_it.mp3',
-  'eat.mp3',
-  'How_is_it_Do_u_like_it.mp3',
-  'How_is_it.mp3',
-  "Let's_get_engaged.mp3",
-  'i_miss_u.mp3',
-  'i_miss_u_longer.mp3',
-  'shall_i_go_now.mp3',
-  'lets_date.mp3',
-  'love_u.mp3',
-  'good_night_normal.mp3'
-];
-
-const RAW_VOICE_LIST = RAW_AUDIO_FILES.map((filename, idx) => ({
-  id: `v_${idx}`,
-  title: filename.replace(/\.(mp3|wav|m4a)$/i, '').replace(/_/g, ' '),
-  src: `/audio/${filename}`,
-  duration: '0:04'
-}));
-
 // 語音氣泡元件
 const AudioBubble = ({ audioSrc, durationText = "0:04" }) => {
   const [isPlaying, setIsPlaying] = useState(false);
@@ -268,7 +240,7 @@ export default function App() {
   const [isPlusMenuOpen, setIsPlusMenuOpen] = useState(false);
   const [activeModal, setActiveModal] = useState(null);
   
-  // 相簿庫專用狀態：當前選中的相簿（點入後顯示三宮格）
+  // 相簿庫專用狀態
   const [selectedAlbumName, setSelectedAlbumName] = useState(null);
   
   // FEED 詳情頁狀態與滾動記憶
@@ -324,6 +296,42 @@ export default function App() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isTyping]);
 
+  // 動態語音庫清單：直接從 dialogues 表格中篩選 type === 'audio'
+  const dynamicVoiceList = React.useMemo(() => {
+    const audioDiags = dialogueList.filter(d => (d.type || '').trim().toLowerCase() === 'audio');
+
+    if (audioDiags.length > 0) {
+      return audioDiags.map((d, idx) => {
+        const rawSrc = d.audio_after || d.trigger_content || '';
+        const cleanSrc = formatAudioUrl(rawSrc);
+        const fileNameOnly = rawSrc.replace(/\\/g, '/').split('/').pop() || '';
+        const titleText = d.trigger_content && d.audio_after ? d.trigger_content : fileNameOnly.replace(/\.(mp3|wav|m4a)$/i, '').replace(/_/g, ' ');
+
+        return {
+          id: `sheet_v_${idx}`,
+          title: titleText,
+          src: cleanSrc,
+          duration: '0:04'
+        };
+      });
+    }
+
+    // 備援清單（當試算表尚未填寫時預設載入）
+    const fallbackFiles = [
+      '1_get up_cozy.mp3', '2_plz_get_up.mp3', '3_can_u_get_up.mp3', '4_time_to_get_up_now.mp3',
+      '5_get_up_yell.mp3', 'Can_u_b_my_gf.mp3', 'Do_u_like_it.mp3', 'eat.mp3',
+      'How_is_it_Do_u_like_it.mp3', 'How_is_it.mp3', "Let's_get_engaged.mp3", 'i_miss_u.mp3',
+      'i_miss_u_longer.mp3', 'shall_i_go_now.mp3', 'lets_date.mp3', 'love_u.mp3', 'good_night_normal.mp3'
+    ];
+
+    return fallbackFiles.map((filename, idx) => ({
+      id: `fb_v_${idx}`,
+      title: filename.replace(/\.(mp3|wav|m4a)$/i, '').replace(/_/g, ' '),
+      src: `/audio/${filename}`,
+      duration: '0:04'
+    }));
+  }, [dialogueList]);
+
   // 返回列表時還原滾動位置
   useEffect(() => {
     if (!selectedFeedItem && feedListScrollRef.current && feedScrollPosition > 0) {
@@ -342,7 +350,6 @@ export default function App() {
     setSelectedFeedItem(null);
   };
 
-  // 手勢滑動返回判定
   const handleTouchStart = (e) => {
     touchStartX.current = e.touches[0].clientX;
     touchStartY.current = e.touches[0].clientY;
@@ -775,7 +782,7 @@ export default function App() {
     return () => clearInterval(videoTimer);
   }, [isVideoCalling]);
 
-  // Master Media 分流：相簿群組（每組整理出 cover 與所有圖片）
+  // Master Media 分流：相簿群組
   const albumList = React.useMemo(() => {
     const groups = {};
     masterMedia.forEach(m => {
@@ -1263,7 +1270,6 @@ export default function App() {
                   </button>
                 </div>
 
-                {/* 三宮格照片預覽 */}
                 <div className="flex-1 overflow-y-auto p-2">
                   <div className="grid grid-cols-3 gap-1.5 rounded-xl overflow-hidden">
                     {activeAlbumDetail.images.map((img, i) => (
@@ -1301,7 +1307,6 @@ export default function App() {
                   </button>
                 </div>
 
-                {/* 橫向滑動區域：一次呈現 2x2 四本相簿，滑動進入下一頁 */}
                 <div className="flex-1 flex overflow-x-auto snap-x snap-mandatory scrollbar-none p-4 items-center">
                   {albumPages.length > 0 ? (
                     albumPages.map((pageGroup, pIdx) => (
@@ -1315,7 +1320,6 @@ export default function App() {
                             onClick={() => setSelectedAlbumName(alb.title)}
                             className="flex flex-col cursor-pointer group active:scale-[0.97] transition"
                           >
-                            {/* 封面大圖 */}
                             <div className="aspect-[4/5] rounded-2xl overflow-hidden bg-slate-800 shadow-md border border-white/10 relative group-hover:border-[#81D4D2]/60 transition">
                               {alb.cover ? (
                                 <img 
@@ -1329,13 +1333,11 @@ export default function App() {
                                   NO COVER
                                 </div>
                               )}
-                              {/* 膠囊角標 */}
                               <span className="absolute bottom-2 right-2 bg-black/60 backdrop-blur-sm text-white text-[9px] px-2 py-0.5 rounded-md font-mono">
                                 {alb.count}P
                               </span>
                             </div>
 
-                            {/* 相簿名稱（置於下方，支援自然換行） */}
                             <div className="mt-2 px-1">
                               <h4 className="text-[12px] font-medium text-slate-200 group-hover:text-[#81D4D2] leading-snug break-words whitespace-normal line-clamp-2">
                                 {alb.title}
@@ -1352,7 +1354,6 @@ export default function App() {
                   )}
                 </div>
 
-                {/* 底部滑動指示條 */}
                 {albumPages.length > 1 && (
                   <div className="pb-4 flex justify-center space-x-1.5">
                     {albumPages.map((_, dotIdx) => (
@@ -1438,7 +1439,6 @@ export default function App() {
                 onTouchStart={handleTouchStart}
                 onTouchEnd={handleTouchEnd}
               >
-                {/* 頂部導航列：完全留白，無 Title 文字 */}
                 <div className="pt-12 pb-3 px-4 bg-[#4E727A] flex items-center justify-between border-b border-[#3D5C63] shadow shrink-0">
                   <button 
                     onClick={handleBackToFeedList}
@@ -1518,7 +1518,6 @@ export default function App() {
                               )}
                             </div>
 
-                            {/* 影片置中換行說明文字 */}
                             {vid.caption && (
                               <p className="text-[11.5px] text-slate-400 font-light text-center leading-relaxed px-4 whitespace-pre-wrap">
                                 {vid.caption}
@@ -1548,7 +1547,7 @@ export default function App() {
                     </div>
                   )}
 
-                  {/* 6. Interview 訪談對話室 (Q 頭像在頂部並與氣泡頂端平齊 items-start) */}
+                  {/* 6. Interview 訪談對話室 (Q 頭像在頂部並與氣泡頂端平齊) */}
                   {currentInterviewDialogue.length > 0 && (
                     <div className="space-y-3.5 pt-4 border-t border-white/10">
                       {currentInterviewDialogue.map((row, idx) => {
@@ -1692,20 +1691,23 @@ export default function App() {
           </div>
         )}
 
-        {/* 彈出視窗 4️⃣：語音原聲帶庫 */}
+        {/* 彈出視窗 4️⃣：語音原聲帶庫（完全動態讀取 dialogues 中 type === 'audio'） */}
         {activeModal === 'voices' && (
           <div className="absolute inset-0 bg-slate-950/95 z-50 flex flex-col text-white backdrop-blur-md animate-fade-in">
             <div className="pt-12 pb-3 px-4 bg-[#4E727A] flex items-center justify-between shadow border-b border-[#3D5C63]">
-              <span className="font-medium text-base tracking-wide">原聲音訊庫 (Audio Files)</span>
+              <div className="flex flex-col">
+                <span className="font-medium text-base tracking-wide">原聲音訊庫 (Audio Files)</span>
+                <span className="text-[10px] text-teal-100/70">共 {dynamicVoiceList.length} 首語音紀錄</span>
+              </div>
               <button onClick={() => setActiveModal(null)} className="text-sm text-teal-100 hover:text-white px-2 py-1">關閉</button>
             </div>
 
             <div className="flex-1 overflow-y-auto p-4 space-y-2.5">
-              {RAW_VOICE_LIST.map((item) => (
+              {dynamicVoiceList.map((item) => (
                 <div key={item.id} className="bg-slate-900/80 p-3 rounded-2xl border border-white/5 flex items-center justify-between">
                   <div className="flex flex-col space-y-0.5 max-w-[55%]">
                     <span className="text-xs font-mono font-medium text-slate-200 truncate">{item.title}</span>
-                    <span className="text-[10px] text-slate-500 font-mono">/audio/{item.title}.mp3</span>
+                    <span className="text-[10px] text-slate-500 font-mono truncate">{item.src}</span>
                   </div>
                   <AudioBubble audioSrc={item.src} durationText={item.duration} />
                 </div>
