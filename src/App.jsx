@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 // Google 試算表設定 (綁定 Soo_Master_Database)
 const SPREADSHEET_ID = '11P8tG-MhZiwrBcGf9TyFirQNwPxKC2YPVbv4XHMEV-A';
 
-// 通用 Google Visualization JSON 讀取解析器 (鎖定 headers=1 防跨行吞噬)
+// 通用 Google Visualization JSON 讀取解析器 (雙軌保留原始標籤與乾淨標籤)
 const fetchSheetData = async (sheetName) => {
   try {
     const url = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:json&headers=1&sheet=${encodeURIComponent(sheetName)}&t=${Date.now()}`;
@@ -20,16 +20,24 @@ const fetchSheetData = async (sheetName) => {
     if (!table || !table.rows || table.rows.length === 0) return [];
 
     const colKeys = table.cols.map((col, idx) => {
-      const cleanLabel = (col.label || '').trim().toLowerCase().replace(/[^a-z0-9_]/g, '');
-      return cleanLabel || `col_${idx}`;
+      const rawLabel = (col.label || '').trim();
+      const cleanLabel = rawLabel.toLowerCase().replace(/[^a-z0-9_]/g, '');
+      return {
+        raw: rawLabel,
+        clean: cleanLabel || `col_${idx}`,
+        idx
+      };
     });
 
     return table.rows.map(r => {
       const entry = {};
-      colKeys.forEach((key, idx) => {
+      colKeys.forEach(({ raw, clean, idx }) => {
         const cell = r.c && r.c[idx];
         const val = cell ? (cell.v ?? cell.f) : null;
-        entry[key] = val !== null && val !== undefined ? String(val).trim() : '';
+        const strVal = val !== null && val !== undefined ? String(val).trim() : '';
+        entry[clean] = strVal;
+        if (raw) entry[raw] = strVal;
+        entry[`col_${idx}`] = strVal;
       });
       return entry;
     });
@@ -37,6 +45,17 @@ const fetchSheetData = async (sheetName) => {
     console.error(`讀取試算表 [${sheetName}] 失敗:`, err);
     return [];
   }
+};
+
+// 安全取值輔助器（依優先順序回傳第一個非空值）
+const getField = (obj, ...keys) => {
+  if (!obj) return '';
+  for (const k of keys) {
+    if (obj[k] !== undefined && String(obj[k]).trim() !== '') {
+      return String(obj[k]).trim();
+    }
+  }
+  return '';
 };
 
 // 日期格式化：2026-10-12 或 2026/10/12 -> 2026, 10, 12
@@ -266,7 +285,10 @@ export default function App() {
     if (mediaRows && mediaRows.length > 0) setMasterMedia(mediaRows);
     if (diagRows && diagRows.length > 0) setDialogueList(diagRows);
     if (foodRows && foodRows.length > 0) setFoodWeights(foodRows);
-    if (interviewRows && interviewRows.length > 0) setInterviewData(interviewRows);
+    if (interviewRows && interviewRows.length > 0) {
+      console.log('成功載入 interviews 筆數:', interviewRows.length, interviewRows[0]);
+      setInterviewData(interviewRows);
+    }
   };
 
   useEffect(() => {
@@ -717,44 +739,48 @@ export default function App() {
     }));
   }, [masterMedia]);
 
-  // Master Media 分流：FEED (同 album_name 跨列完整聚合，修復剩餘大圖與 Credits)
+  // Master Media 分流：FEED (全方位跨列聚合)
   const feedItems = React.useMemo(() => {
     const grouped = {};
 
     masterMedia.forEach(m => {
-      const hasFeedContent = (m.news_title || m.news_summary || m.interview_id || m.video_url || '').trim().length > 0;
+      const interviewIdVal = getField(m, 'interview_id', 'interviewid', 'interview');
+      const newsTitleVal = getField(m, 'news_title', 'newstitle', 'title');
+      const newsSummaryVal = getField(m, 'news_summary', 'newssummary', 'summary');
+      const videoUrlVal = getField(m, 'video_url', 'videourl', 'video');
+      const albumNameVal = getField(m, 'album_name', 'albumname', 'album');
+
+      const hasFeedContent = (newsTitleVal || newsSummaryVal || interviewIdVal || videoUrlVal || '').length > 0;
       if (!hasFeedContent) return;
 
-      const groupKey = (m.album_name || m.news_title || m.id).trim();
+      const groupKey = albumNameVal || newsTitleVal || m.id || 'feed_item';
 
       if (!grouped[groupKey]) {
         grouped[groupKey] = {
           groupKey,
           id: m.id,
-          interview_id: (m.interview_id || '').trim(),
-          time_text: formatDateClean(m.date),
-          main_title: m.news_title || m.album_name,
-          sub_title: m.news_subtitle || '',
-          summary: m.news_summary || '',
-          video_url: m.video_url || '',
-          credits: m.credits || '',
+          interview_id: interviewIdVal,
+          time_text: formatDateClean(getField(m, 'date')),
+          main_title: newsTitleVal || albumNameVal,
+          sub_title: getField(m, 'news_subtitle', 'newssubtitle', 'subtitle'),
+          summary: newsSummaryVal,
+          video_url: videoUrlVal,
+          credits: getField(m, 'credits', 'credit'),
           main_images: [],
           layout_images: []
         };
       }
 
-      // 補足跨列的資料欄位
-      if (m.interview_id && !grouped[groupKey].interview_id) grouped[groupKey].interview_id = m.interview_id.trim();
-      if (m.news_subtitle && !grouped[groupKey].sub_title) grouped[groupKey].sub_title = m.news_subtitle.trim();
-      if (m.news_summary && !grouped[groupKey].summary) grouped[groupKey].summary = m.news_summary.trim();
-      if (m.video_url && !grouped[groupKey].video_url) grouped[groupKey].video_url = m.video_url.trim();
-      if (m.credits && !grouped[groupKey].credits) grouped[groupKey].credits = m.credits.trim();
+      if (interviewIdVal && !grouped[groupKey].interview_id) grouped[groupKey].interview_id = interviewIdVal;
+      if (getField(m, 'news_subtitle') && !grouped[groupKey].sub_title) grouped[groupKey].sub_title = getField(m, 'news_subtitle');
+      if (newsSummaryVal && !grouped[groupKey].summary) grouped[groupKey].summary = newsSummaryVal;
+      if (videoUrlVal && !grouped[groupKey].video_url) grouped[groupKey].video_url = videoUrlVal;
+      if (getField(m, 'credits') && !grouped[groupKey].credits) grouped[groupKey].credits = getField(m, 'credits');
 
-      // 強化圖片網址解析（支援換行、多空白與逗號切分）
-      const raw = (m.images || '').trim();
+      const raw = getField(m, 'images', 'image');
       const imgs = raw.split(/[\s,]+/).map(u => u.trim()).filter(u => u.startsWith('http'));
 
-      const isLayout = (m.sub_type || '').toLowerCase().trim() === 'layout';
+      const isLayout = getField(m, 'sub_type', 'subtype').toLowerCase() === 'layout';
       if (isLayout) {
         grouped[groupKey].layout_images.push(...imgs);
       } else {
@@ -763,7 +789,6 @@ export default function App() {
     });
 
     return Object.values(grouped).map(item => {
-      // 依序去重，確保所有相簿圖片皆完整保留
       const uniqueMain = [];
       item.main_images.forEach(u => {
         if (!uniqueMain.includes(u)) uniqueMain.push(u);
@@ -777,28 +802,51 @@ export default function App() {
       return {
         ...item,
         hero_image: uniqueMain[0] || uniqueLayout[0] || null,
-        remaining_images: uniqueMain.slice(1), // 扣除第一張 Hero 後的所有照片
+        remaining_images: uniqueMain.slice(1),
         layout_images: uniqueLayout
       };
     });
   }, [masterMedia]);
 
-  // 訪談分組（依 interview_id 完全獨立分組）
+  // 訪談分組（多鍵容錯提取）
   const interviewGroups = React.useMemo(() => {
     const groups = {};
-    interviewData.forEach(row => {
-      const idKey = (row.interview_id || '').trim();
+    interviewData.forEach((row, rowIdx) => {
+      const idKey = getField(row, 'interview_id', 'interviewid', 'interview_key', 'id', 'col_0');
       if (!idKey) return;
+
+      const content = getField(row, 'content', 'text', 'dialogue', 'answer', 'col_5');
+      const speaker = getField(row, 'speaker', 'role', 'name', 'col_4') || 'Q';
+      const section_type = getField(row, 'section_type', 'sectiontype', 'type', 'col_3') || 'dialogue';
+      const date = getField(row, 'date', 'col_1');
+
       if (!groups[idKey]) groups[idKey] = [];
-      groups[idKey].push(row);
+      groups[idKey].push({
+        rowIdx,
+        idKey,
+        speaker,
+        content,
+        section_type,
+        date
+      });
     });
     return groups;
   }, [interviewData]);
 
-  // 當前選中項目的訪談紀錄（比對 interview_id）
-  const currentInterviewDialogue = selectedFeedItem?.interview_id 
-    ? (interviewGroups[selectedFeedItem.interview_id] || []) 
-    : [];
+  // 當前選中項目的訪談紀錄
+  const currentInterviewDialogue = React.useMemo(() => {
+    if (!selectedFeedItem?.interview_id) return [];
+    const targetKey = selectedFeedItem.interview_id.trim();
+
+    // 優先精確比對
+    if (interviewGroups[targetKey]) return interviewGroups[targetKey];
+
+    // 容錯：不分大小寫比對
+    const matchedKey = Object.keys(interviewGroups).find(
+      k => k.toLowerCase() === targetKey.toLowerCase()
+    );
+    return matchedKey ? interviewGroups[matchedKey] : [];
+  }, [selectedFeedItem, interviewGroups]);
 
   return (
     <div className="flex h-[100dvh] w-screen bg-slate-900 justify-center items-center select-none overflow-hidden sm:p-3">
@@ -940,7 +988,6 @@ export default function App() {
                   </div>
                 )}
 
-                {/* 通話記錄：圖示一致，未接/取消用紅色呈現 */}
                 {msg.type === 'call_record' ? (
                   <div className="flex items-center space-x-2.5 bg-white px-3.5 py-2.5 rounded-2xl shadow-sm border border-slate-200">
                     <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
@@ -1181,7 +1228,7 @@ export default function App() {
           </div>
         )}
 
-        {/* 彈出視窗 3️⃣：FEED (純粹直排美學，排版嚴格重構) */}
+        {/* 彈出視窗 3️⃣：FEED (純粹直排美學，修復訪談讀取與左右氣泡) */}
         {activeModal === 'feed' && (
           <div className="absolute inset-0 bg-[#0B1120] z-50 flex flex-col text-slate-100 backdrop-blur-md animate-fade-in">
             
@@ -1221,7 +1268,7 @@ export default function App() {
                     )}
                   </div>
 
-                  {/* 2. 第一張圖 (Hero Image) */}
+                  {/* 2. 第一張主圖 (Hero Image) */}
                   {selectedFeedItem.hero_image && (
                     <div className="rounded-2xl overflow-hidden bg-slate-800 shadow-xl border border-white/5">
                       <img 
@@ -1232,7 +1279,7 @@ export default function App() {
                     </div>
                   )}
 
-                  {/* 3. 🌟 順序調前：Video 串接預留區 (YouTube Embed) */}
+                  {/* 3. Video 串接預留區 (YouTube Embed) */}
                   {selectedFeedItem.video_url && getYouTubeEmbedUrl(selectedFeedItem.video_url) && (
                     <div className="rounded-2xl overflow-hidden aspect-video w-full bg-black shadow-lg border border-white/10">
                       <iframe 
@@ -1245,7 +1292,7 @@ export default function App() {
                     </div>
                   )}
 
-                  {/* 4. 🌟 順序調後：Summary 摘要內文 */}
+                  {/* 4. Summary 摘要內文 */}
                   {selectedFeedItem.summary && (
                     <div className="bg-slate-800/40 p-4 rounded-2xl border border-white/5 text-[13px] leading-relaxed text-slate-300 font-light whitespace-pre-wrap">
                       {selectedFeedItem.summary}
@@ -1263,9 +1310,9 @@ export default function App() {
                     </div>
                   )}
 
-                  {/* 6. Interview 左右對話泡泡 (含 Editorial 居中側寫，無訪談則完全不渲染) */}
+                  {/* 6. Interview 訪談對話室 (修復空值與左右氣泡問題) */}
                   {currentInterviewDialogue.length > 0 && (
-                    <div className="space-y-3.5 pt-4 border-t border-white/10">
+                    <div className="space-y-4 pt-4 border-t border-white/10">
                       {currentInterviewDialogue.map((row, idx) => {
                         const secType = (row.section_type || '').toLowerCase().trim();
                         const isIntro = secType === 'intro';
@@ -1273,22 +1320,25 @@ export default function App() {
                         const speakerRaw = (row.speaker || '').trim().toLowerCase();
                         const isEditorial = speakerRaw === 'editorial';
                         const isSoo = speakerRaw === 'soo' || speakerRaw.includes('lee');
+                        const contentText = row.content || '';
+
+                        // 若該筆既無內容也不是特定區段，則略過防空泡泡
+                        if (!contentText && !isCredit && !isIntro) return null;
 
                         if (isIntro) {
                           return (
                             <div key={idx} className="bg-slate-900/90 p-4 rounded-2xl border border-[#81D4D2]/20 text-[12px] leading-relaxed text-slate-300">
                               <span className="text-[#81D4D2] font-mono text-[10px] block mb-1">EDITORIAL INTRO</span>
-                              <p className="whitespace-pre-wrap">{row.content}</p>
+                              <p className="whitespace-pre-wrap">{contentText}</p>
                             </div>
                           );
                         }
 
-                        // 如果訪談末尾仍有 credit 且 media 未單獨填寫，此處自動保留呈現
                         if (isCredit && !selectedFeedItem.credits) {
                           return (
                             <div key={idx} className="bg-black/50 p-4 rounded-2xl border border-white/10 text-[10px] text-slate-400 leading-relaxed font-mono mt-4">
                               <span className="text-[#81D4D2] font-semibold block mb-1">CREDITS</span>
-                              <p className="whitespace-pre-wrap">{row.content}</p>
+                              <p className="whitespace-pre-wrap">{contentText}</p>
                             </div>
                           );
                         }
@@ -1297,7 +1347,7 @@ export default function App() {
                           return (
                             <div key={idx} className="my-5 px-6 text-center">
                               <p className="text-[12px] leading-relaxed text-slate-400 font-serif italic tracking-wide whitespace-pre-wrap">
-                                {row.content}
+                                {contentText}
                               </p>
                               <div className="w-8 h-[1px] bg-white/20 mx-auto mt-3"></div>
                             </div>
@@ -1321,9 +1371,9 @@ export default function App() {
                                 : 'bg-white/15 text-slate-100 border border-white/10 rounded-tl-none'
                             }`}>
                               <div className="text-[9px] font-mono text-slate-400 mb-1">
-                                {isSoo ? 'Lee Soo-hyuk' : (row.speaker || 'Interviewer')}
+                                {isSoo ? 'Lee Soo-hyuk' : (row.speaker || 'Q')}
                               </div>
-                              <p className="whitespace-pre-wrap">{row.content}</p>
+                              <p className="whitespace-pre-wrap">{contentText || '(無對話內容)'}</p>
                             </div>
 
                             {isSoo && (
@@ -1337,7 +1387,7 @@ export default function App() {
                     </div>
                   )}
 
-                  {/* 7. 🌟 剩餘的所有照片 (Remaining Images，已修復跨列多圖抓取) */}
+                  {/* 7. 剩餘的所有照片 (Remaining Images 直排瀑布流) */}
                   {selectedFeedItem.remaining_images && selectedFeedItem.remaining_images.length > 0 && (
                     <div className="space-y-3 pt-2">
                       {selectedFeedItem.remaining_images.map((imgUrl, rIdx) => (
@@ -1353,7 +1403,7 @@ export default function App() {
                     </div>
                   )}
 
-                  {/* 8. 🌟 Credits (來自 media 表格獨立欄位，置底顯示) */}
+                  {/* 8. Credits (置底團隊名單) */}
                   {selectedFeedItem.credits && (
                     <div className="bg-black/50 p-4 rounded-2xl border border-white/10 text-[10.5px] text-slate-400 leading-relaxed font-mono mt-6">
                       <span className="text-[#81D4D2] font-semibold block mb-1">CREDITS</span>
