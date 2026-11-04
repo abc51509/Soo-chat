@@ -1256,7 +1256,7 @@ export default function App() {
                     </div>
                   )}
 
-                  {/* 6. Interview 左右對話泡泡 (徹底修復左右排版，無訪談則完全不渲染) */}
+                 {/* 6. Interview 左右對話泡泡 (含 Editorial 居中側寫) */}
                   {currentInterviewDialogue.length > 0 && (
                     <div className="space-y-3.5 pt-4 border-t border-white/10">
                       {currentInterviewDialogue.map((row, idx) => {
@@ -1264,8 +1264,10 @@ export default function App() {
                         const isIntro = secType === 'intro';
                         const isCredit = secType === 'credit';
                         const speakerRaw = (row.speaker || '').trim().toLowerCase();
+                        const isEditorial = speakerRaw === 'editorial';
                         const isSoo = speakerRaw === 'soo' || speakerRaw.includes('lee');
 
+                        // 置頂引言 Intro
                         if (isIntro) {
                           return (
                             <div key={idx} className="bg-slate-900/90 p-4 rounded-2xl border border-[#81D4D2]/20 text-[12px] leading-relaxed text-slate-300">
@@ -1275,6 +1277,7 @@ export default function App() {
                           );
                         }
 
+                        // 文末名單 Credit
                         if (isCredit) {
                           return (
                             <div key={idx} className="bg-black/50 p-4 rounded-2xl border border-white/10 text-[10px] text-slate-400 leading-relaxed font-mono mt-4">
@@ -1284,6 +1287,19 @@ export default function App() {
                           );
                         }
 
+                        // 🌟 新增：Editorial 編輯旁白／側寫（無氣泡、置中純文字）
+                        if (isEditorial) {
+                          return (
+                            <div key={idx} className="my-5 px-6 text-center">
+                              <p className="text-[12px] leading-relaxed text-slate-400 font-serif italic tracking-wide whitespace-pre-wrap">
+                                {row.content}
+                              </p>
+                              <div className="w-8 h-[1px] bg-white/20 mx-auto mt-3"></div>
+                            </div>
+                          );
+                        }
+
+                        // Q (靠左) 與 Soo (靠右) 氣泡
                         return (
                           <div 
                             key={idx} 
