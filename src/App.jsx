@@ -211,7 +211,7 @@ export default function App() {
   const [activeModal, setActiveModal] = useState(null);
   const [activeAlbumTab, setActiveAlbumTab] = useState('all');
   
-  // FEED 詳情頁專用狀態
+  // FEED 詳情頁狀態
   const [selectedFeedItem, setSelectedFeedItem] = useState(null);
 
   const ringAudioRef = useRef(null);
@@ -363,7 +363,6 @@ export default function App() {
     sendStaggeredMessages(comment);
   };
 
-  // 抽出所有追問內容
   const extractAllFollowUps = (item, baseTitle = '') => {
     const list = [];
     if (item.follow_ups) {
@@ -393,7 +392,7 @@ export default function App() {
     }, 800);
   };
 
-  // 來電觸發 (8 秒超時)
+  // 來電觸發 (8 秒)
   const triggerIncomingCall = (type = 'audio', scenario = 'normal') => {
     setCallType(type);
     setCallStatus('ringing');
@@ -447,7 +446,6 @@ export default function App() {
     }
   };
 
-  // 我主動撥號
   const handleUserOutgoingCall = () => {
     const isBusy = Math.random() < 0.25;
 
@@ -481,7 +479,7 @@ export default function App() {
     setIsVideoCalling(true);
   };
 
-  // 早晨喚醒機制
+  // 晨喚階梯排程
   useEffect(() => {
     const checkWakeupSchedule = () => {
       const todayStr = getTodayDateStr();
@@ -633,7 +631,7 @@ export default function App() {
     }
   };
 
-  // 通話音訊與影片管理
+  // 通話與視訊管理
   useEffect(() => {
     if (callStatus === 'ringing') {
       if (ringAudioRef.current) {
@@ -677,7 +675,7 @@ export default function App() {
     return () => clearInterval(videoTimer);
   }, [isVideoCalling]);
 
-  // Master Media 分流：相簿群組
+  // Master Media 分流：相簿
   const albumGroups = React.useMemo(() => {
     const groups = {};
     masterMedia.forEach(m => {
@@ -700,14 +698,16 @@ export default function App() {
     }));
   }, [masterMedia]);
 
-  // Master Media 分流：FEED (全方位情報流，含新聞、訪談、站姐出圖)
+  // Master Media 分流：FEED (全方位情報流，僅以 event_id 關聯)
   const feedItems = React.useMemo(() => {
-    return masterMedia.filter(m => (m.news_title || m.news_summary || m.interview_id || '').trim().length > 0).map(m => {
+    return masterMedia.filter(m => (m.news_title || m.news_summary || m.event_id || '').trim().length > 0).map(m => {
       const raw = (m.images || '').trim();
       const imgs = raw.split(/[\s,]+/).filter(u => u.startsWith('http'));
+      const linkedEventId = (m.event_id || '').trim();
+
       return {
         id: m.id,
-        interview_id: m.interview_id || '',
+        event_id: linkedEventId,
         badge: m.category || 'OFFICIAL',
         source: m.news_source || 'FEED',
         time_text: m.date || '近期',
@@ -720,21 +720,21 @@ export default function App() {
     });
   }, [masterMedia]);
 
-  // 訪談分組（依 interview_id）
+  // 訪談分組（依 event_id）
   const interviewGroups = React.useMemo(() => {
     const groups = {};
     interviewData.forEach(row => {
-      const id = row.interview_id ? row.interview_id.trim() : '';
-      if (!id) return;
-      if (!groups[id]) groups[id] = [];
-      groups[id].push(row);
+      const idKey = (row.event_id || '').trim();
+      if (!idKey) return;
+      if (!groups[idKey]) groups[idKey] = [];
+      groups[idKey].push(row);
     });
     return groups;
   }, [interviewData]);
 
-  // 當前選中的訪談內容
-  const currentInterviewDialogue = selectedFeedItem?.interview_id 
-    ? (interviewGroups[selectedFeedItem.interview_id] || []) 
+  // 當前選中項目的訪談紀錄
+  const currentInterviewDialogue = selectedFeedItem?.event_id 
+    ? (interviewGroups[selectedFeedItem.event_id] || []) 
     : [];
 
   return (
@@ -877,16 +877,31 @@ export default function App() {
                   </div>
                 )}
 
+                {/* 修復未接來電與通話記錄的 Icon 顯示與排版 */}
                 {msg.type === 'call_record' ? (
                   <div className="flex items-center space-x-2.5 bg-white px-3.5 py-2.5 rounded-2xl shadow-sm border border-slate-200">
-                    <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 ${
-                      msg.durationText ? 'bg-teal-50 text-teal-700' : 'bg-rose-100 text-rose-600'
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
+                      msg.durationText ? 'bg-teal-50 text-[#4E727A]' : 'bg-rose-50 text-rose-500'
                     }`}>
-                      <svg className="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M6.62 10.79a15.05 15.05 0 006.59 6.59l2.2-2.2a1 1 0 011.02-.24 11.72 11.72 0 003.68.59 1 1 0 011 1v3.5a1 1 0 01-.24 1.02l-2.23 2.09z" /></svg>
+                      {msg.durationText ? (
+                        /* 接通通話圖示 */
+                        <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
+                          <path d="M6.62 10.79a15.05 15.05 0 006.59 6.59l2.2-2.2a1 1 0 011.02-.24 11.72 11.72 0 003.68.59 1 1 0 011 1v3.5a1 1 0 01-1 1A17 17 0 013 4a1 1 0 011-1h3.5a1 1 0 011 1c0 1.25.2 2.48.59 3.68a1 1 0 01-.24 1.02l-2.23 2.09z" />
+                        </svg>
+                      ) : (
+                        /* 未接來電 / 未接視訊專屬圖示 (下斜話筒+箭頭) */
+                        <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
+                          <path d="M19.59 7L12 14.59 6.41 9H11V7H3v8h2v-4.59l7 7 9-9z" />
+                        </svg>
+                      )}
                     </div>
                     <div className="flex flex-col">
-                      <span className="text-xs font-medium text-slate-800">{msg.statusText}</span>
-                      <span className="text-[9px] text-slate-400">通話紀錄</span>
+                      <span className={`text-xs font-medium ${msg.durationText ? 'text-slate-800' : 'text-rose-600'}`}>
+                        {msg.statusText}
+                      </span>
+                      <span className="text-[9px] text-slate-400">
+                        {msg.durationText ? '通話已結束' : '點擊回撥'}
+                      </span>
                     </div>
                   </div>
                 ) : msg.type === 'audio' ? (
@@ -967,7 +982,7 @@ export default function App() {
           </button>
         </div>
 
-        {/* ➕ 彈出擴充選單面板（四大純粹分類：相簿、行事曆、FEED、語音庫） */}
+        {/* ➕ 彈出擴充選單面板 */}
         {isPlusMenuOpen && (
           <div className="bg-[#4E727A]/95 backdrop-blur-md px-4 py-3 flex justify-around border-t border-[#3D5C63] z-20 animate-fade-in shadow-xl">
             <button onClick={() => { setActiveModal('album'); setIsPlusMenuOpen(false); }} className="flex flex-col items-center space-y-1 text-white active:scale-90 transition">
@@ -1220,7 +1235,7 @@ export default function App() {
                     </div>
                   )}
 
-                  {/* 📷 直排大圖瀑布流（直向大圖呈現） */}
+                  {/* 📷 直排大圖瀑布流 */}
                   {selectedFeedItem.images && selectedFeedItem.images.length > 0 && (
                     <div className="space-y-3 pt-4 border-t border-white/10">
                       <div className="flex items-center space-x-2">
