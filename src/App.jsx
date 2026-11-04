@@ -58,16 +58,6 @@ const getField = (obj, ...keys) => {
   return '';
 };
 
-// 日期格式化：2026-10-12 或 2026/10/12 -> 2026, 10, 12
-const formatDateClean = (rawDate) => {
-  if (!rawDate) return '';
-  const parts = rawDate.replace(/[^\d]/g, ' ').trim().split(/\s+/);
-  if (parts.length >= 3) {
-    return `${parts[0]}, ${parts[1]}, ${parts[2]}`;
-  }
-  return rawDate;
-};
-
 // YouTube 嵌入網址轉換工具
 const getYouTubeEmbedUrl = (rawUrl) => {
   if (!rawUrl) return null;
@@ -132,8 +122,8 @@ const formatAudioUrl = (raw) => {
   return '/' + clean;
 };
 
-// 語音氣泡元件
-const AudioBubble = ({ audioSrc, durationText = "0:04" }) => {
+// 語音氣泡元件（無時間標籤）
+const AudioBubble = ({ audioSrc }) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const audioRef = useRef(null);
 
@@ -151,7 +141,7 @@ const AudioBubble = ({ audioSrc, durationText = "0:04" }) => {
   return (
     <div 
       onClick={togglePlay}
-      className="flex items-center space-x-2.5 bg-white px-3.5 py-2.5 rounded-2xl rounded-tl-none shadow-sm cursor-pointer hover:bg-slate-50 transition min-w-[130px] border border-slate-200/60"
+      className="flex items-center space-x-2.5 bg-white px-3.5 py-2.5 rounded-2xl rounded-tl-none shadow-sm cursor-pointer hover:bg-slate-50 transition min-w-[90px] border border-slate-200/60"
     >
       <audio ref={audioRef} src={audioSrc} onEnded={() => setIsPlaying(false)} preload="auto" />
       <button 
@@ -169,19 +159,16 @@ const AudioBubble = ({ audioSrc, durationText = "0:04" }) => {
           </svg>
         )}
       </button>
-      <div className="flex flex-col">
-        <div className="flex items-center space-x-0.5 h-3">
-          {[40, 70, 100, 60, 85, 45, 90, 65, 30].map((h, i) => (
-            <span 
-              key={i} 
-              className={`w-[2.5px] rounded-full transition-all duration-200 ${
-                isPlaying ? 'bg-[#5FBDB9] animate-pulse' : 'bg-slate-300'
-              }`}
-              style={{ height: `${h}%` }}
-            />
-          ))}
-        </div>
-        <span className="text-[10px] text-slate-400 mt-1 font-mono">{durationText}</span>
+      <div className="flex items-center space-x-0.5 h-3">
+        {[40, 70, 100, 60, 85, 45, 90, 65, 30].map((h, i) => (
+          <span 
+            key={i} 
+            className={`w-[2.5px] rounded-full transition-all duration-200 ${
+              isPlaying ? 'bg-[#5FBDB9] animate-pulse' : 'bg-slate-300'
+            }`}
+            style={{ height: `${h}%` }}
+          />
+        ))}
       </div>
     </div>
   );
@@ -248,7 +235,7 @@ export default function App() {
   const feedListScrollRef = useRef(null);
   const [feedScrollPosition, setFeedScrollPosition] = useState(0);
 
-  // 滑動手勢（Swipe to Back）狀態
+  // 手勢滑動（Swipe to Back）狀態
   const touchStartX = useRef(0);
   const touchStartY = useRef(0);
 
@@ -296,39 +283,21 @@ export default function App() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isTyping]);
 
-  // 動態語音庫清單
+  // 動態音訊庫清單（嚴格只從 dialogues 的 trigger_content 抓名稱）
   const dynamicVoiceList = React.useMemo(() => {
     const audioDiags = dialogueList.filter(d => (d.type || '').trim().toLowerCase() === 'audio');
 
-    if (audioDiags.length > 0) {
-      return audioDiags.map((d, idx) => {
-        const rawSrc = d.audio_after || d.trigger_content || '';
-        const cleanSrc = formatAudioUrl(rawSrc);
-        const fileNameOnly = rawSrc.replace(/\\/g, '/').split('/').pop() || '';
-        const titleText = d.trigger_content && d.audio_after ? d.trigger_content : fileNameOnly.replace(/\.(mp3|wav|m4a)$/i, '').replace(/_/g, ' ');
+    return audioDiags.map((d, idx) => {
+      const rawSrc = d.audio_after || d.trigger_content || '';
+      const cleanSrc = formatAudioUrl(rawSrc);
+      const titleText = d.trigger_content ? d.trigger_content.trim() : `音訊 ${idx + 1}`;
 
-        return {
-          id: `sheet_v_${idx}`,
-          title: titleText,
-          src: cleanSrc,
-          duration: '0:04'
-        };
-      });
-    }
-
-    const fallbackFiles = [
-      '1_get up_cozy.mp3', '2_plz_get_up.mp3', '3_can_u_get_up.mp3', '4_time_to_get_up_now.mp3',
-      '5_get_up_yell.mp3', 'Can_u_b_my_gf.mp3', 'Do_u_like_it.mp3', 'eat.mp3',
-      'How_is_it_Do_u_like_it.mp3', 'How_is_it.mp3', "Let's_get_engaged.mp3", 'i_miss_u.mp3',
-      'i_miss_u_longer.mp3', 'shall_i_go_now.mp3', 'lets_date.mp3', 'love_u.mp3', 'good_night_normal.mp3'
-    ];
-
-    return fallbackFiles.map((filename, idx) => ({
-      id: `fb_v_${idx}`,
-      title: filename.replace(/\.(mp3|wav|m4a)$/i, '').replace(/_/g, ' '),
-      src: `/audio/${filename}`,
-      duration: '0:04'
-    }));
+      return {
+        id: `voice_${idx}`,
+        title: titleText,
+        src: cleanSrc
+      };
+    });
   }, [dialogueList]);
 
   // 返回列表時還原滾動位置
@@ -345,10 +314,7 @@ export default function App() {
     setSelectedFeedItem(item);
   };
 
-  const handleBackToFeedList = () => {
-    setSelectedFeedItem(null);
-  };
-
+  // 全域滑動返回判定
   const handleTouchStart = (e) => {
     touchStartX.current = e.touches[0].clientX;
     touchStartY.current = e.touches[0].clientY;
@@ -358,8 +324,14 @@ export default function App() {
     const deltaX = e.changedTouches[0].clientX - touchStartX.current;
     const deltaY = e.changedTouches[0].clientY - touchStartY.current;
 
-    if (deltaX > 75 && Math.abs(deltaY) < 60) {
-      handleBackToFeedList();
+    if (deltaX > 70 && Math.abs(deltaY) < 60) {
+      if (selectedFeedItem) {
+        setSelectedFeedItem(null);
+      } else if (selectedAlbumName) {
+        setSelectedAlbumName(null);
+      } else if (activeModal) {
+        setActiveModal(null);
+      }
     }
   };
 
@@ -401,7 +373,7 @@ export default function App() {
     if (options.audioAfter) {
       const finalAudio = formatAudioUrl(options.audioAfter);
       setTimeout(() => {
-        sendVoiceMessage({ src: finalAudio, duration: '0:03' });
+        sendVoiceMessage({ src: finalAudio });
       }, 600);
     }
   };
@@ -418,7 +390,6 @@ export default function App() {
         role: 'assistant',
         type: 'audio',
         audioSrc: cleanSrc,
-        durationText: voiceData.duration || '0:04',
         time: getCurrentTime()
       }
     ]);
@@ -601,7 +572,7 @@ export default function App() {
   const triggerManualVoice = () => {
     if (dynamicVoiceList.length === 0) return;
     const picked = dynamicVoiceList[Math.floor(Math.random() * dynamicVoiceList.length)];
-    sendVoiceMessage({ src: picked.src, duration: picked.duration });
+    sendVoiceMessage({ src: picked.src });
   };
 
   // 晨喚機制：嚴格時間區間 + 13:00 嚴格截斷
@@ -623,19 +594,19 @@ export default function App() {
 
       if (currentVal >= 420 && currentVal < 480 && !triggeredSteps.includes('s1')) {
         stepToRun = 's1';
-        voiceToPlay = { src: '/audio/1_get up_cozy.mp3', duration: '0:03' };
+        voiceToPlay = { src: '/audio/1_get up_cozy.mp3' };
       } else if (currentVal >= 480 && currentVal < 570 && !triggeredSteps.includes('s2')) {
         stepToRun = 's2';
-        voiceToPlay = { src: '/audio/2_plz_get_up.mp3', duration: '0:04' };
+        voiceToPlay = { src: '/audio/2_plz_get_up.mp3' };
       } else if (currentVal >= 570 && currentVal < 690 && !triggeredSteps.includes('s3')) {
         stepToRun = 's3';
-        voiceToPlay = { src: '/audio/3_can_u_get_up.mp3', duration: '0:03' };
+        voiceToPlay = { src: '/audio/3_can_u_get_up.mp3' };
       } else if (currentVal >= 690 && currentVal < 720 && !triggeredSteps.includes('s4')) {
         stepToRun = 's4';
-        voiceToPlay = { src: '/audio/4_time_to_get_up_now.mp3', duration: '0:03' };
+        voiceToPlay = { src: '/audio/4_time_to_get_up_now.mp3' };
       } else if (currentVal >= 720 && currentVal <= 780 && !triggeredSteps.includes('s5')) {
         stepToRun = 's5';
-        voiceToPlay = { src: '/audio/5_get_up_yell.mp3', duration: '0:04' };
+        voiceToPlay = { src: '/audio/5_get_up_yell.mp3' };
       }
 
       if (stepToRun && voiceToPlay) {
@@ -806,7 +777,7 @@ export default function App() {
     return () => clearInterval(videoTimer);
   }, [isVideoCalling]);
 
-  // Master Media 分流：相簿群組
+  // 相簿分組
   const albumList = React.useMemo(() => {
     const groups = {};
     masterMedia.forEach(m => {
@@ -833,7 +804,6 @@ export default function App() {
     }).filter(g => g.count > 0);
   }, [masterMedia]);
 
-  // 4本相簿一頁的分頁分割
   const albumPages = React.useMemo(() => {
     const pages = [];
     for (let i = 0; i < albumList.length; i += 4) {
@@ -842,14 +812,18 @@ export default function App() {
     return pages;
   }, [albumList]);
 
-  // Master Media 分流：行事曆
-  const eventItems = React.useMemo(() => {
-    return masterMedia.filter(m => (m.date || '').trim().length > 0).map(m => ({
-      date: m.date,
-      end_date: m.end_date || m.date,
-      title: m.album_name || m.caption || '行程',
-      status: m.sub_type || ''
-    }));
+  // 當月行程過濾（精確過濾 2026 年 11 月）
+  const currentMonthEvents = React.useMemo(() => {
+    return masterMedia
+      .filter(m => {
+        const rawDate = (m.date || '').trim();
+        return rawDate.startsWith('2026-11') || rawDate.startsWith('2026/11') || rawDate.startsWith('2026.11');
+      })
+      .map(m => ({
+        date: m.date,
+        title: m.album_name || m.caption || '行程',
+        status: m.sub_type || ''
+      }));
   }, [masterMedia]);
 
   // Master Media 分流：FEED
@@ -876,7 +850,7 @@ export default function App() {
           id: m.id,
           interview_id: interviewIdVal,
           source: newsSourceVal,
-          time_text: formatDateClean(getField(m, 'date')),
+          time_text: getField(m, 'date'),
           main_title: newsTitleVal || albumNameVal,
           sub_title: getField(m, 'news_subtitle', 'newssubtitle', 'subtitle'),
           summary: newsSummaryVal,
@@ -959,7 +933,6 @@ export default function App() {
     return groups;
   }, [interviewData]);
 
-  // 當前選中項目的訪談紀錄
   const currentInterviewDialogue = React.useMemo(() => {
     if (!selectedFeedItem?.interview_id) return [];
     const targetKey = selectedFeedItem.interview_id.trim();
@@ -972,7 +945,6 @@ export default function App() {
     return matchedKey ? interviewGroups[matchedKey] : [];
   }, [selectedFeedItem, interviewGroups]);
 
-  // 當前開啟的相簿物件
   const activeAlbumDetail = React.useMemo(() => {
     if (!selectedAlbumName) return null;
     return albumList.find(a => a.title === selectedAlbumName) || null;
@@ -987,7 +959,7 @@ export default function App() {
       {/* 主聊天容器 */}
       <div className="w-full sm:max-w-[420px] h-[100dvh] sm:h-[92vh] sm:max-h-[880px] bg-[#ECEEF1] sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden relative border-0 sm:border sm:border-slate-700">
         
-        {/* 全螢幕來電介面 (8秒超時) */}
+        {/* 全螢幕來電介面 */}
         {callStatus !== 'idle' && (
           <div className="absolute inset-0 bg-slate-950/95 z-50 flex flex-col justify-between items-center py-16 px-6 text-white backdrop-blur-md animate-fade-in">
             <div className="flex flex-col items-center mt-10 space-y-4">
@@ -1006,16 +978,16 @@ export default function App() {
 
             {callStatus === 'ringing' ? (
               <div className="w-full flex justify-around items-center px-6 mb-8">
-                <button onClick={handleEndCall} title="拒接" className="w-16 h-16 rounded-full bg-rose-600 hover:bg-rose-500 active:scale-95 transition flex items-center justify-center shadow-lg">
+                <button onClick={handleEndCall} className="w-16 h-16 rounded-full bg-rose-600 hover:bg-rose-500 active:scale-95 transition flex items-center justify-center shadow-lg">
                   <svg className="w-7 h-7 fill-white rotate-[135deg]" viewBox="0 0 24 24"><path d="M6.62 10.79a15.05 15.05 0 006.59 6.59l2.2-2.2a1 1 0 011.02-.24 11.72 11.72 0 003.68.59 1 1 0 011 1v3.5a1 1 0 01-1 1A17 17 0 013 4a1 1 0 011-1h3.5a1 1 0 011 1c0 1.25.2 2.48.59 3.68a1 1 0 01-.24 1.02l-2.23 2.09z" /></svg>
                 </button>
-                <button onClick={handleAcceptCall} title="接聽" className="w-16 h-16 rounded-full bg-[#5FBDB9] hover:bg-[#52ada9] active:scale-95 transition flex items-center justify-center shadow-lg animate-bounce">
+                <button onClick={handleAcceptCall} className="w-16 h-16 rounded-full bg-[#5FBDB9] hover:bg-[#52ada9] active:scale-95 transition flex items-center justify-center shadow-lg animate-bounce">
                   <svg className="w-7 h-7 fill-white" viewBox="0 0 24 24"><path d="M6.62 10.79a15.05 15.05 0 006.59 6.59l2.2-2.2a1 1 0 011.02-.24 11.72 11.72 0 003.68.59 1 1 0 011 1v3.5a1 1 0 01-1 1A17 17 0 013 4a1 1 0 011-1h3.5a1 1 0 011 1c0 1.25.2 2.48.59 3.68a1 1 0 01-.24 1.02l-2.23 2.09z" /></svg>
                 </button>
               </div>
             ) : (
               <div className="w-full flex justify-center items-center mb-8">
-                <button onClick={handleEndCall} title="掛斷" className="w-16 h-16 rounded-full bg-rose-600 hover:bg-rose-500 active:scale-95 transition flex items-center justify-center shadow-lg">
+                <button onClick={handleEndCall} className="w-16 h-16 rounded-full bg-rose-600 hover:bg-rose-500 active:scale-95 transition flex items-center justify-center shadow-lg">
                   <svg className="w-7 h-7 fill-white rotate-[135deg]" viewBox="0 0 24 24"><path d="M6.62 10.79a15.05 15.05 0 006.59 6.59l2.2-2.2a1 1 0 011.02-.24 11.72 11.72 0 003.68.59 1 1 0 011 1v3.5a1 1 0 01-1 1A17 17 0 013 4a1 1 0 011-1h3.5a1 1 0 011 1c0 1.25.2 2.48.59 3.68a1 1 0 01-.24 1.02l-2.23 2.09z" /></svg>
                 </button>
               </div>
@@ -1053,7 +1025,6 @@ export default function App() {
                   setIsVideoCalling(false);
                   addCallRecord(`視訊通話 ${formatSeconds(videoDuration)}`, 'user', formatSeconds(videoDuration));
                 }}
-                title="提前掛斷"
                 className="w-16 h-16 rounded-full bg-rose-600 hover:bg-rose-500 active:scale-95 transition flex items-center justify-center shadow-2xl"
               >
                 <svg className="w-7 h-7 fill-white rotate-[135deg]" viewBox="0 0 24 24"><path d="M6.62 10.79a15.05 15.05 0 006.59 6.59l2.2-2.2a1 1 0 011.02-.24 11.72 11.72 0 003.68.59 1 1 0 011 1v3.5a1 1 0 01-1 1A17 17 0 013 4a1 1 0 011-1h3.5a1 1 0 011 1c0 1.25.2 2.48.59 3.68a1 1 0 01-.24 1.02l-2.23 2.09z" /></svg>
@@ -1062,14 +1033,12 @@ export default function App() {
           </div>
         )}
 
-        {/* 🌟 頂部導航列 (聊天主頁：向下加寬、頭貼放大、名字放大、按鈕放大、橘點移除) */}
+        {/* 頂部導航列 (聊天主頁) */}
         <div className="pt-12 pb-5 bg-[#4E727A] text-white flex items-center justify-between px-5 z-20 shrink-0 shadow-md border-b border-[#3D5C63]">
           <div className="flex items-center space-x-3.5">
-            {/* 頭像放大 */}
             <div className="w-14 h-14 rounded-full bg-slate-800/30 overflow-hidden ring-2 ring-white/30 shadow-md shrink-0">
               <img src="https://images.plurk.com/6PooPJr1YbOhrMp5CCFdbl.jpg" alt="avatar" className="w-full h-full object-cover" />
             </div>
-            {/* 名字放大，已拔除橘色在線點 */}
             <div className="flex items-center">
               <span className="font-bold text-lg text-white tracking-wide">Soo</span>
             </div>
@@ -1078,7 +1047,6 @@ export default function App() {
           <div className="flex items-center space-x-2.5">
             <button
               onClick={handleClearMessages}
-              title="清空聊天記錄"
               className="bg-black/25 hover:bg-black/35 active:scale-95 text-white/95 text-[11.5px] px-3 py-1.5 rounded-full transition flex items-center space-x-1.5 border border-white/15"
             >
               <span>清空</span>
@@ -1087,18 +1055,14 @@ export default function App() {
               </span>
             </button>
 
-            {/* 通話按鈕放大 */}
             <button 
               onClick={handleUserOutgoingCall} 
-              title="通話" 
               className="w-9 h-9 rounded-full bg-white/15 hover:bg-white/25 active:scale-95 flex items-center justify-center transition shadow-sm"
             >
               <svg className="w-4.5 h-4.5 fill-white" viewBox="0 0 24 24"><path d="M6.62 10.79a15.05 15.05 0 006.59 6.59l2.2-2.2a1 1 0 011.02-.24 11.72 11.72 0 003.68.59 1 1 0 011 1v3.5a1 1 0 01-1 1A17 17 0 013 4a1 1 0 011-1h3.5a1 1 0 011 1c0 1.25.2 2.48.59 3.68a1 1 0 01-.24 1.02l-2.23 2.09z" /></svg>
             </button>
-            {/* 視訊按鈕放大 */}
             <button 
               onClick={handleUserOutgoingVideo} 
-              title="視訊通話" 
               className="w-9 h-9 rounded-full bg-white/15 hover:bg-white/25 active:scale-95 flex items-center justify-center transition shadow-sm"
             >
               <svg className="w-5 h-5 fill-white" viewBox="0 0 24 24"><path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z" /></svg>
@@ -1106,91 +1070,85 @@ export default function App() {
           </div>
         </div>
 
-        {/* 對話區 */}
+        {/* 對話區（無置中文字） */}
         <div className="flex-1 overflow-y-auto px-3.5 py-4 space-y-3.5 scroll-smooth">
-          {messages.length > 0 ? (
-            <>
-              <div className="text-center my-1">
-                <span className="bg-slate-300/60 text-slate-600 text-[10px] px-2.5 py-0.5 rounded-full font-medium">今天</span>
-              </div>
-
-              {messages.map((msg) => {
-                const isUser = msg.role === 'user';
-                return (
-                  <div key={msg.id} className={`flex items-end ${isUser ? 'justify-end' : 'justify-start'} space-x-1.5`}>
-                    {!isUser && (
-                      <div className="w-8 h-8 rounded-full overflow-hidden shrink-0 mb-1 ring-1 ring-slate-300">
-                        <img src="https://images.plurk.com/6PooPJr1YbOhrMp5CCFdbl.jpg" alt="avatar" className="w-full h-full object-cover" />
-                      </div>
-                    )}
-
-                    {isUser && (
-                      <div className="flex flex-col items-end text-[9px] text-teal-800/80 pr-1 leading-tight font-light">
-                        <span className="text-teal-700 font-medium">已讀</span>
-                        <span>{msg.time}</span>
-                      </div>
-                    )}
-
-                    {msg.type === 'call_record' ? (
-                      <div className="flex items-center space-x-2.5 bg-white px-3.5 py-2.5 rounded-2xl shadow-sm border border-slate-200">
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
-                          msg.durationText ? 'bg-teal-50 text-[#4E727A]' : 'bg-rose-50 text-rose-500'
-                        }`}>
-                          <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
-                            <path d="M6.62 10.79a15.05 15.05 0 006.59 6.59l2.2-2.2a1 1 0 011.02-.24 11.72 11.72 0 003.68.59 1 1 0 011 1v3.5a1 1 0 01-1 1A17 17 0 013 4a1 1 0 011-1h3.5a1 1 0 011 1c0 1.25.2 2.48.59 3.68a1 1 0 01-.24 1.02l-2.23 2.09z" />
-                          </svg>
-                        </div>
-                        <div className="flex flex-col">
-                          <span className={`text-xs font-medium ${msg.durationText ? 'text-slate-800' : 'text-rose-600'}`}>
-                            {msg.statusText}
-                          </span>
-                          <span className="text-[9px] text-slate-400">
-                            {msg.durationText ? '通話已結束' : '點擊回撥'}
-                          </span>
-                        </div>
-                      </div>
-                    ) : msg.type === 'audio' ? (
-                      <div className="flex flex-col space-y-1">
-                        <AudioBubble audioSrc={msg.audioSrc} durationText={msg.durationText} />
-                        {msg.content && <span className="text-[11px] text-slate-600 pl-1 font-light italic">{msg.content}</span>}
-                      </div>
-                    ) : msg.type === 'album_grid' ? (
-                      <div className="flex flex-col bg-white p-1.5 rounded-2xl max-w-[280px] shadow-sm border border-slate-200/80">
-                        <div className="grid grid-cols-3 gap-1 rounded-xl overflow-hidden">
-                          {msg.images.map((img, i) => (
-                            <a key={i} href={img} target="_blank" rel="noreferrer" className="block aspect-[3/4] overflow-hidden bg-slate-100">
-                              <img src={img} alt="Cut" loading="lazy" className="w-full h-full object-cover hover:scale-105 transition duration-200" />
-                            </a>
-                          ))}
-                        </div>
-                      </div>
-                    ) : msg.type === 'photo' ? (
-                      <div className="max-w-[70%] rounded-2xl overflow-hidden shadow-md border border-slate-200">
-                        <img src={msg.imageUrl} alt="selfie" className="w-full max-h-72 object-cover" />
-                      </div>
-                    ) : (
-                      <div className={`max-w-[72%] rounded-2xl px-3.5 py-2 text-[13.5px] leading-relaxed shadow-sm ${
-                        isUser ? 'bg-[#81D4D2] text-[#0F3332] rounded-tr-none' : 'bg-white text-slate-900 rounded-tl-none border border-slate-200/60'
-                      }`}>
-                        {msg.replyTo && (
-                          <div className="mb-1.5 px-2 py-1 bg-slate-100/90 rounded-md border-l-2 border-[#5FBDB9] text-[11px] text-slate-500 line-clamp-1">
-                            回覆: {msg.replyTo}
-                          </div>
-                        )}
-                        <p className="whitespace-pre-wrap">{msg.content}</p>
-                      </div>
-                    )}
-
-                    {!isUser && <span className="text-[9px] text-slate-400 pl-1 leading-tight font-light">{msg.time}</span>}
-                  </div>
-                );
-              })}
-            </>
-          ) : (
-            <div className="h-full flex items-center justify-center text-slate-400 text-xs font-light">
-              暫無對話紀錄
+          {messages.length > 0 && (
+            <div className="text-center my-1">
+              <span className="bg-slate-300/60 text-slate-600 text-[10px] px-2.5 py-0.5 rounded-full font-medium">今天</span>
             </div>
           )}
+
+          {messages.map((msg) => {
+            const isUser = msg.role === 'user';
+            return (
+              <div key={msg.id} className={`flex items-end ${isUser ? 'justify-end' : 'justify-start'} space-x-1.5`}>
+                {!isUser && (
+                  <div className="w-8 h-8 rounded-full overflow-hidden shrink-0 mb-1 ring-1 ring-slate-300">
+                    <img src="https://images.plurk.com/6PooPJr1YbOhrMp5CCFdbl.jpg" alt="avatar" className="w-full h-full object-cover" />
+                  </div>
+                )}
+
+                {isUser && (
+                  <div className="flex flex-col items-end text-[9px] text-teal-800/80 pr-1 leading-tight font-light">
+                    <span className="text-teal-700 font-medium">已讀</span>
+                    <span>{msg.time}</span>
+                  </div>
+                )}
+
+                {msg.type === 'call_record' ? (
+                  <div className="flex items-center space-x-2.5 bg-white px-3.5 py-2.5 rounded-2xl shadow-sm border border-slate-200">
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
+                      msg.durationText ? 'bg-teal-50 text-[#4E727A]' : 'bg-rose-50 text-rose-500'
+                    }`}>
+                      <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
+                        <path d="M6.62 10.79a15.05 15.05 0 006.59 6.59l2.2-2.2a1 1 0 011.02-.24 11.72 11.72 0 003.68.59 1 1 0 011 1v3.5a1 1 0 01-1 1A17 17 0 013 4a1 1 0 011-1h3.5a1 1 0 011 1c0 1.25.2 2.48.59 3.68a1 1 0 01-.24 1.02l-2.23 2.09z" />
+                      </svg>
+                    </div>
+                    <div className="flex flex-col">
+                      <span className={`text-xs font-medium ${msg.durationText ? 'text-slate-800' : 'text-rose-600'}`}>
+                        {msg.statusText}
+                      </span>
+                      <span className="text-[9px] text-slate-400">
+                        {msg.durationText ? '通話已結束' : '點擊回撥'}
+                      </span>
+                    </div>
+                  </div>
+                ) : msg.type === 'audio' ? (
+                  <div className="flex flex-col space-y-1">
+                    <AudioBubble audioSrc={msg.audioSrc} />
+                    {msg.content && <span className="text-[11px] text-slate-600 pl-1 font-light italic">{msg.content}</span>}
+                  </div>
+                ) : msg.type === 'album_grid' ? (
+                  <div className="flex flex-col bg-white p-1.5 rounded-2xl max-w-[280px] shadow-sm border border-slate-200/80">
+                    <div className="grid grid-cols-3 gap-1 rounded-xl overflow-hidden">
+                      {msg.images.map((img, i) => (
+                        <a key={i} href={img} target="_blank" rel="noreferrer" className="block aspect-[3/4] overflow-hidden bg-slate-100">
+                          <img src={img} alt="Cut" loading="lazy" className="w-full h-full object-cover hover:scale-105 transition duration-200" />
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                ) : msg.type === 'photo' ? (
+                  <div className="max-w-[70%] rounded-2xl overflow-hidden shadow-md border border-slate-200">
+                    <img src={msg.imageUrl} alt="selfie" className="w-full max-h-72 object-cover" />
+                  </div>
+                ) : (
+                  <div className={`max-w-[72%] rounded-2xl px-3.5 py-2 text-[13.5px] leading-relaxed shadow-sm ${
+                    isUser ? 'bg-[#81D4D2] text-[#0F3332] rounded-tr-none' : 'bg-white text-slate-900 rounded-tl-none border border-slate-200/60'
+                  }`}>
+                    {msg.replyTo && (
+                      <div className="mb-1.5 px-2 py-1 bg-slate-100/90 rounded-md border-l-2 border-[#5FBDB9] text-[11px] text-slate-500 line-clamp-1">
+                        回覆: {msg.replyTo}
+                      </div>
+                    )}
+                    <p className="whitespace-pre-wrap">{msg.content}</p>
+                  </div>
+                )}
+
+                {!isUser && <span className="text-[9px] text-slate-400 pl-1 leading-tight font-light">{msg.time}</span>}
+              </div>
+            );
+          })}
 
           {isTyping && (
             <div className="flex items-center space-x-1.5 justify-start">
@@ -1212,21 +1170,18 @@ export default function App() {
         <div className="bg-slate-900/10 px-2.5 py-2 flex space-x-2 overflow-x-auto border-t border-slate-200/80 z-10 scrollbar-none shrink-0">
           <button 
             onClick={() => triggerIncomingCall('audio', 'normal')} 
-            title="洙赫打電話給你" 
             className="text-[12px] whitespace-nowrap bg-teal-50 hover:bg-teal-100 text-teal-800 font-semibold px-3 py-1.5 rounded-full shadow-sm border border-teal-300/80 transition shrink-0 active:scale-95"
           >
             📞
           </button>
           <button 
             onClick={triggerManualText} 
-            title="洙赫傳日常訊息" 
             className="text-[12px] whitespace-nowrap bg-teal-50 hover:bg-teal-100 text-teal-800 font-semibold px-3 py-1.5 rounded-full shadow-sm border border-teal-300/80 transition shrink-0 active:scale-95"
           >
             💬
           </button>
           <button 
             onClick={triggerManualVoice} 
-            title="洙赫傳隨機語音" 
             className="text-[12px] whitespace-nowrap bg-teal-50 hover:bg-teal-100 text-teal-800 font-semibold px-3 py-1.5 rounded-full shadow-sm border border-teal-300/80 transition shrink-0 active:scale-95"
           >
             📼
@@ -1234,36 +1189,34 @@ export default function App() {
 
           <div className="w-[1px] h-6 bg-slate-300/80 my-auto shrink-0" />
 
-          <button onClick={() => triggerCategoryRandom('gym')} title="健身" className="text-[12px] whitespace-nowrap bg-white hover:bg-slate-50 text-slate-800 font-medium px-3 py-1.5 rounded-full shadow-sm border border-slate-200 transition shrink-0 active:scale-95">
+          <button onClick={() => triggerCategoryRandom('gym')} className="text-[12px] whitespace-nowrap bg-white hover:bg-slate-50 text-slate-800 font-medium px-3 py-1.5 rounded-full shadow-sm border border-slate-200 transition shrink-0 active:scale-95">
             🏋️
           </button>
-          <button onClick={() => triggerCategoryRandom('car')} title="車內自拍" className="text-[12px] whitespace-nowrap bg-white hover:bg-slate-50 text-slate-800 font-medium px-3 py-1.5 rounded-full shadow-sm border border-slate-200 transition shrink-0 active:scale-95">
+          <button onClick={() => triggerCategoryRandom('car')} className="text-[12px] whitespace-nowrap bg-white hover:bg-slate-50 text-slate-800 font-medium px-3 py-1.5 rounded-full shadow-sm border border-slate-200 transition shrink-0 active:scale-95">
             🚘
           </button>
-          <button onClick={() => triggerCategoryRandom('selfie')} title="自拍" className="text-[12px] whitespace-nowrap bg-white hover:bg-slate-50 text-slate-800 font-medium px-3 py-1.5 rounded-full shadow-sm border border-slate-200 transition shrink-0 active:scale-95">
+          <button onClick={() => triggerCategoryRandom('selfie')} className="text-[12px] whitespace-nowrap bg-white hover:bg-slate-50 text-slate-800 font-medium px-3 py-1.5 rounded-full shadow-sm border border-slate-200 transition shrink-0 active:scale-95">
             📷
           </button>
-          <button onClick={() => triggerCategoryRandom('gd')} title="志龍同遊" className="text-[12px] whitespace-nowrap bg-white hover:bg-slate-50 text-slate-800 font-medium px-3 py-1.5 rounded-full shadow-sm border border-slate-200 transition shrink-0 active:scale-95">
+          <button onClick={() => triggerCategoryRandom('gd')} className="text-[12px] whitespace-nowrap bg-white hover:bg-slate-50 text-slate-800 font-medium px-3 py-1.5 rounded-full shadow-sm border border-slate-200 transition shrink-0 active:scale-95">
             🐲
           </button>
-          <button onClick={() => triggerCategoryRandom('outing')} title="出門玩" className="text-[12px] whitespace-nowrap bg-white hover:bg-slate-50 text-slate-800 font-medium px-3 py-1.5 rounded-full shadow-sm border border-slate-200 transition shrink-0 active:scale-95">
+          <button onClick={() => triggerCategoryRandom('outing')} className="text-[12px] whitespace-nowrap bg-white hover:bg-slate-50 text-slate-800 font-medium px-3 py-1.5 rounded-full shadow-sm border border-slate-200 transition shrink-0 active:scale-95">
             🎡
           </button>
-          <button onClick={() => triggerCategoryRandom('magazine')} title="雜誌畫報" className="text-[12px] whitespace-nowrap bg-white hover:bg-slate-50 text-slate-800 font-medium px-3 py-1.5 rounded-full shadow-sm border border-slate-200 transition shrink-0 active:scale-95">
+          <button onClick={() => triggerCategoryRandom('magazine')} className="text-[12px] whitespace-nowrap bg-white hover:bg-slate-50 text-slate-800 font-medium px-3 py-1.5 rounded-full shadow-sm border border-slate-200 transition shrink-0 active:scale-95">
             🐈‍⬛
           </button>
-          <button onClick={() => triggerCategoryRandom('official')} title="出席活動" className="text-[12px] whitespace-nowrap bg-white hover:bg-slate-50 text-slate-800 font-medium px-3 py-1.5 rounded-full shadow-sm border border-slate-200 transition shrink-0 active:scale-95">
+          <button onClick={() => triggerCategoryRandom('official')} className="text-[12px] whitespace-nowrap bg-white hover:bg-slate-50 text-slate-800 font-medium px-3 py-1.5 rounded-full shadow-sm border border-slate-200 transition shrink-0 active:scale-95">
             ✨
           </button>
         </div>
 
-        {/* 🌟 ＋號打開：無中文，純單色幾何向量 Icon 按鈕 */}
+        {/* ＋號選單 */}
         {isPlusMenuOpen && (
           <div className="bg-[#4E727A]/95 backdrop-blur-md px-6 py-4 flex justify-around items-center border-t border-[#3D5C63] z-20 animate-fade-in shadow-xl">
-            {/* 相簿 (單色相框/圖片向量) */}
             <button 
               onClick={() => { setActiveModal('album'); setSelectedAlbumName(null); setIsPlusMenuOpen(false); }} 
-              title="Albums"
               className="w-13 h-13 rounded-2xl bg-white/10 hover:bg-white/20 active:scale-90 flex items-center justify-center transition border border-white/10 shadow-sm"
             >
               <svg className="w-6 h-6 fill-white" viewBox="0 0 24 24">
@@ -1271,10 +1224,8 @@ export default function App() {
               </svg>
             </button>
 
-            {/* 行事曆 (單色日曆向量) */}
             <button 
               onClick={() => { setActiveModal('calendar'); setIsPlusMenuOpen(false); }} 
-              title="Calendar"
               className="w-13 h-13 rounded-2xl bg-white/10 hover:bg-white/20 active:scale-90 flex items-center justify-center transition border border-white/10 shadow-sm"
             >
               <svg className="w-6 h-6 fill-white" viewBox="0 0 24 24">
@@ -1282,10 +1233,8 @@ export default function App() {
               </svg>
             </button>
 
-            {/* FEED (單色報刊/畫報向量) */}
             <button 
               onClick={() => { setActiveModal('feed'); setIsPlusMenuOpen(false); }} 
-              title="Feed"
               className="w-13 h-13 rounded-2xl bg-white/10 hover:bg-white/20 active:scale-90 flex items-center justify-center transition border border-white/10 shadow-sm"
             >
               <svg className="w-6 h-6 fill-white" viewBox="0 0 24 24">
@@ -1293,10 +1242,8 @@ export default function App() {
               </svg>
             </button>
 
-            {/* 語音庫 (單色錄音帶/卡帶向量) */}
             <button 
               onClick={() => { setActiveModal('voices'); setIsPlusMenuOpen(false); }} 
-              title="Audio Files"
               className="w-13 h-13 rounded-2xl bg-white/10 hover:bg-white/20 active:scale-90 flex items-center justify-center transition border border-white/10 shadow-sm"
             >
               <svg className="w-6 h-6 fill-white" viewBox="0 0 24 24">
@@ -1331,27 +1278,19 @@ export default function App() {
           </button>
         </div>
 
-        {/* 🌟 彈出視窗 1️⃣：相簿功能 (Bar加寬、字體放大、寫Albums) */}
+        {/* 彈出視窗 1️⃣：Albums (無按鈕，純滑動返回) */}
         {activeModal === 'album' && (
-          <div className="absolute inset-0 bg-[#0B1120] z-50 flex flex-col text-white backdrop-blur-md animate-fade-in">
+          <div 
+            className="absolute inset-0 bg-[#0B1120] z-50 flex flex-col text-white backdrop-blur-md animate-fade-in"
+            onTouchStart={handleTouchStart}
+            onTouchEnd={handleTouchEnd}
+          >
             {selectedAlbumName && activeAlbumDetail ? (
               <div className="flex-1 flex flex-col overflow-hidden">
-                <div className="pt-12 pb-5 px-5 bg-[#4E727A] flex items-center justify-between border-b border-[#3D5C63] shadow-md shrink-0">
-                  <button 
-                    onClick={() => setSelectedAlbumName(null)}
-                    className="flex items-center space-x-1 text-sm text-teal-100 hover:text-white px-2.5 py-1 rounded bg-white/10 transition active:scale-95 font-medium"
-                  >
-                    <span>‹ 返回相簿</span>
-                  </button>
-                  <span className="text-sm font-semibold text-teal-50 truncate max-w-[200px]">
+                <div className="pt-12 pb-5 px-5 bg-[#4E727A] flex items-center justify-center border-b border-[#3D5C63] shadow-md shrink-0">
+                  <span className="font-bold text-lg text-white truncate max-w-[280px]">
                     {activeAlbumDetail.title}
                   </span>
-                  <button 
-                    onClick={() => { setSelectedAlbumName(null); setActiveModal(null); }} 
-                    className="text-sm text-teal-100 hover:text-white px-2.5 py-1 font-medium"
-                  >
-                    關閉
-                  </button>
                 </div>
 
                 <div className="flex-1 overflow-y-auto p-2">
@@ -1377,17 +1316,11 @@ export default function App() {
               </div>
             ) : (
               <div className="flex-1 flex flex-col overflow-hidden">
-                <div className="pt-12 pb-5 px-5 bg-[#4E727A] flex items-center justify-between border-b border-[#3D5C63] shadow-md shrink-0">
-                  <div className="flex flex-col">
+                <div className="pt-12 pb-5 px-5 bg-[#4E727A] flex items-center justify-center border-b border-[#3D5C63] shadow-md shrink-0">
+                  <div className="flex flex-col items-center">
                     <span className="font-bold text-lg tracking-wide text-white">Albums</span>
                     <span className="text-[11px] text-teal-100/75 mt-0.5 font-mono">共 {albumList.length} 本企劃畫報</span>
                   </div>
-                  <button 
-                    onClick={() => setActiveModal(null)} 
-                    className="text-sm text-teal-100 hover:text-white px-3 py-1 rounded-md bg-white/10 font-medium"
-                  >
-                    關閉
-                  </button>
                 </div>
 
                 <div className="flex-1 flex overflow-x-auto snap-x snap-mandatory scrollbar-none p-4 items-center">
@@ -1449,12 +1382,15 @@ export default function App() {
           </div>
         )}
 
-        {/* 🌟 彈出視窗 2️⃣：行事曆功能 (Bar加寬、字體放大、寫Calendar) */}
+        {/* 彈出視窗 2️⃣：Calendar (只列出當月行程，純滑動返回) */}
         {activeModal === 'calendar' && (
-          <div className="absolute inset-0 bg-slate-950/95 z-50 flex flex-col text-white backdrop-blur-md animate-fade-in">
-            <div className="pt-12 pb-5 px-5 bg-[#4E727A] flex items-center justify-between shadow-md border-b border-[#3D5C63] shrink-0">
+          <div 
+            className="absolute inset-0 bg-slate-950/95 z-50 flex flex-col text-white backdrop-blur-md animate-fade-in"
+            onTouchStart={handleTouchStart}
+            onTouchEnd={handleTouchEnd}
+          >
+            <div className="pt-12 pb-5 px-5 bg-[#4E727A] flex items-center justify-center shadow-md border-b border-[#3D5C63] shrink-0">
               <span className="font-bold text-lg tracking-wide text-white">Calendar</span>
-              <button onClick={() => setActiveModal(null)} className="text-sm text-teal-100 hover:text-white px-3 py-1 rounded-md bg-white/10 font-medium">關閉</button>
             </div>
 
             <div className="flex-1 overflow-y-auto p-4 flex flex-col justify-between">
@@ -1468,10 +1404,10 @@ export default function App() {
                 <div className="grid grid-cols-7 gap-1.5">
                   {Array.from({ length: 35 }).map((_, i) => {
                     const dayNum = i + 1;
-                    const matchedEvents = eventItems.filter(ev => {
+                    const matchedEvents = currentMonthEvents.filter(ev => {
                       if (!ev.date) return false;
-                      const parts = ev.date.split('-');
-                      return parseInt(parts[2], 10) === dayNum;
+                      const parts = ev.date.replace(/[^\d]/g, ' ').trim().split(/\s+/);
+                      return parts.length >= 3 && parseInt(parts[2], 10) === dayNum;
                     });
                     const hasSchedule = matchedEvents.length > 0;
 
@@ -1494,45 +1430,40 @@ export default function App() {
                 </div>
               </div>
 
-              <div className="bg-white/5 rounded-2xl p-3.5 space-y-1.5 border border-white/10 mt-4 max-h-48 overflow-y-auto">
-                <span className="text-xs font-semibold text-[#81D4D2]">近期重點行程</span>
-                {eventItems.length > 0 ? (
-                  eventItems.map((ev, idx) => (
-                    <p key={idx} className="text-[11px] text-slate-300">
-                      {ev.date} {ev.title} {ev.status ? `(${ev.status})` : ''}
-                    </p>
+              {/* 只列出當月重點行程 */}
+              <div className="bg-white/5 rounded-2xl p-4 space-y-2 border border-white/10 mt-4 max-h-52 overflow-y-auto">
+                <span className="text-xs font-semibold text-[#81D4D2] tracking-wider block">11 月重點行程</span>
+                {currentMonthEvents.length > 0 ? (
+                  currentMonthEvents.map((ev, idx) => (
+                    <div key={idx} className="flex items-start space-x-2 text-[11.5px] text-slate-300">
+                      <span className="text-teal-400 font-mono shrink-0">•</span>
+                      <span>
+                        <strong className="text-white font-mono mr-1">{ev.date}</strong>
+                        {ev.title} {ev.status ? `(${ev.status})` : ''}
+                      </span>
+                    </div>
                   ))
                 ) : (
-                  <p className="text-[11px] text-slate-500">暫無行程，請在 media 表格填入 date。</p>
+                  <p className="text-[11px] text-slate-500">本月尚無排定行程。</p>
                 )}
               </div>
             </div>
           </div>
         )}
 
-        {/* 🌟 彈出視窗 3️⃣：FEED (Bar同步加寬、字體放大) */}
+        {/* 彈出視窗 3️⃣：FEED (純滑動返回) */}
         {activeModal === 'feed' && (
-          <div className="absolute inset-0 bg-[#0B1120] z-50 flex flex-col text-slate-100 backdrop-blur-md animate-fade-in">
+          <div 
+            className="absolute inset-0 bg-[#0B1120] z-50 flex flex-col text-slate-100 backdrop-blur-md animate-fade-in"
+            onTouchStart={handleTouchStart}
+            onTouchEnd={handleTouchEnd}
+          >
             {selectedFeedItem ? (
-              <div 
-                className="flex-1 flex flex-col overflow-hidden"
-                onTouchStart={handleTouchStart}
-                onTouchEnd={handleTouchEnd}
-              >
-                <div className="pt-12 pb-5 px-5 bg-[#4E727A] flex items-center justify-between border-b border-[#3D5C63] shadow-md shrink-0">
-                  <button 
-                    onClick={handleBackToFeedList}
-                    className="flex items-center space-x-1 text-sm text-teal-100 hover:text-white px-2.5 py-1 rounded bg-white/10 transition active:scale-95 font-medium"
-                  >
-                    <span>‹ 返回</span>
-                  </button>
-                  <div className="flex-1"></div>
-                  <button 
-                    onClick={() => { setSelectedFeedItem(null); setActiveModal(null); }} 
-                    className="text-sm text-teal-100 hover:text-white px-2.5 py-1 font-medium"
-                  >
-                    關閉
-                  </button>
+              <div className="flex-1 flex flex-col overflow-hidden">
+                <div className="pt-12 pb-5 px-5 bg-[#4E727A] flex items-center justify-center border-b border-[#3D5C63] shadow-md shrink-0">
+                  <span className="font-bold text-lg text-white truncate max-w-[280px]">
+                    {selectedFeedItem.main_title}
+                  </span>
                 </div>
 
                 <div className="flex-1 overflow-y-auto p-4 space-y-5">
@@ -1690,13 +1621,8 @@ export default function App() {
               </div>
             ) : (
               <div className="flex-1 flex flex-col overflow-hidden">
-                <div className="pt-12 pb-5 px-5 bg-[#4E727A] flex items-center justify-between border-b border-[#3D5C63] shadow-md shrink-0">
-                  <div className="flex flex-col">
-                    <span className="font-bold text-lg tracking-wide text-white">FEED</span>
-                  </div>
-                  <button onClick={() => setActiveModal(null)} className="text-sm text-teal-100 hover:text-white px-3 py-1 rounded-md bg-white/10 font-medium">
-                    關閉
-                  </button>
+                <div className="pt-12 pb-5 px-5 bg-[#4E727A] flex items-center justify-center border-b border-[#3D5C63] shadow-md shrink-0">
+                  <span className="font-bold text-lg tracking-wide text-white">FEED</span>
                 </div>
 
                 <div 
@@ -1761,25 +1687,24 @@ export default function App() {
           </div>
         )}
 
-        {/* 🌟 彈出視窗 4️⃣：語音原聲帶庫 (Bar同步加寬、字體放大) */}
+        {/* 彈出視窗 4️⃣：Files (原聲音訊庫，標題寫Files，名稱只抓trigger_content，純滑動返回) */}
         {activeModal === 'voices' && (
-          <div className="absolute inset-0 bg-slate-950/95 z-50 flex flex-col text-white backdrop-blur-md animate-fade-in">
-            <div className="pt-12 pb-5 px-5 bg-[#4E727A] flex items-center justify-between shadow-md border-b border-[#3D5C63]">
-              <div className="flex flex-col">
-                <span className="font-bold text-lg tracking-wide">Audio Files</span>
-                <span className="text-[11px] text-teal-100/75 mt-0.5 font-mono">共 {dynamicVoiceList.length} 首語音紀錄</span>
-              </div>
-              <button onClick={() => setActiveModal(null)} className="text-sm text-teal-100 hover:text-white px-3 py-1 rounded-md bg-white/10 font-medium">關閉</button>
+          <div 
+            className="absolute inset-0 bg-slate-950/95 z-50 flex flex-col text-white backdrop-blur-md animate-fade-in"
+            onTouchStart={handleTouchStart}
+            onTouchEnd={handleTouchEnd}
+          >
+            <div className="pt-12 pb-5 px-5 bg-[#4E727A] flex items-center justify-center shadow-md border-b border-[#3D5C63]">
+              <span className="font-bold text-lg tracking-wide text-white">Files</span>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-4 space-y-2.5">
+            <div className="flex-1 overflow-y-auto p-4 space-y-3">
               {dynamicVoiceList.map((item) => (
-                <div key={item.id} className="bg-slate-900/80 p-3 rounded-2xl border border-white/5 flex items-center justify-between">
-                  <div className="flex flex-col space-y-0.5 max-w-[55%]">
-                    <span className="text-xs font-mono font-medium text-slate-200 truncate">{item.title}</span>
-                    <span className="text-[10px] text-slate-500 font-mono truncate">{item.src}</span>
-                  </div>
-                  <AudioBubble audioSrc={item.src} durationText={item.duration} />
+                <div key={item.id} className="bg-slate-900/80 p-3.5 rounded-2xl border border-white/5 flex items-center justify-between">
+                  <span className="text-[13px] font-medium text-slate-200 truncate max-w-[65%]">
+                    {item.title}
+                  </span>
+                  <AudioBubble audioSrc={item.src} />
                 </div>
               ))}
             </div>
