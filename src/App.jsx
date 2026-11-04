@@ -717,14 +717,12 @@ export default function App() {
     }));
   }, [masterMedia]);
 
-  // Master Media 分流：FEED (同 album_name 多列自動合併整合引擎)
+  // Master Media 分流：FEED (同 album_name 跨列完整聚合，修復剩餘大圖與 Credits)
   const feedItems = React.useMemo(() => {
-    // 依據 album_name 進行群組聚合
     const grouped = {};
 
     masterMedia.forEach(m => {
-      // 判斷是否屬於 FEED (有 news_title, news_summary, 或 interview_id)
-      const hasFeedContent = (m.news_title || m.news_summary || m.interview_id || '').trim().length > 0;
+      const hasFeedContent = (m.news_title || m.news_summary || m.interview_id || m.video_url || '').trim().length > 0;
       if (!hasFeedContent) return;
 
       const groupKey = (m.album_name || m.news_title || m.id).trim();
@@ -739,20 +737,22 @@ export default function App() {
           sub_title: m.news_subtitle || '',
           summary: m.news_summary || '',
           video_url: m.video_url || '',
+          credits: m.credits || '',
           main_images: [],
           layout_images: []
         };
       }
 
-      // 如果其他列有補齊 interview_id 或 news_subtitle，同步覆蓋更新
+      // 補足跨列的資料欄位
       if (m.interview_id && !grouped[groupKey].interview_id) grouped[groupKey].interview_id = m.interview_id.trim();
       if (m.news_subtitle && !grouped[groupKey].sub_title) grouped[groupKey].sub_title = m.news_subtitle.trim();
       if (m.news_summary && !grouped[groupKey].summary) grouped[groupKey].summary = m.news_summary.trim();
       if (m.video_url && !grouped[groupKey].video_url) grouped[groupKey].video_url = m.video_url.trim();
+      if (m.credits && !grouped[groupKey].credits) grouped[groupKey].credits = m.credits.trim();
 
-      // 解析該列圖片
+      // 強化圖片網址解析（支援換行、多空白與逗號切分）
       const raw = (m.images || '').trim();
-      const imgs = raw.split(/[\s,]+/).filter(u => u.startsWith('http'));
+      const imgs = raw.split(/[\s,]+/).map(u => u.trim()).filter(u => u.startsWith('http'));
 
       const isLayout = (m.sub_type || '').toLowerCase().trim() === 'layout';
       if (isLayout) {
@@ -763,15 +763,22 @@ export default function App() {
     });
 
     return Object.values(grouped).map(item => {
-      // 去重
-      const allMainImgs = Array.from(new Set(item.main_images));
-      const allLayoutImgs = Array.from(new Set(item.layout_images));
+      // 依序去重，確保所有相簿圖片皆完整保留
+      const uniqueMain = [];
+      item.main_images.forEach(u => {
+        if (!uniqueMain.includes(u)) uniqueMain.push(u);
+      });
+
+      const uniqueLayout = [];
+      item.layout_images.forEach(u => {
+        if (!uniqueLayout.includes(u)) uniqueLayout.push(u);
+      });
 
       return {
         ...item,
-        hero_image: allMainImgs[0] || allLayoutImgs[0] || null,
-        remaining_images: allMainImgs.slice(1),
-        layout_images: allLayoutImgs
+        hero_image: uniqueMain[0] || uniqueLayout[0] || null,
+        remaining_images: uniqueMain.slice(1), // 扣除第一張 Hero 後的所有照片
+        layout_images: uniqueLayout
       };
     });
   }, [masterMedia]);
@@ -933,7 +940,7 @@ export default function App() {
                   </div>
                 )}
 
-                {/* 通話記錄：圖示完全一致，未接/取消用紅色呈現 */}
+                {/* 通話記錄：圖示一致，未接/取消用紅色呈現 */}
                 {msg.type === 'call_record' ? (
                   <div className="flex items-center space-x-2.5 bg-white px-3.5 py-2.5 rounded-2xl shadow-sm border border-slate-200">
                     <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
@@ -1174,7 +1181,7 @@ export default function App() {
           </div>
         )}
 
-        {/* 彈出視窗 3️⃣：FEED (純粹直排美學，無多餘 tag 與 bar) */}
+        {/* 彈出視窗 3️⃣：FEED (純粹直排美學，排版嚴格重構) */}
         {activeModal === 'feed' && (
           <div className="absolute inset-0 bg-[#0B1120] z-50 flex flex-col text-slate-100 backdrop-blur-md animate-fade-in">
             
@@ -1225,14 +1232,7 @@ export default function App() {
                     </div>
                   )}
 
-                  {/* 3. Summary 摘要內文 */}
-                  {selectedFeedItem.summary && (
-                    <div className="bg-slate-800/40 p-4 rounded-2xl border border-white/5 text-[13px] leading-relaxed text-slate-300 font-light whitespace-pre-wrap">
-                      {selectedFeedItem.summary}
-                    </div>
-                  )}
-
-                  {/* 4. Video 串接預留區 (YouTube Embed) */}
+                  {/* 3. 🌟 順序調前：Video 串接預留區 (YouTube Embed) */}
                   {selectedFeedItem.video_url && getYouTubeEmbedUrl(selectedFeedItem.video_url) && (
                     <div className="rounded-2xl overflow-hidden aspect-video w-full bg-black shadow-lg border border-white/10">
                       <iframe 
@@ -1242,6 +1242,13 @@ export default function App() {
                         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                         allowFullScreen
                       />
+                    </div>
+                  )}
+
+                  {/* 4. 🌟 順序調後：Summary 摘要內文 */}
+                  {selectedFeedItem.summary && (
+                    <div className="bg-slate-800/40 p-4 rounded-2xl border border-white/5 text-[13px] leading-relaxed text-slate-300 font-light whitespace-pre-wrap">
+                      {selectedFeedItem.summary}
                     </div>
                   )}
 
@@ -1256,7 +1263,7 @@ export default function App() {
                     </div>
                   )}
 
-                 {/* 6. Interview 左右對話泡泡 (含 Editorial 居中側寫) */}
+                  {/* 6. Interview 左右對話泡泡 (含 Editorial 居中側寫，無訪談則完全不渲染) */}
                   {currentInterviewDialogue.length > 0 && (
                     <div className="space-y-3.5 pt-4 border-t border-white/10">
                       {currentInterviewDialogue.map((row, idx) => {
@@ -1267,7 +1274,6 @@ export default function App() {
                         const isEditorial = speakerRaw === 'editorial';
                         const isSoo = speakerRaw === 'soo' || speakerRaw.includes('lee');
 
-                        // 置頂引言 Intro
                         if (isIntro) {
                           return (
                             <div key={idx} className="bg-slate-900/90 p-4 rounded-2xl border border-[#81D4D2]/20 text-[12px] leading-relaxed text-slate-300">
@@ -1277,8 +1283,8 @@ export default function App() {
                           );
                         }
 
-                        // 文末名單 Credit
-                        if (isCredit) {
+                        // 如果訪談末尾仍有 credit 且 media 未單獨填寫，此處自動保留呈現
+                        if (isCredit && !selectedFeedItem.credits) {
                           return (
                             <div key={idx} className="bg-black/50 p-4 rounded-2xl border border-white/10 text-[10px] text-slate-400 leading-relaxed font-mono mt-4">
                               <span className="text-[#81D4D2] font-semibold block mb-1">CREDITS</span>
@@ -1287,7 +1293,6 @@ export default function App() {
                           );
                         }
 
-                        // 🌟 新增：Editorial 編輯旁白／側寫（無氣泡、置中純文字）
                         if (isEditorial) {
                           return (
                             <div key={idx} className="my-5 px-6 text-center">
@@ -1299,13 +1304,11 @@ export default function App() {
                           );
                         }
 
-                        // Q (靠左) 與 Soo (靠右) 氣泡
                         return (
                           <div 
                             key={idx} 
                             className={`w-full flex items-end ${isSoo ? 'justify-end' : 'justify-start'} space-x-2`}
                           >
-                            {/* 採訪者 Q 靠左 */}
                             {!isSoo && (
                               <div className="w-7 h-7 rounded-full bg-slate-700/80 flex items-center justify-center text-[10px] font-bold text-slate-200 shrink-0 mb-1 border border-slate-600">
                                 Q
@@ -1323,7 +1326,6 @@ export default function App() {
                               <p className="whitespace-pre-wrap">{row.content}</p>
                             </div>
 
-                            {/* 洙赫 Soo 頭像靠右 */}
                             {isSoo && (
                               <div className="w-7 h-7 rounded-full overflow-hidden shrink-0 mb-1 ring-1 ring-[#81D4D2]/40">
                                 <img src="https://images.plurk.com/6PooPJr1YbOhrMp5CCFdbl.jpg" alt="Soo" className="w-full h-full object-cover" />
@@ -1335,7 +1337,7 @@ export default function App() {
                     </div>
                   )}
 
-                  {/* 7. 剩下的圖片 (Remaining Images 直排瀑布流，無 bar) */}
+                  {/* 7. 🌟 剩餘的所有照片 (Remaining Images，已修復跨列多圖抓取) */}
                   {selectedFeedItem.remaining_images && selectedFeedItem.remaining_images.length > 0 && (
                     <div className="space-y-3 pt-2">
                       {selectedFeedItem.remaining_images.map((imgUrl, rIdx) => (
@@ -1350,10 +1352,18 @@ export default function App() {
                       ))}
                     </div>
                   )}
+
+                  {/* 8. 🌟 Credits (來自 media 表格獨立欄位，置底顯示) */}
+                  {selectedFeedItem.credits && (
+                    <div className="bg-black/50 p-4 rounded-2xl border border-white/10 text-[10.5px] text-slate-400 leading-relaxed font-mono mt-6">
+                      <span className="text-[#81D4D2] font-semibold block mb-1">CREDITS</span>
+                      <p className="whitespace-pre-wrap">{selectedFeedItem.credits}</p>
+                    </div>
+                  )}
                 </div>
               </div>
             ) : (
-              /* FEED 列表 View (無 Tag，純淨日期) */
+              /* FEED 列表 View */
               <div className="flex-1 flex flex-col overflow-hidden">
                 <div className="pt-12 pb-3 px-4 bg-[#4E727A] flex items-center justify-between border-b border-[#3D5C63] shadow shrink-0">
                   <div className="flex flex-col">
