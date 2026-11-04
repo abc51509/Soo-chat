@@ -137,7 +137,7 @@ const sendNotification = (title, body) => {
   }
 };
 
-// 語音氣泡元件（加長寬度，貼近短檔名）
+// 語音氣泡元件
 const AudioBubble = ({ audioSrc }) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const audioRef = useRef(null);
@@ -260,7 +260,7 @@ export default function App() {
   const ringingTimeoutRef = useRef(null);
   const messagesEndRef = useRef(null);
 
-  // 🌟 初始化請求瀏覽器系統通知權限
+  // 請求瀏覽器系統通知權限
   useEffect(() => {
     if (typeof window !== 'undefined' && 'Notification' in window) {
       if (Notification.permission === 'default') {
@@ -307,7 +307,7 @@ export default function App() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isTyping]);
 
-  // 動態音訊庫清單（嚴格只從 dialogues 的 trigger_content 抓名稱）
+  // 動態音訊庫清單
   const dynamicVoiceList = React.useMemo(() => {
     const audioDiags = dialogueList.filter(d => (d.type || '').trim().toLowerCase() === 'audio');
 
@@ -324,7 +324,6 @@ export default function App() {
     });
   }, [dialogueList]);
 
-  // 返回列表時還原滾動位置
   useEffect(() => {
     if (!selectedFeedItem && feedListScrollRef.current && feedScrollPosition > 0) {
       feedListScrollRef.current.scrollTop = feedScrollPosition;
@@ -851,7 +850,7 @@ export default function App() {
     return pages;
   }, [albumList]);
 
-  // 當月行程過濾（精確過濾 2026 年 11 月）
+  // 當月行程過濾（2026 年 11 月）
   const currentMonthEvents = React.useMemo(() => {
     return masterMedia
       .filter(m => {
@@ -1251,42 +1250,46 @@ export default function App() {
           </button>
         </div>
 
-        {/* ＋號選單 */}
+        {/* 🌟 ＋號選單：無底色塊，直接呈現純白向量圖示；順序：相簿 ➔ 檔案 ➔ 日曆 ➔ FEED */}
         {isPlusMenuOpen && (
           <div className="bg-[#4E727A]/95 backdrop-blur-md px-6 py-4 flex justify-around items-center border-t border-[#3D5C63] z-20 animate-fade-in shadow-xl">
+            {/* 1. 相簿 (ALBUM) */}
             <button 
               onClick={() => { setActiveModal('album'); setSelectedAlbumName(null); setIsPlusMenuOpen(false); }} 
-              className="w-13 h-13 rounded-2xl bg-white/10 hover:bg-white/20 active:scale-90 flex items-center justify-center transition border border-white/10 shadow-sm"
+              className="p-2 active:scale-75 transition"
             >
-              <svg className="w-6 h-6 fill-white" viewBox="0 0 24 24">
+              <svg className="w-7 h-7 fill-white" viewBox="0 0 24 24">
                 <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/>
               </svg>
             </button>
 
+            {/* 2. 檔案 (FILE) */}
+            <button 
+              onClick={() => { setActiveModal('voices'); setIsPlusMenuOpen(false); }} 
+              className="p-2 active:scale-75 transition"
+            >
+              <svg className="w-7 h-7 fill-white" viewBox="0 0 24 24">
+                <path d="M19 4H5c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm-1 12H6c-.55 0-1-.45-1-1V9c0-.55.45-1 1-1h12c.55 0 1 .45 1 1v6c0 .55-.45 1-1 1zM7.5 11c-.83 0-1.5.67-1.5 1.5S6.67 14 7.5 14s1.5-.67 1.5-1.5S8.33 11 7.5 11zm9 0c-.83 0-1.5.67-1.5 1.5s.67 1.5 1.5 1.5 1.5-.67 1.5-1.5-.67-1.5-1.5-1.5z"/>
+              </svg>
+            </button>
+
+            {/* 3. 日曆 (CALENDAR) */}
             <button 
               onClick={() => { setActiveModal('calendar'); setIsPlusMenuOpen(false); }} 
-              className="w-13 h-13 rounded-2xl bg-white/10 hover:bg-white/20 active:scale-90 flex items-center justify-center transition border border-white/10 shadow-sm"
+              className="p-2 active:scale-75 transition"
             >
-              <svg className="w-6 h-6 fill-white" viewBox="0 0 24 24">
+              <svg className="w-7 h-7 fill-white" viewBox="0 0 24 24">
                 <path d="M19 4h-1V2h-2v2H8V2H6v2H5c-1.11 0-1.99.9-1.99 2L3 20c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V10h14v10zm0-12H5V6h14v2zm-7 5h5v5h-5z"/>
               </svg>
             </button>
 
+            {/* 4. FEED */}
             <button 
               onClick={() => { setActiveModal('feed'); setIsPlusMenuOpen(false); }} 
-              className="w-13 h-13 rounded-2xl bg-white/10 hover:bg-white/20 active:scale-90 flex items-center justify-center transition border border-white/10 shadow-sm"
+              className="p-2 active:scale-75 transition"
             >
-              <svg className="w-6 h-6 fill-white" viewBox="0 0 24 24">
+              <svg className="w-7 h-7 fill-white" viewBox="0 0 24 24">
                 <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/>
-              </svg>
-            </button>
-
-            <button 
-              onClick={() => { setActiveModal('voices'); setIsPlusMenuOpen(false); }} 
-              className="w-13 h-13 rounded-2xl bg-white/10 hover:bg-white/20 active:scale-90 flex items-center justify-center transition border border-white/10 shadow-sm"
-            >
-              <svg className="w-6 h-6 fill-white" viewBox="0 0 24 24">
-                <path d="M19 4H5c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm-1 12H6c-.55 0-1-.45-1-1V9c0-.55.45-1 1-1h12c.55 0 1 .45 1 1v6c0 .55-.45 1-1 1zM7.5 11c-.83 0-1.5.67-1.5 1.5S6.67 14 7.5 14s1.5-.67 1.5-1.5S8.33 11 7.5 11zm9 0c-.83 0-1.5.67-1.5 1.5s.67 1.5 1.5 1.5 1.5-.67 1.5-1.5-.67-1.5-1.5-1.5z"/>
               </svg>
             </button>
           </div>
@@ -1479,7 +1482,7 @@ export default function App() {
           </div>
         )}
 
-        {/* 彈出視窗 3️⃣：FEED (內頁頂部完全留白無標題，列表時間下移至 Read More 前面，Source 空間翻倍) */}
+        {/* 彈出視窗 3️⃣：FEED (中空外框字 Source、時間置於 Read More 前方) */}
         {activeModal === 'feed' && (
           <div 
             className="absolute inset-0 bg-[#0B1120] z-50 flex flex-col text-slate-100 backdrop-blur-md animate-fade-in"
@@ -1488,7 +1491,6 @@ export default function App() {
           >
             {selectedFeedItem ? (
               <div className="flex-1 flex flex-col overflow-hidden">
-                {/* 🌟 頂部 Bar 完全留白，高度一致無文字 */}
                 <div className="pt-12 pb-5 px-5 bg-[#4E727A] border-b border-[#3D5C63] shadow-md shrink-0 h-24"></div>
 
                 <div className="flex-1 overflow-y-auto p-4 space-y-5">
@@ -1663,9 +1665,15 @@ export default function App() {
                           className="bg-[#1E293B]/75 rounded-2xl border border-slate-700/60 p-2.5 flex flex-col justify-between space-y-2 shadow-sm hover:border-[#81D4D2]/60 hover:bg-[#1E293B] cursor-pointer transition active:scale-[0.97]"
                         >
                           <div>
-                            {/* 🌟 頂部整行完整讓給 Source，不再受時間壓縮 */}
+                            {/* 🌟 Source 改為中空外框字 (Outline / Hollow Text) */}
                             <div className="mb-2">
-                              <span className="font-black text-xl text-[#81D4D2] tracking-tight truncate block leading-tight">
+                              <span 
+                                className="font-black text-xl tracking-tight truncate block leading-tight text-transparent select-none"
+                                style={{
+                                  WebkitTextStroke: '1.5px #81D4D2',
+                                  textStroke: '1.5px #81D4D2'
+                                }}
+                              >
                                 {item.source || 'FEED'}
                               </span>
                             </div>
@@ -1693,7 +1701,7 @@ export default function App() {
                             </div>
                           </div>
 
-                          {/* 🌟 時間改到 Read More 前面，兩端齊平 */}
+                          {/* 時間與 Read More */}
                           <div className="pt-2 flex items-center justify-between text-[10px] border-t border-white/5">
                             <span className="text-slate-400 font-mono text-[9px] truncate mr-1">
                               {item.time_text}
