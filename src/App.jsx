@@ -74,7 +74,7 @@ const formatAudioUrl = (raw) => {
   return '/' + clean;
 };
 
-// 原始語音檔列表（排除 telepathy 2025.mp3，名稱依檔名轉空白）
+// 原始語音檔列表
 const RAW_AUDIO_FILES = [
   '1_get up_cozy.mp3',
   '2_plz_get_up.mp3',
@@ -187,7 +187,7 @@ export default function App() {
   const [foodWeights, setFoodWeights] = useState([]);
   const [interviewData, setInterviewData] = useState([]);
 
-  // 追問對話隊列（物件結構：{ replyText: '', replyTo: '前置訊息' }，支援回覆機制）
+  // 追問對話隊列
   const [followUpQueue, setFollowUpQueue] = useState(() => {
     try {
       const saved = localStorage.getItem('soo_follow_up_queue_v2');
@@ -201,8 +201,8 @@ export default function App() {
     return localStorage.getItem('soo_awoken_date') || '';
   });
 
-  const [callStatus, setCallStatus] = useState('idle'); // 'idle' | 'ringing' | 'connected'
-  const [callType, setCallType] = useState('audio'); // 'audio' | 'video'
+  const [callStatus, setCallStatus] = useState('idle');
+  const [callType, setCallType] = useState('audio');
   const [callDuration, setCallDuration] = useState(0);
   const [isVideoCalling, setIsVideoCalling] = useState(false);
   const [videoDuration, setVideoDuration] = useState(0);
@@ -210,7 +210,9 @@ export default function App() {
   const [isPlusMenuOpen, setIsPlusMenuOpen] = useState(false);
   const [activeModal, setActiveModal] = useState(null);
   const [activeAlbumTab, setActiveAlbumTab] = useState('all');
-  const [activeInterviewId, setActiveInterviewId] = useState('');
+  
+  // FEED 詳情頁專用狀態
+  const [selectedFeedItem, setSelectedFeedItem] = useState(null);
 
   const ringAudioRef = useRef(null);
   const phoneCallAudioRef = useRef(null);
@@ -234,7 +236,6 @@ export default function App() {
     }
   }, [followUpQueue]);
 
-  // 單次讀取所有分頁
   const loadDatabase = async () => {
     const [mediaRows, diagRows, foodRows, interviewRows] = await Promise.all([
       fetchSheetData('media'),
@@ -246,10 +247,7 @@ export default function App() {
     if (mediaRows && mediaRows.length > 0) setMasterMedia(mediaRows);
     if (diagRows && diagRows.length > 0) setDialogueList(diagRows);
     if (foodRows && foodRows.length > 0) setFoodWeights(foodRows);
-    if (interviewRows && interviewRows.length > 0) {
-      setInterviewData(interviewRows);
-      setActiveInterviewId(interviewRows[0]?.interview_id || '');
-    }
+    if (interviewRows && interviewRows.length > 0) setInterviewData(interviewRows);
   };
 
   useEffect(() => {
@@ -266,7 +264,7 @@ export default function App() {
     return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
   };
 
-  // 連發氣泡引擎（支援 ; 切分，支援引用回覆 replyTo）
+  // 連發氣泡引擎
   const sendStaggeredMessages = async (textBlock, options = {}) => {
     if (!textBlock) return;
     const bubbles = textBlock.split(/;|\n/).map(s => s.trim()).filter(Boolean);
@@ -365,7 +363,7 @@ export default function App() {
     sendStaggeredMessages(comment);
   };
 
-  // 抽出物件中所有後續追問內容（全相容 follow_ups, follow_up_1, 2, 3）
+  // 抽出所有追問內容
   const extractAllFollowUps = (item, baseTitle = '') => {
     const list = [];
     if (item.follow_ups) {
@@ -395,7 +393,7 @@ export default function App() {
     }, 800);
   };
 
-  // 來電觸發（延長至 8 秒）
+  // 來電觸發 (8 秒超時)
   const triggerIncomingCall = (type = 'audio', scenario = 'normal') => {
     setCallType(type);
     setCallStatus('ringing');
@@ -419,7 +417,7 @@ export default function App() {
         }
         return current;
       });
-    }, 8000); // 延長至 8 秒
+    }, 8000);
   };
 
   const handleAcceptCall = () => {
@@ -483,7 +481,7 @@ export default function App() {
     setIsVideoCalling(true);
   };
 
-  // 早晨喚醒機制（維持每 30 分鐘追催）
+  // 早晨喚醒機制
   useEffect(() => {
     const checkWakeupSchedule = () => {
       const todayStr = getTodayDateStr();
@@ -528,7 +526,7 @@ export default function App() {
     return () => clearInterval(interval);
   }, [awokenDate]);
 
-  // 使用者傳訊（支援回覆機制，取消時效性中斷）
+  // 使用者傳訊
   const handleSend = () => {
     if (!inputText.trim() || isTyping) return;
     const currentInput = inputText.trim();
@@ -543,7 +541,6 @@ export default function App() {
     setMessages(prev => [...prev, userMsg]);
     setInputText('');
 
-    // 解除晨喚
     if (currentInput.includes('起床')) {
       const todayStr = getTodayDateStr();
       setAwokenDate(todayStr);
@@ -555,13 +552,11 @@ export default function App() {
       return;
     }
 
-    // 吃什麼輪盤
     if (/吃什麼|想吃|晚餐|午餐|宵夜|吃啥/.test(currentInput)) {
       triggerFoodRoulette();
       return;
     }
 
-    // 若有待續的 follow_up 隊列：直接取出下一句，並帶入 replyTo 產生引用回覆
     if (followUpQueue.length > 0) {
       const [nextItem, ...remaining] = followUpQueue;
       setFollowUpQueue(remaining);
@@ -572,7 +567,6 @@ export default function App() {
       return;
     }
 
-    // 無隊列時：隨機日常台詞，並將該台詞的所有 follow_ups 完整收錄
     const textDiags = dialogueList.filter(d => (d.type || '').trim().toLowerCase() === 'text');
     const picked = textDiags.length > 0
       ? textDiags[Math.floor(Math.random() * textDiags.length)]
@@ -599,7 +593,7 @@ export default function App() {
     }
   };
 
-  // 分類抽卡（點擊按鈕，完整載入 follow_ups）
+  // 分類抽卡
   const triggerCategoryRandom = (catKey) => {
     const target = catKey.toLowerCase().trim();
     const pool = masterMedia.filter(m => (m.category || '').toLowerCase().trim() === target && (m.images || '').trim().length > 0);
@@ -633,14 +627,13 @@ export default function App() {
       }, 700);
     }
 
-    // 解決 Follow up 中斷 bug：將所有後續追問完整壓入隊列，保留照片標題以供回覆
     const itemFollowUps = extractAllFollowUps(item, item.caption || item.album_name || '照片分享');
     if (itemFollowUps.length > 0) {
       setFollowUpQueue(prev => [...prev, ...itemFollowUps]);
     }
   };
 
-  // 通話音訊與影片播放管理
+  // 通話音訊與影片管理
   useEffect(() => {
     if (callStatus === 'ringing') {
       if (ringAudioRef.current) {
@@ -707,18 +700,21 @@ export default function App() {
     }));
   }, [masterMedia]);
 
-  // Master Media 分流：情報專區
-  const newsItems = React.useMemo(() => {
-    return masterMedia.filter(m => (m.news_title || m.news_summary || '').trim().length > 0).map(m => {
+  // Master Media 分流：FEED (全方位情報流，含新聞、訪談、站姐出圖)
+  const feedItems = React.useMemo(() => {
+    return masterMedia.filter(m => (m.news_title || m.news_summary || m.interview_id || '').trim().length > 0).map(m => {
       const raw = (m.images || '').trim();
       const imgs = raw.split(/[\s,]+/).filter(u => u.startsWith('http'));
       return {
+        id: m.id,
+        interview_id: m.interview_id || '',
         badge: m.category || 'OFFICIAL',
-        source: m.news_source || 'MEDIA',
+        source: m.news_source || 'FEED',
         time_text: m.date || '近期',
         main_title: m.news_title || m.album_name,
         sub_title: m.album_name,
         summary: m.news_summary,
+        images: imgs,
         hero_image: imgs[0] || null
       };
     });
@@ -728,14 +724,18 @@ export default function App() {
   const interviewGroups = React.useMemo(() => {
     const groups = {};
     interviewData.forEach(row => {
-      const id = row.interview_id ? row.interview_id.trim() : 'VOGUE_HK_2026';
+      const id = row.interview_id ? row.interview_id.trim() : '';
+      if (!id) return;
       if (!groups[id]) groups[id] = [];
       groups[id].push(row);
     });
     return groups;
   }, [interviewData]);
 
-  const currentInterviewRows = interviewGroups[activeInterviewId] || [];
+  // 當前選中的訪談內容
+  const currentInterviewDialogue = selectedFeedItem?.interview_id 
+    ? (interviewGroups[selectedFeedItem.interview_id] || []) 
+    : [];
 
   return (
     <div className="flex h-[100dvh] w-screen bg-slate-900 justify-center items-center select-none overflow-hidden sm:p-3">
@@ -746,7 +746,7 @@ export default function App() {
       {/* 主聊天容器 */}
       <div className="w-full sm:max-w-[420px] h-[100dvh] sm:h-[92vh] sm:max-h-[880px] bg-[#ECEEF1] sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden relative border-0 sm:border sm:border-slate-700">
         
-        {/* 全螢幕來電介面（8秒） */}
+        {/* 全螢幕來電介面 (8秒超時) */}
         {callStatus !== 'idle' && (
           <div className="absolute inset-0 bg-slate-950/95 z-50 flex flex-col justify-between items-center py-16 px-6 text-white backdrop-blur-md animate-fade-in">
             <div className="flex flex-col items-center mt-10 space-y-4">
@@ -782,7 +782,7 @@ export default function App() {
           </div>
         )}
 
-        {/* 📹 全螢幕視訊通話（保證播放） */}
+        {/* 📹 全螢幕視訊通話 */}
         {isVideoCalling && (
           <div className="absolute inset-0 bg-black z-50 flex flex-col justify-between items-center py-12 px-6 text-white animate-fade-in">
             <div className="absolute inset-0 z-0 overflow-hidden">
@@ -882,7 +882,7 @@ export default function App() {
                     <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 ${
                       msg.durationText ? 'bg-teal-50 text-teal-700' : 'bg-rose-100 text-rose-600'
                     }`}>
-                      <svg className="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M6.62 10.79a15.05 15.05 0 006.59 6.59l2.2-2.2a1 1 0 011.02-.24 11.72 11.72 0 003.68.59 1 1 0 011 1v3.5a1 1 0 01-1 1A17 17 0 013 4a1 1 0 011-1h3.5a1 1 0 011 1c0 1.25.2 2.48.59 3.68a1 1 0 01-.24 1.02l-2.23 2.09z" /></svg>
+                      <svg className="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M6.62 10.79a15.05 15.05 0 006.59 6.59l2.2-2.2a1 1 0 011.02-.24 11.72 11.72 0 003.68.59 1 1 0 011 1v3.5a1 1 0 01-.24 1.02l-2.23 2.09z" /></svg>
                     </div>
                     <div className="flex flex-col">
                       <span className="text-xs font-medium text-slate-800">{msg.statusText}</span>
@@ -912,7 +912,6 @@ export default function App() {
                   <div className={`max-w-[72%] rounded-2xl px-3.5 py-2 text-[13.5px] leading-relaxed shadow-sm ${
                     isUser ? 'bg-[#81D4D2] text-[#0F3332] rounded-tr-none' : 'bg-white text-slate-900 rounded-tl-none border border-slate-200/60'
                   }`}>
-                    {/* 引用回覆小框（呈現跳著回覆） */}
                     {msg.replyTo && (
                       <div className="mb-1.5 px-2 py-1 bg-slate-100/90 rounded-md border-l-2 border-[#5FBDB9] text-[11px] text-slate-500 line-clamp-1">
                         回覆: {msg.replyTo}
@@ -968,33 +967,29 @@ export default function App() {
           </button>
         </div>
 
-        {/* ➕ 彈出擴充選單面板（新增訪談按鈕） */}
+        {/* ➕ 彈出擴充選單面板（四大純粹分類：相簿、行事曆、FEED、語音庫） */}
         {isPlusMenuOpen && (
-          <div className="bg-[#4E727A]/95 backdrop-blur-md px-3 py-3 flex justify-around border-t border-[#3D5C63] z-20 animate-fade-in shadow-xl">
+          <div className="bg-[#4E727A]/95 backdrop-blur-md px-4 py-3 flex justify-around border-t border-[#3D5C63] z-20 animate-fade-in shadow-xl">
             <button onClick={() => { setActiveModal('album'); setIsPlusMenuOpen(false); }} className="flex flex-col items-center space-y-1 text-white active:scale-90 transition">
-              <div className="w-10 h-10 rounded-2xl bg-white/10 flex items-center justify-center text-lg shadow-sm">🖼️</div>
-              <span className="text-[10.5px] text-teal-100">相簿</span>
+              <div className="w-11 h-11 rounded-2xl bg-white/10 flex items-center justify-center text-lg shadow-sm">🖼️</div>
+              <span className="text-[11px] text-teal-100">相簿</span>
             </button>
             <button onClick={() => { setActiveModal('calendar'); setIsPlusMenuOpen(false); }} className="flex flex-col items-center space-y-1 text-white active:scale-90 transition">
-              <div className="w-10 h-10 rounded-2xl bg-white/10 flex items-center justify-center text-lg shadow-sm">📅</div>
-              <span className="text-[10.5px] text-teal-100">行事曆</span>
+              <div className="w-11 h-11 rounded-2xl bg-white/10 flex items-center justify-center text-lg shadow-sm">📅</div>
+              <span className="text-[11px] text-teal-100">行事曆</span>
             </button>
-            <button onClick={() => { setActiveModal('interview'); setIsPlusMenuOpen(false); }} className="flex flex-col items-center space-y-1 text-white active:scale-90 transition">
-              <div className="w-10 h-10 rounded-2xl bg-white/10 flex items-center justify-center text-lg shadow-sm">🎙️</div>
-              <span className="text-[10.5px] text-teal-100">專訪</span>
+            <button onClick={() => { setActiveModal('feed'); setIsPlusMenuOpen(false); }} className="flex flex-col items-center space-y-1 text-white active:scale-90 transition">
+              <div className="w-11 h-11 rounded-2xl bg-white/10 flex items-center justify-center text-lg shadow-sm">📰</div>
+              <span className="text-[11px] text-teal-100">FEED</span>
             </button>
             <button onClick={() => { setActiveModal('voices'); setIsPlusMenuOpen(false); }} className="flex flex-col items-center space-y-1 text-white active:scale-90 transition">
-              <div className="w-10 h-10 rounded-2xl bg-white/10 flex items-center justify-center text-lg shadow-sm">📼</div>
-              <span className="text-[10.5px] text-teal-100">語音庫</span>
-            </button>
-            <button onClick={() => { setActiveModal('news'); setIsPlusMenuOpen(false); }} className="flex flex-col items-center space-y-1 text-white active:scale-90 transition">
-              <div className="w-10 h-10 rounded-2xl bg-white/10 flex items-center justify-center text-lg shadow-sm">📰</div>
-              <span className="text-[10.5px] text-teal-100">情報</span>
+              <div className="w-11 h-11 rounded-2xl bg-white/10 flex items-center justify-center text-lg shadow-sm">📼</div>
+              <span className="text-[11px] text-teal-100">語音庫</span>
             </button>
           </div>
         )}
 
-        {/* 底部輸入列（永遠保持空白 placeholder） */}
+        {/* 底部輸入列 */}
         <div className="bg-[#4E727A] p-2.5 flex items-center space-x-2 border-t border-[#3D5C63] z-20 shrink-0 pb-6">
           <button
             onClick={() => setIsPlusMenuOpen(!isPlusMenuOpen)}
@@ -1116,103 +1111,217 @@ export default function App() {
           </div>
         )}
 
-        {/* 彈出視窗 3️⃣：專訪特輯 (Interviews) */}
-        {activeModal === 'interview' && (
+        {/* 彈出視窗 3️⃣：FEED (全方位情報流 + 詳情大圖瀑布流 + 訪談無縫內嵌) */}
+        {activeModal === 'feed' && (
           <div className="absolute inset-0 bg-[#0B1120] z-50 flex flex-col text-slate-100 backdrop-blur-md animate-fade-in">
-            <div className="pt-12 pb-3 px-4 bg-[#4E727A] flex items-center justify-between border-b border-[#3D5C63] shadow">
-              <div className="flex flex-col">
-                <span className="font-semibold text-base tracking-wide text-white">專訪對話室 (Interviews)</span>
-                <span className="text-[10px] text-teal-100/70">深度訪談・現場實錄</span>
-              </div>
-              <button onClick={() => setActiveModal(null)} className="text-xs text-teal-100 hover:text-white px-2.5 py-1 rounded-md bg-white/10">
-                關閉
-              </button>
-            </div>
-
-            {/* 訪談選擇 Tab */}
-            <div className="flex border-b border-white/10 px-3 pt-2 bg-slate-900/60 overflow-x-auto scrollbar-none">
-              {Object.keys(interviewGroups).map(idKey => (
-                <button
-                  key={idKey}
-                  onClick={() => setActiveInterviewId(idKey)}
-                  className={`pb-2 mr-3 text-xs whitespace-nowrap font-medium tracking-wide border-b-2 transition ${
-                    activeInterviewId === idKey ? 'border-[#81D4D2] text-[#81D4D2]' : 'border-transparent text-slate-400'
-                  }`}
-                >
-                  {interviewGroups[idKey][0]?.title || idKey}
-                </button>
-              ))}
-            </div>
-
-            {/* 訪談內容區（左右來回對話流） */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
-              {currentInterviewRows.length > 0 ? (
-                currentInterviewRows.map((row, idx) => {
-                  const isIntro = row.section_type === 'intro';
-                  const isCredit = row.section_type === 'credit';
-                  const isSoo = (row.speaker || '').trim().toLowerCase() === 'soo';
-
-                  if (isIntro) {
-                    return (
-                      <div key={idx} className="bg-slate-800/80 p-4 rounded-2xl border border-[#81D4D2]/30 space-y-2 shadow-sm">
-                        <div className="flex items-center justify-between text-[11px] text-[#81D4D2] font-mono">
-                          <span>EDITORIAL INTRO</span>
-                          <span>{row.date}</span>
-                        </div>
-                        <p className="text-[12.5px] leading-relaxed text-slate-200 font-light whitespace-pre-wrap">
-                          {row.content}
-                        </p>
-                      </div>
-                    );
-                  }
-
-                  if (isCredit) {
-                    return (
-                      <div key={idx} className="bg-black/40 p-4 rounded-2xl border border-white/10 mt-6 text-[10.5px] text-slate-400 space-y-1 leading-relaxed font-mono">
-                        <span className="text-[#81D4D2] font-semibold block mb-1">CREDITS</span>
-                        <p className="whitespace-pre-wrap">{row.content}</p>
-                        {row.note && <p className="text-slate-500 mt-2">{row.note}</p>}
-                      </div>
-                    );
-                  }
-
-                  return (
-                    <div key={idx} className={`flex items-end ${isSoo ? 'justify-end' : 'justify-start'} space-x-2`}>
-                      {!isSoo && (
-                        <div className="w-7 h-7 rounded-full bg-slate-700 flex items-center justify-center text-[10px] font-bold text-slate-300 shrink-0 mb-1 border border-slate-600">
-                          Q
-                        </div>
-                      )}
-
-                      <div className={`max-w-[80%] rounded-2xl px-3.5 py-2.5 text-[12.5px] leading-relaxed shadow-sm ${
-                        isSoo 
-                          ? 'bg-[#1E293B] text-teal-50 border border-teal-500/30 rounded-tr-none' 
-                          : 'bg-white/10 text-slate-200 border border-white/10 rounded-tl-none'
-                      }`}>
-                        <div className="text-[9px] font-mono text-slate-400 mb-1">
-                          {isSoo ? 'Lee Soo-hyuk' : row.speaker || 'Interviewer'}
-                        </div>
-                        <p className="whitespace-pre-wrap">{row.content}</p>
-                      </div>
-
-                      {isSoo && (
-                        <div className="w-7 h-7 rounded-full overflow-hidden shrink-0 mb-1 ring-1 ring-[#81D4D2]/40">
-                          <img src="https://images.plurk.com/6PooPJr1YbOhrMp5CCFdbl.jpg" alt="avatar" className="w-full h-full object-cover" />
-                        </div>
-                      )}
-                    </div>
-                  );
-                })
-              ) : (
-                <div className="text-center py-12 text-slate-500 text-xs">
-                  試算表 interviews 分頁目前無資料。
+            
+            {/* 詳情內頁 View */}
+            {selectedFeedItem ? (
+              <div className="flex-1 flex flex-col overflow-hidden">
+                <div className="pt-12 pb-3 px-4 bg-[#4E727A] flex items-center justify-between border-b border-[#3D5C63] shadow shrink-0">
+                  <button 
+                    onClick={() => setSelectedFeedItem(null)}
+                    className="flex items-center space-x-1 text-xs text-teal-100 hover:text-white px-2 py-1 rounded bg-white/10"
+                  >
+                    <span>‹ 返回列表</span>
+                  </button>
+                  <span className="text-xs font-medium text-teal-50 truncate max-w-[200px]">
+                    {selectedFeedItem.main_title}
+                  </span>
+                  <button onClick={() => { setSelectedFeedItem(null); setActiveModal(null); }} className="text-xs text-teal-100 hover:text-white px-2 py-1">
+                    關閉
+                  </button>
                 </div>
-              )}
-            </div>
+
+                <div className="flex-1 overflow-y-auto p-4 space-y-6">
+                  {/* 標題與標籤 */}
+                  <div className="space-y-2">
+                    <div className="flex items-center space-x-2 text-[10.5px]">
+                      <span className="px-2 py-0.5 rounded-full font-semibold bg-[#81D4D2]/20 text-[#81D4D2] border border-[#81D4D2]/30">
+                        {selectedFeedItem.badge}
+                      </span>
+                      <span className="text-slate-400 font-mono">{selectedFeedItem.source} • {selectedFeedItem.time_text}</span>
+                    </div>
+                    <h2 className="text-lg font-bold text-white tracking-tight leading-snug">
+                      {selectedFeedItem.main_title}
+                    </h2>
+                    {selectedFeedItem.sub_title && (
+                      <h4 className="text-xs font-medium text-[#81D4D2]/90">
+                        {selectedFeedItem.sub_title}
+                      </h4>
+                    )}
+                  </div>
+
+                  {/* 內文摘要 */}
+                  {selectedFeedItem.summary && (
+                    <div className="bg-slate-800/60 p-4 rounded-2xl border border-white/5 text-[13px] leading-relaxed text-slate-300 font-light whitespace-pre-wrap">
+                      {selectedFeedItem.summary}
+                    </div>
+                  )}
+
+                  {/* 若有對應的專訪內容，在此直接展開 */}
+                  {currentInterviewDialogue.length > 0 && (
+                    <div className="space-y-4 pt-4 border-t border-white/10">
+                      <div className="flex items-center space-x-2">
+                        <span className="text-xs font-semibold tracking-wider text-[#81D4D2] font-mono">INTERVIEW TRANSCRIPT</span>
+                        <div className="flex-1 h-[1px] bg-white/10"></div>
+                      </div>
+
+                      {currentInterviewDialogue.map((row, idx) => {
+                        const isIntro = row.section_type === 'intro';
+                        const isCredit = row.section_type === 'credit';
+                        const isSoo = (row.speaker || '').trim().toLowerCase() === 'soo';
+
+                        if (isIntro) {
+                          return (
+                            <div key={idx} className="bg-slate-900/90 p-4 rounded-2xl border border-[#81D4D2]/20 text-[12px] leading-relaxed text-slate-300">
+                              <span className="text-[#81D4D2] font-mono text-[10px] block mb-1">EDITORIAL INTRO</span>
+                              {row.content}
+                            </div>
+                          );
+                        }
+
+                        if (isCredit) {
+                          return (
+                            <div key={idx} className="bg-black/50 p-4 rounded-2xl border border-white/10 text-[10px] text-slate-400 leading-relaxed font-mono">
+                              <span className="text-[#81D4D2] font-semibold block mb-1">CREDITS</span>
+                              <p className="whitespace-pre-wrap">{row.content}</p>
+                            </div>
+                          );
+                        }
+
+                        return (
+                          <div key={idx} className={`flex items-end ${isSoo ? 'justify-end' : 'justify-start'} space-x-2`}>
+                            {!isSoo && (
+                              <div className="w-6 h-6 rounded-full bg-slate-700 flex items-center justify-center text-[10px] font-bold text-slate-300 shrink-0 mb-1">
+                                Q
+                              </div>
+                            )}
+
+                            <div className={`max-w-[80%] rounded-2xl px-3.5 py-2.5 text-[12.5px] leading-relaxed shadow-sm ${
+                              isSoo 
+                                ? 'bg-[#1E293B] text-teal-50 border border-teal-500/30 rounded-tr-none' 
+                                : 'bg-white/10 text-slate-200 border border-white/10 rounded-tl-none'
+                            }`}>
+                              <div className="text-[9px] font-mono text-slate-400 mb-1">
+                                {isSoo ? 'Lee Soo-hyuk' : row.speaker || 'Q'}
+                              </div>
+                              <p className="whitespace-pre-wrap">{row.content}</p>
+                            </div>
+
+                            {isSoo && (
+                              <div className="w-6 h-6 rounded-full overflow-hidden shrink-0 mb-1 ring-1 ring-[#81D4D2]/40">
+                                <img src="https://images.plurk.com/6PooPJr1YbOhrMp5CCFdbl.jpg" alt="avatar" className="w-full h-full object-cover" />
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* 📷 直排大圖瀑布流（直向大圖呈現） */}
+                  {selectedFeedItem.images && selectedFeedItem.images.length > 0 && (
+                    <div className="space-y-3 pt-4 border-t border-white/10">
+                      <div className="flex items-center space-x-2">
+                        <span className="text-xs font-semibold tracking-wider text-[#81D4D2] font-mono">GALLERY ({selectedFeedItem.images.length})</span>
+                        <div className="flex-1 h-[1px] bg-white/10"></div>
+                      </div>
+
+                      <div className="flex flex-col space-y-3">
+                        {selectedFeedItem.images.map((imgUrl, i) => (
+                          <div key={i} className="rounded-2xl overflow-hidden bg-slate-800/60 border border-white/10 shadow-lg">
+                            <img 
+                              src={imgUrl} 
+                              alt={`Shot ${i + 1}`} 
+                              loading="lazy" 
+                              className="w-full h-auto object-cover"
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : (
+              /* FEED 列表 View */
+              <div className="flex-1 flex flex-col overflow-hidden">
+                <div className="pt-12 pb-3 px-4 bg-[#4E727A] flex items-center justify-between border-b border-[#3D5C63] shadow shrink-0">
+                  <div className="flex flex-col">
+                    <span className="font-semibold text-base tracking-wide text-white">FEED</span>
+                    <span className="text-[10px] text-teal-100/70">特輯・專訪・官方動態・高清圖透</span>
+                  </div>
+                  <button onClick={() => setActiveModal(null)} className="text-xs text-teal-100 hover:text-white px-2.5 py-1 rounded-md bg-white/10">
+                    關閉
+                  </button>
+                </div>
+
+                <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                  {feedItems.length > 0 ? (
+                    feedItems.map((item, idx) => (
+                      <article 
+                        key={idx} 
+                        onClick={() => setSelectedFeedItem(item)}
+                        className="bg-[#1E293B]/70 rounded-2xl border border-slate-700/50 p-4 space-y-2.5 shadow-sm hover:border-[#81D4D2]/50 hover:bg-[#1E293B] cursor-pointer transition active:scale-[0.98]"
+                      >
+                        <div className="flex items-center justify-between text-[10px]">
+                          <span className="px-2 py-0.5 rounded-full font-semibold bg-[#81D4D2]/20 text-[#81D4D2] border border-[#81D4D2]/30">
+                            {item.badge}
+                          </span>
+                          <div className="flex items-center space-x-1.5 text-slate-400 font-mono">
+                            <span>{item.source}</span>
+                            <span>•</span>
+                            <span>{item.time_text}</span>
+                          </div>
+                        </div>
+
+                        <div className="space-y-1">
+                          <h3 className="text-[14px] font-bold text-white leading-snug tracking-tight">
+                            {item.main_title}
+                          </h3>
+                          {item.sub_title && (
+                            <h4 className="text-[12px] font-medium text-slate-300 leading-normal">
+                              {item.sub_title}
+                            </h4>
+                          )}
+                        </div>
+
+                        {item.summary && (
+                          <p className="text-[11.5px] text-slate-400 leading-relaxed font-light line-clamp-2">
+                            {item.summary}
+                          </p>
+                        )}
+
+                        {item.hero_image && (
+                          <div className="rounded-xl overflow-hidden aspect-[16/9] w-full bg-slate-800 shadow-inner mt-2 relative">
+                            <img src={item.hero_image} alt="Hero" loading="lazy" className="w-full h-full object-cover" />
+                            {item.images.length > 1 && (
+                              <span className="absolute bottom-2 right-2 bg-black/60 backdrop-blur-sm text-white text-[9.5px] px-2 py-0.5 rounded-md font-mono">
+                                ＋{item.images.length}P
+                              </span>
+                            )}
+                          </div>
+                        )}
+
+                        <div className="pt-1 flex items-center justify-end text-[11px] text-[#81D4D2] font-medium">
+                          <span>查看詳情 ➔</span>
+                        </div>
+                      </article>
+                    ))
+                  ) : (
+                    <div className="text-center py-12 text-slate-500 text-xs">
+                      目前尚無動態資料。
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
           </div>
         )}
 
-        {/* 彈出視窗 4️⃣：語音原聲帶（依原始檔名，底線轉空白） */}
+        {/* 彈出視窗 4️⃣：語音原聲帶庫 */}
         {activeModal === 'voices' && (
           <div className="absolute inset-0 bg-slate-950/95 z-50 flex flex-col text-white backdrop-blur-md animate-fade-in">
             <div className="pt-12 pb-3 px-4 bg-[#4E727A] flex items-center justify-between shadow border-b border-[#3D5C63]">
@@ -1230,67 +1339,6 @@ export default function App() {
                   <AudioBubble audioSrc={item.src} durationText={item.duration} />
                 </div>
               ))}
-            </div>
-          </div>
-        )}
-
-        {/* 彈出視窗 5️⃣：情報與動態 */}
-        {activeModal === 'news' && (
-          <div className="absolute inset-0 bg-[#0F172A] z-50 flex flex-col text-slate-100 backdrop-blur-md animate-fade-in">
-            <div className="pt-12 pb-3 px-4 bg-[#4E727A] flex items-center justify-between border-b border-[#3D5C63] shadow">
-              <div className="flex flex-col">
-                <span className="font-semibold text-base tracking-wide text-white">情報專區 (News & Intel)</span>
-                <span className="text-[10px] text-teal-100/70">官方通告・媒體新聞</span>
-              </div>
-              <button onClick={() => setActiveModal(null)} className="text-xs text-teal-100 hover:text-white px-2.5 py-1 rounded-md bg-white/10">
-                關閉
-              </button>
-            </div>
-
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
-              {newsItems.length > 0 ? (
-                newsItems.map((item, idx) => (
-                  <article key={idx} className="bg-[#1E293B]/70 rounded-2xl border border-slate-700/50 p-4 space-y-2.5 shadow-sm hover:border-slate-500/50 transition">
-                    <div className="flex items-center justify-between text-[10px]">
-                      <span className="px-2 py-0.5 rounded-full font-semibold bg-[#81D4D2]/20 text-[#81D4D2] border border-[#81D4D2]/30">
-                        {item.badge}
-                      </span>
-                      <div className="flex items-center space-x-1.5 text-slate-400 font-mono">
-                        <span>{item.source}</span>
-                        <span>•</span>
-                        <span>{item.time_text}</span>
-                      </div>
-                    </div>
-
-                    <div className="space-y-1">
-                      <h3 className="text-[14px] font-bold text-white leading-snug tracking-tight">
-                        {item.main_title}
-                      </h3>
-                      {item.sub_title && (
-                        <h4 className="text-[12px] font-medium text-slate-300 leading-normal">
-                          {item.sub_title}
-                        </h4>
-                      )}
-                    </div>
-
-                    {item.summary && (
-                      <p className="text-[11.5px] text-slate-400 leading-relaxed font-light">
-                        {item.summary}
-                      </p>
-                    )}
-
-                    {item.hero_image && (
-                      <div className="rounded-xl overflow-hidden aspect-[16/9] w-full bg-slate-800 shadow-inner mt-2">
-                        <img src={item.hero_image} alt="News preview" loading="lazy" className="w-full h-full object-cover hover:scale-102 transition duration-300" />
-                      </div>
-                    )}
-                  </article>
-                ))
-              ) : (
-                <div className="text-center py-12 text-slate-500 text-xs">
-                  Master 表格目前無 news 資料。
-                </div>
-              )}
             </div>
           </div>
         )}
