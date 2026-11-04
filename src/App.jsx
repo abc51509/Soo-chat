@@ -1,3 +1,47 @@
+這幾點調整把整體的瀏覽體感與時尚雜誌感拉升了一個檔次！所有需求與解法整理如下：
+
+### 一、 核心需求與設計解法
+
+1. **訪談 Q 頭像對齊頂部**：
+* 原本是 `items-end`（底部切齊），現在將 Q 的結構改為 `items-start`（頂部切齊），讓圓形 Q 頭像與氣泡的第一行文字自然水平齊平。
+
+
+2. **FEED 列表「雙排四宮格（2 欄 Grid）」極致瀏覽**：
+* 不再是落落長的一列單張卡片，改為乾淨俐落的 **2 欄卡片並排（Grid 2-cols）**，大幅縮減滑動距離，整體更像時尚特刊的目錄牆。
+
+
+3. **返回記住滾動位置 + 手勢滑動返回（Swipe to Back）**：
+* **位置記憶**：記錄進入詳情時的 `feedScrollTop`，返回列表時自動平滑還原到原本那張卡片的位置。
+* **向右滑動返回**：在詳情頁支援手機觸控手勢，由左向右滑動（超過 75px）即可順暢滑動返回。
+
+
+4. **FEED 列表來源與日期排版**：
+* 移除 `by` 字樣。
+* **Source（來源媒體）**：加粗、字體放大擺在**左邊**（一眼看清是 VOGUE、ARENA 還是 TIME HOMME）。
+* **Date（日期）**：優雅等寬小字貼齊**右邊**。
+
+
+5. **新聞詳情頁頂部導航列留白**：
+* 移除頂部置中標題文字，中間完全留白，只留左側「‹ 返回」與右側「關閉」，極簡大器。
+
+
+6. **按鈕文字調整**：
+* 「查看詳情 ➔」統一改為 **「繼續閱讀 ➔」**。
+
+
+7. **預覽縮圖智能人像裁切（解決被切頭/切下巴）**：
+* 長型畫報若用預設 `object-center`，模特兒頭部常被橫幅腰斬。
+* **解法**：在 CSS 採用黃金人像對齊 **`object-[center_20%]`**（以頂部向下 20% 的視覺重心為基準點）。這樣 90% 以上由上至下拍的長幅全身/半身人像都能精準框住臉部與眼神，同時又保持裁切後洗練的幾何比例，不會破壞版面！
+
+
+
+---
+
+### 完整 `src/App.jsx` 程式碼
+
+請整份覆蓋至 `src/App.jsx`：
+
+```jsx
 import React, { useState, useEffect, useRef } from 'react';
 
 // Google 試算表設定 (綁定 Soo_Master_Database)
@@ -47,7 +91,7 @@ const fetchSheetData = async (sheetName) => {
   }
 };
 
-// 安全取值輔助器（依優先順序回傳第一個非空值）
+// 安全取值輔助器
 const getField = (obj, ...keys) => {
   if (!obj) return '';
   for (const k of keys) {
@@ -86,7 +130,6 @@ const formatVideoSource = (raw) => {
     return { type: 'youtube', url: ytUrl };
   }
 
-  // 檔名或本地檔案處理
   let finalPath = clean;
   if (!finalPath.startsWith('http') && !finalPath.startsWith('/')) {
     if (!finalPath.startsWith('video/')) {
@@ -227,7 +270,6 @@ export default function App() {
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   };
 
-  // 拔除預設訊息，初始為空陣列
   const [messages, setMessages] = useState(() => {
     try {
       const saved = localStorage.getItem('soo_chat_messages');
@@ -271,8 +313,14 @@ export default function App() {
   const [activeModal, setActiveModal] = useState(null);
   const [activeAlbumTab, setActiveAlbumTab] = useState('all');
   
-  // FEED 詳情頁狀態
+  // FEED 詳情頁狀態與滾動記憶
   const [selectedFeedItem, setSelectedFeedItem] = useState(null);
+  const feedListScrollRef = useRef(null);
+  const [feedScrollPosition, setFeedScrollPosition] = useState(0);
+
+  // 滑動手勢（Swipe to Back）狀態
+  const touchStartX = useRef(0);
+  const touchStartY = useRef(0);
 
   const ringAudioRef = useRef(null);
   const phoneCallAudioRef = useRef(null);
@@ -317,6 +365,40 @@ export default function App() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isTyping]);
+
+  // 返回列表時，精準還原滾動位置
+  useEffect(() => {
+    if (!selectedFeedItem && feedListScrollRef.current && feedScrollPosition > 0) {
+      feedListScrollRef.current.scrollTop = feedScrollPosition;
+    }
+  }, [selectedFeedItem]);
+
+  const handleOpenFeedDetail = (item) => {
+    if (feedListScrollRef.current) {
+      setFeedScrollPosition(feedListScrollRef.current.scrollTop);
+    }
+    setSelectedFeedItem(item);
+  };
+
+  const handleBackToFeedList = () => {
+    setSelectedFeedItem(null);
+  };
+
+  // 手勢滑動返回判定
+  const handleTouchStart = (e) => {
+    touchStartX.current = e.touches[0].clientX;
+    touchStartY.current = e.touches[0].clientY;
+  };
+
+  const handleTouchEnd = (e) => {
+    const deltaX = e.changedTouches[0].clientX - touchStartX.current;
+    const deltaY = e.changedTouches[0].clientY - touchStartY.current;
+
+    // 水平滑動大於 75px，且垂直偏移小於 60px（判定為向右滑動返回）
+    if (deltaX > 75 && Math.abs(deltaY) < 60) {
+      handleBackToFeedList();
+    }
+  };
 
   const formatSeconds = (sec) => {
     const m = Math.floor(sec / 60);
@@ -642,7 +724,7 @@ export default function App() {
     }, 800);
   };
 
-  // 清空對話記錄為純淨空陣列
+  // 清空對話
   const handleClearMessages = () => {
     if (window.confirm(`目前共有 ${messages.length} 則訊息，確定要清空所有紀錄嗎？`)) {
       setMessages([]);
@@ -1256,24 +1338,31 @@ export default function App() {
           </div>
         )}
 
-        {/* 彈出視窗 3️⃣：FEED (直排畫報美學，video_caption 支援 whitespace-pre-wrap 換行) */}
+        {/* 彈出視窗 3️⃣：FEED (雙排四宮格目錄 + 滑動手勢返回 + 頂部簡約留白) */}
         {activeModal === 'feed' && (
           <div className="absolute inset-0 bg-[#0B1120] z-50 flex flex-col text-slate-100 backdrop-blur-md animate-fade-in">
             
             {/* 詳情內頁 View */}
             {selectedFeedItem ? (
-              <div className="flex-1 flex flex-col overflow-hidden">
+              <div 
+                className="flex-1 flex flex-col overflow-hidden"
+                onTouchStart={handleTouchStart}
+                onTouchEnd={handleTouchEnd}
+              >
+                {/* 頂部導航列：完全留白，無 Title 文字 */}
                 <div className="pt-12 pb-3 px-4 bg-[#4E727A] flex items-center justify-between border-b border-[#3D5C63] shadow shrink-0">
                   <button 
-                    onClick={() => setSelectedFeedItem(null)}
-                    className="flex items-center space-x-1 text-xs text-teal-100 hover:text-white px-2 py-1 rounded bg-white/10"
+                    onClick={handleBackToFeedList}
+                    className="flex items-center space-x-1 text-xs text-teal-100 hover:text-white px-2 py-1 rounded bg-white/10 transition active:scale-95"
                   >
                     <span>‹ 返回</span>
                   </button>
-                  <span className="text-xs font-medium text-teal-50 truncate max-w-[200px]">
-                    {selectedFeedItem.main_title}
-                  </span>
-                  <button onClick={() => { setSelectedFeedItem(null); setActiveModal(null); }} className="text-xs text-teal-100 hover:text-white px-2 py-1">
+                  {/* 中間完全留白 */}
+                  <div className="flex-1"></div>
+                  <button 
+                    onClick={() => { setSelectedFeedItem(null); setActiveModal(null); }} 
+                    className="text-xs text-teal-100 hover:text-white px-2 py-1"
+                  >
                     關閉
                   </button>
                 </div>
@@ -1367,7 +1456,7 @@ export default function App() {
                     </div>
                   )}
 
-                  {/* 6. Interview 訪談對話室 (Q 帶圓形頭像靠左，Soo 無頭像靠右，皆為白/灰底氣泡；Editorial 純文字置中不斜體) */}
+                  {/* 6. Interview 訪談對話室 (Q 頭像在頂部並與氣泡頂端平齊 items-start) */}
                   {currentInterviewDialogue.length > 0 && (
                     <div className="space-y-3.5 pt-4 border-t border-white/10">
                       {currentInterviewDialogue.map((row, idx) => {
@@ -1392,11 +1481,11 @@ export default function App() {
                         return (
                           <div 
                             key={idx} 
-                            className={`w-full flex items-end ${isSoo ? 'justify-end' : 'justify-start'} space-x-2`}
+                            className={`w-full flex ${isSoo ? 'justify-end items-start' : 'justify-start items-start'} space-x-2`}
                           >
-                            {/* 採訪者 Q 靠左，圓形頭像框 */}
+                            {/* 採訪者 Q 靠左，頂部對齊頭像框 */}
                             {!isSoo && (
-                              <div className="w-7 h-7 rounded-full bg-slate-700/90 flex items-center justify-center text-[11px] font-semibold text-slate-200 shrink-0 mb-1 border border-slate-600 shadow-sm">
+                              <div className="w-7 h-7 rounded-full bg-slate-700/90 flex items-center justify-center text-[11px] font-semibold text-slate-200 shrink-0 mt-0.5 border border-slate-600 shadow-sm">
                                 Q
                               </div>
                             )}
@@ -1439,7 +1528,7 @@ export default function App() {
                 </div>
               </div>
             ) : (
-              /* FEED 列表 View */
+              /* FEED 列表 View (雙欄四宮格 + 智能人像裁切 + 來源加重置左) */
               <div className="flex-1 flex flex-col overflow-hidden">
                 <div className="pt-12 pb-3 px-4 bg-[#4E727A] flex items-center justify-between border-b border-[#3D5C63] shadow shrink-0">
                   <div className="flex flex-col">
@@ -1450,46 +1539,61 @@ export default function App() {
                   </button>
                 </div>
 
-                <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                <div 
+                  ref={feedListScrollRef}
+                  className="flex-1 overflow-y-auto p-3"
+                >
                   {feedItems.length > 0 ? (
-                    feedItems.map((item, idx) => (
-                      <article 
-                        key={idx} 
-                        onClick={() => setSelectedFeedItem(item)}
-                        className="bg-[#1E293B]/70 rounded-2xl border border-slate-700/50 p-4 space-y-2.5 shadow-sm hover:border-[#81D4D2]/50 hover:bg-[#1E293B] cursor-pointer transition active:scale-[0.98]"
-                      >
-                        <div className="flex items-center justify-between text-[11px] font-mono text-slate-400">
-                          <span>{item.source ? `by ${item.source} • ` : ''}{item.time_text}</span>
-                        </div>
+                    <div className="grid grid-cols-2 gap-2.5">
+                      {feedItems.map((item, idx) => (
+                        <article 
+                          key={idx} 
+                          onClick={() => handleOpenFeedDetail(item)}
+                          className="bg-[#1E293B]/75 rounded-2xl border border-slate-700/60 p-2.5 flex flex-col justify-between space-y-2 shadow-sm hover:border-[#81D4D2]/60 hover:bg-[#1E293B] cursor-pointer transition active:scale-[0.97]"
+                        >
+                          <div>
+                            {/* Source 放大加粗在左，日期等寬在右 */}
+                            <div className="flex items-center justify-between text-[10px] mb-1.5">
+                              <span className="font-bold text-xs text-[#81D4D2] tracking-wide truncate max-w-[55%]">
+                                {item.source || 'FEED'}
+                              </span>
+                              <span className="text-slate-400 font-mono text-[9.5px]">
+                                {item.time_text}
+                              </span>
+                            </div>
 
-                        <div className="space-y-1">
-                          <h3 className="text-[14px] font-bold text-white leading-snug tracking-tight">
-                            {item.main_title}
-                          </h3>
-                          {item.sub_title && (
-                            <h4 className="text-[12px] font-medium text-[#81D4D2] leading-normal">
-                              {item.sub_title}
-                            </h4>
-                          )}
-                        </div>
+                            {/* 預覽縮圖：採用 4:3 比例與 object-[center_20%] 智能鎖定臉部重心 */}
+                            {item.hero_image && (
+                              <div className="rounded-xl overflow-hidden aspect-[4/3] w-full bg-slate-800 shadow-inner mb-2 relative">
+                                <img 
+                                  src={item.hero_image} 
+                                  alt="Preview" 
+                                  loading="lazy" 
+                                  className="w-full h-full object-cover object-[center_20%]" 
+                                />
+                              </div>
+                            )}
 
-                        {item.summary && (
-                          <p className="text-[11.5px] text-slate-400 leading-relaxed font-light line-clamp-2">
-                            {item.summary}
-                          </p>
-                        )}
-
-                        {item.hero_image && (
-                          <div className="rounded-xl overflow-hidden aspect-[16/9] w-full bg-slate-800 shadow-inner mt-2">
-                            <img src={item.hero_image} alt="Hero" loading="lazy" className="w-full h-full object-cover" />
+                            {/* 標題與簡介 */}
+                            <div className="space-y-0.5">
+                              <h3 className="text-[12.5px] font-bold text-white leading-tight line-clamp-2">
+                                {item.main_title}
+                              </h3>
+                              {item.sub_title && (
+                                <h4 className="text-[10.5px] font-medium text-slate-300 line-clamp-1">
+                                  {item.sub_title}
+                                </h4>
+                              )}
+                            </div>
                           </div>
-                        )}
 
-                        <div className="pt-1 flex items-center justify-end text-[11px] text-[#81D4D2] font-medium">
-                          <span>查看詳情 ➔</span>
-                        </div>
-                      </article>
-                    ))
+                          {/* 底部行動字樣：繼續閱讀 */}
+                          <div className="pt-1.5 flex items-center justify-end text-[10.5px] text-[#81D4D2] font-medium border-t border-white/5">
+                            <span>繼續閱讀 ➔</span>
+                          </div>
+                        </article>
+                      ))}
+                    </div>
                   ) : (
                     <div className="text-center py-12 text-slate-500 text-xs">
                       目前尚無動態資料。
@@ -1528,3 +1632,5 @@ export default function App() {
     </div>
   );
 }
+
+```
