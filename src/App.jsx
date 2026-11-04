@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 // Google 試算表設定 (綁定 Soo_Master_Database)
 const SPREADSHEET_ID = '11P8tG-MhZiwrBcGf9TyFirQNwPxKC2YPVbv4XHMEV-A';
 
-// 通用 Google Visualization JSON 讀取解析器
+// 通用 Google Visualization JSON 讀取解析器 (鎖定 headers=1 防跨行吞噬)
 const fetchSheetData = async (sheetName) => {
   try {
     const url = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:json&headers=1&sheet=${encodeURIComponent(sheetName)}&t=${Date.now()}`;
@@ -74,6 +74,34 @@ const formatAudioUrl = (raw) => {
   return '/' + clean;
 };
 
+// 原始語音檔列表（排除 telepathy 2025.mp3，名稱依檔名轉空白）
+const RAW_AUDIO_FILES = [
+  '1_get up_cozy.mp3',
+  '2_plz_get_up.mp3',
+  '3_can_u_get_up.mp3',
+  '4_time_to_get_up_now.mp3',
+  '5_get_up_yell.mp3',
+  'Can_u_b_my_gf.mp3',
+  'Do_u_like_it.mp3',
+  'eat.mp3',
+  'How_is_it_Do_u_like_it.mp3',
+  'How_is_it.mp3',
+  "Let's_get_engaged.mp3",
+  'i_miss_u.mp3',
+  'i_miss_u_longer.mp3',
+  'shall_i_go_now.mp3',
+  'lets_date.mp3',
+  'love_u.mp3',
+  'good_night_normal.mp3'
+];
+
+const RAW_VOICE_LIST = RAW_AUDIO_FILES.map((filename, idx) => ({
+  id: `v_${idx}`,
+  title: filename.replace(/\.(mp3|wav|m4a)$/i, '').replace(/_/g, ' '),
+  src: `/audio/${filename}`,
+  duration: '0:04'
+}));
+
 // 語音氣泡元件
 const AudioBubble = ({ audioSrc, durationText = "0:04" }) => {
   const [isPlaying, setIsPlaying] = useState(false);
@@ -129,35 +157,6 @@ const AudioBubble = ({ audioSrc, durationText = "0:04" }) => {
   );
 };
 
-// 晨喚階梯音訊對應
-const STEP_VOICES = {
-  step1: { src: '/audio/1_get up_cozy.mp3', duration: '0:03' },
-  step2: { src: '/audio/2_plz_get_up.mp3', duration: '0:04' },
-  step3: { src: '/audio/4_time_to_get_up_now.mp3', duration: '0:03' },
-  step4: { src: '/audio/5_get_up_yell.mp3', duration: '0:04' }
-};
-
-// 語音列表全集
-const ALL_VOICE_LIST = [
-  { id: 'v1', title: '晨喚 1: 輕柔喚醒', src: '/audio/1_get up_cozy.mp3', duration: '0:03' },
-  { id: 'v2', title: '晨喚 2: 該起來了', src: '/audio/2_plz_get_up.mp3', duration: '0:04' },
-  { id: 'v3', title: '晨喚 3: 還在睡？', src: '/audio/3_can_u_get_up.mp3', duration: '0:04' },
-  { id: 'v4', title: '晨喚 4: 真的該起了', src: '/audio/4_time_to_get_up_now.mp3', duration: '0:03' },
-  { id: 'v5', title: '晨喚 5: 低音威脅', src: '/audio/5_get_up_yell.mp3', duration: '0:04' },
-  { id: 'v6', title: '告白: Can you be my girlfriend', src: '/audio/Can_u_b_my_gf.mp3', duration: '0:04' },
-  { id: 'v7', title: '喜歡嗎: Do you like it?', src: '/audio/Do_u_like_it.mp3', duration: '0:03' },
-  { id: 'v8', title: '日常: 吃飯了嗎？', src: '/audio/eat.mp3', duration: '0:03' },
-  { id: 'v9', title: '詢問: 覺得如何？喜歡嗎？', src: '/audio/How_is_it_Do_u_like_it.mp3', duration: '0:04' },
-  { id: 'v10', title: '詢問: 覺得怎麼樣？', src: '/audio/How_is_it.mp3', duration: '0:03' },
-  { id: 'v11', title: '求婚: Let’s get engaged', src: "/audio/Let's_get_engaged.mp3", duration: '0:04' },
-  { id: 'v12', title: '日常: 有點想你', src: '/audio/i_miss_u.mp3', duration: '0:03' },
-  { id: 'v13', title: '日常: 真的很想你', src: '/audio/i_miss_u_longer.mp3', duration: '0:05' },
-  { id: 'v14', title: '日常: 我現在過去？', src: '/audio/shall_i_go_now.mp3', duration: '0:04' },
-  { id: 'v15', title: '約會: 吃飽飯我們去約會吧', src: '/audio/lets_date.mp3', duration: '0:04' },
-  { id: 'v16', title: '心意: 我愛你', src: '/audio/love_u.mp3', duration: '0:03' },
-  { id: 'v17', title: '夜間: 晚安', src: '/audio/good_night_normal.mp3', duration: '0:05' }
-];
-
 export default function App() {
   const getCurrentTime = () => {
     const now = new Date();
@@ -182,23 +181,20 @@ export default function App() {
   const [inputText, setInputText] = useState('');
   const [isTyping, setIsTyping] = useState(false);
 
-  // 三表合一 Master 與獨立資料庫
+  // 試算表資料庫
   const [masterMedia, setMasterMedia] = useState([]);
   const [dialogueList, setDialogueList] = useState([]);
   const [foodWeights, setFoodWeights] = useState([]);
+  const [interviewData, setInterviewData] = useState([]);
 
-  // 追問對話隊列（含逾時時間戳記）
+  // 追問對話隊列（物件結構：{ replyText: '', replyTo: '前置訊息' }，支援回覆機制）
   const [followUpQueue, setFollowUpQueue] = useState(() => {
     try {
-      const saved = localStorage.getItem('soo_follow_up_queue');
+      const saved = localStorage.getItem('soo_follow_up_queue_v2');
       return saved ? JSON.parse(saved) : [];
     } catch {
       return [];
     }
-  });
-
-  const [lastInteractionTime, setLastInteractionTime] = useState(() => {
-    return parseInt(localStorage.getItem('soo_last_interaction_ts') || '0', 10);
   });
 
   const [awokenDate, setAwokenDate] = useState(() => {
@@ -214,6 +210,7 @@ export default function App() {
   const [isPlusMenuOpen, setIsPlusMenuOpen] = useState(false);
   const [activeModal, setActiveModal] = useState(null);
   const [activeAlbumTab, setActiveAlbumTab] = useState('all');
+  const [activeInterviewId, setActiveInterviewId] = useState('');
 
   const ringAudioRef = useRef(null);
   const phoneCallAudioRef = useRef(null);
@@ -231,24 +228,28 @@ export default function App() {
 
   useEffect(() => {
     try {
-      localStorage.setItem('soo_follow_up_queue', JSON.stringify(followUpQueue));
-      localStorage.setItem('soo_last_interaction_ts', String(lastInteractionTime));
+      localStorage.setItem('soo_follow_up_queue_v2', JSON.stringify(followUpQueue));
     } catch (e) {
       console.error('儲存追問隊列失敗:', e);
     }
-  }, [followUpQueue, lastInteractionTime]);
+  }, [followUpQueue]);
 
-  // 單次讀取所有分頁並分流
+  // 單次讀取所有分頁
   const loadDatabase = async () => {
-    const [mediaRows, diagRows, foodRows] = await Promise.all([
+    const [mediaRows, diagRows, foodRows, interviewRows] = await Promise.all([
       fetchSheetData('media'),
       fetchSheetData('dialogues'),
-      fetchSheetData('food_weights')
+      fetchSheetData('food_weights'),
+      fetchSheetData('interviews')
     ]);
 
     if (mediaRows && mediaRows.length > 0) setMasterMedia(mediaRows);
     if (diagRows && diagRows.length > 0) setDialogueList(diagRows);
     if (foodRows && foodRows.length > 0) setFoodWeights(foodRows);
+    if (interviewRows && interviewRows.length > 0) {
+      setInterviewData(interviewRows);
+      setActiveInterviewId(interviewRows[0]?.interview_id || '');
+    }
   };
 
   useEffect(() => {
@@ -265,7 +266,7 @@ export default function App() {
     return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
   };
 
-  // 1. 連發訊息泡泡引擎（支援 ; 切分，擬真打字間隔）
+  // 連發氣泡引擎（支援 ; 切分，支援引用回覆 replyTo）
   const sendStaggeredMessages = async (textBlock, options = {}) => {
     if (!textBlock) return;
     const bubbles = textBlock.split(/;|\n/).map(s => s.trim()).filter(Boolean);
@@ -273,8 +274,7 @@ export default function App() {
 
     for (let i = 0; i < bubbles.length; i++) {
       setIsTyping(true);
-      // 隨機擬真打字時長（500ms ~ 900ms）
-      const delay = Math.floor(Math.random() * 400) + 500;
+      const delay = Math.floor(Math.random() * 350) + 450;
       await new Promise(r => setTimeout(r, delay));
 
       setIsTyping(false);
@@ -285,22 +285,21 @@ export default function App() {
           role: 'assistant',
           type: 'text',
           content: bubbles[i],
+          replyTo: (i === 0 && options.replyTo) ? options.replyTo : null,
           time: getCurrentTime()
         }
       ]);
 
-      // 氣泡間稍微停頓
       if (i < bubbles.length - 1) {
-        await new Promise(r => setTimeout(r, 350));
+        await new Promise(r => setTimeout(r, 300));
       }
     }
 
-    // 若附帶音檔則在對話結束後發出
     if (options.audioAfter) {
       const finalAudio = formatAudioUrl(options.audioAfter);
       setTimeout(() => {
         sendVoiceMessage({ src: finalAudio, duration: '0:03' });
-      }, 700);
+      }, 600);
     }
   };
 
@@ -336,14 +335,13 @@ export default function App() {
     ]);
   };
 
-  // 從 dialogues 表格中依 type 隨機抽選台詞
   const pickDialogue = (typeKey) => {
     const pool = dialogueList.filter(d => (d.type || '').trim().toLowerCase() === typeKey.toLowerCase());
     if (pool.length === 0) return null;
     return pool[Math.floor(Math.random() * pool.length)];
   };
 
-  // 2. 吃什麼權重輪盤系統
+  // 吃什麼權重輪盤
   const triggerFoodRoulette = () => {
     if (foodWeights.length === 0) {
       sendStaggeredMessages('今天吃什麼都好;只要跟你一起吃');
@@ -367,24 +365,37 @@ export default function App() {
     sendStaggeredMessages(comment);
   };
 
-  // 未接來電後的補發訊息
+  // 抽出物件中所有後續追問內容（全相容 follow_ups, follow_up_1, 2, 3）
+  const extractAllFollowUps = (item, baseTitle = '') => {
+    const list = [];
+    if (item.follow_ups) {
+      list.push(...item.follow_ups.split(/;|\n/).map(s => s.trim()).filter(Boolean));
+    }
+    if (item.follow_up_1 && item.follow_up_1.trim()) list.push(item.follow_up_1.trim());
+    if (item.follow_up_2 && item.follow_up_2.trim()) list.push(item.follow_up_2.trim());
+    if (item.follow_up_3 && item.follow_up_3.trim()) list.push(item.follow_up_3.trim());
+
+    return list.map(text => ({
+      replyText: text,
+      replyTo: baseTitle || item.caption || item.trigger_content || ''
+    }));
+  };
+
+  // 未接來電補發
   const triggerMissedCallFollowUp = (urgent = false) => {
     setTimeout(() => {
       const diag = pickDialogue(urgent ? 'missed_urgent' : 'missed_call');
       if (diag) {
         sendStaggeredMessages(diag.trigger_content, { audioAfter: diag.audio_after });
-        if (diag.follow_ups) {
-          const newFollows = diag.follow_ups.split(/;|\n/).map(s => s.trim()).filter(Boolean);
-          setFollowUpQueue(newFollows);
-          setLastInteractionTime(Date.now());
-        }
+        const newQueue = extractAllFollowUps(diag, diag.trigger_content);
+        if (newQueue.length > 0) setFollowUpQueue(prev => [...prev, ...newQueue]);
       } else {
         sendStaggeredMessages(urgent ? '怎麼沒接？;看到立刻打回來' : '看到打回來。');
       }
     }, 800);
   };
 
-  // 來電觸發（音訊 / 視訊）
+  // 來電觸發（延長至 8 秒）
   const triggerIncomingCall = (type = 'audio', scenario = 'normal') => {
     setCallType(type);
     setCallStatus('ringing');
@@ -408,7 +419,7 @@ export default function App() {
         }
         return current;
       });
-    }, 5000);
+    }, 8000); // 延長至 8 秒
   };
 
   const handleAcceptCall = () => {
@@ -472,16 +483,14 @@ export default function App() {
     setIsVideoCalling(true);
   };
 
-  // 3. 階梯式晨喚排程（補償機制）
+  // 早晨喚醒機制（維持每 30 分鐘追催）
   useEffect(() => {
     const checkWakeupSchedule = () => {
       const todayStr = getTodayDateStr();
-      if (awokenDate === todayStr) return; // 今日已醒
+      if (awokenDate === todayStr) return;
 
       const now = new Date();
-      const hour = now.getHours();
-      const min = now.getMinutes();
-      const currentVal = hour * 60 + min;
+      const currentVal = now.getHours() * 60 + now.getMinutes();
 
       const storageKey = `soo_wakeup_done_${todayStr}`;
       const triggeredSteps = JSON.parse(localStorage.getItem(storageKey) || '[]');
@@ -490,21 +499,17 @@ export default function App() {
       let voiceToPlay = null;
 
       if (currentVal >= 510 && currentVal < 570 && !triggeredSteps.includes('s1')) {
-        // 08:30 ~ 09:30
         stepToRun = 's1';
-        voiceToPlay = STEP_VOICES.step1;
+        voiceToPlay = { src: '/audio/1_get up_cozy.mp3', duration: '0:03' };
       } else if (currentVal >= 570 && currentVal < 630 && !triggeredSteps.includes('s2')) {
-        // 09:30 ~ 10:30
         stepToRun = 's2';
-        voiceToPlay = STEP_VOICES.step2;
+        voiceToPlay = { src: '/audio/2_plz_get_up.mp3', duration: '0:04' };
       } else if (currentVal >= 630 && currentVal < 690 && !triggeredSteps.includes('s3')) {
-        // 10:30 ~ 11:30
         stepToRun = 's3';
-        voiceToPlay = STEP_VOICES.step3;
+        voiceToPlay = { src: '/audio/4_time_to_get_up_now.mp3', duration: '0:03' };
       } else if (currentVal >= 690 && !triggeredSteps.includes(`s4_${Math.floor(currentVal / 30)}`)) {
-        // 11:30 以後每 30 分鐘催一次
         stepToRun = `s4_${Math.floor(currentVal / 30)}`;
-        voiceToPlay = STEP_VOICES.step4;
+        voiceToPlay = { src: '/audio/5_get_up_yell.mp3', duration: '0:04' };
       }
 
       if (stepToRun && voiceToPlay) {
@@ -519,18 +524,17 @@ export default function App() {
     };
 
     checkWakeupSchedule();
-    const interval = setInterval(checkWakeupSchedule, 60000); // 每分鐘巡檢一次
+    const interval = setInterval(checkWakeupSchedule, 60000);
     return () => clearInterval(interval);
   }, [awokenDate]);
 
-  // 4. 訊息送出處理（含追問超時、話題轉移與吃什麼）
+  // 使用者傳訊（支援回覆機制，取消時效性中斷）
   const handleSend = () => {
     if (!inputText.trim() || isTyping) return;
     const currentInput = inputText.trim();
-    const nowTs = Date.now();
 
     const userMsg = {
-      id: nowTs,
+      id: Date.now(),
       role: 'user',
       type: 'text',
       content: currentInput,
@@ -539,45 +543,36 @@ export default function App() {
     setMessages(prev => [...prev, userMsg]);
     setInputText('');
 
-    // 情境 A：解除晨喚
+    // 解除晨喚
     if (currentInput.includes('起床')) {
       const todayStr = getTodayDateStr();
       setAwokenDate(todayStr);
       localStorage.setItem('soo_awoken_date', todayStr);
       setCallStatus('idle');
-      setFollowUpQueue([]); // 話題截斷
 
       const awakeDiag = pickDialogue('system_awake');
       sendStaggeredMessages(awakeDiag ? awakeDiag.trigger_content : '終於醒了？;水喝了嗎？');
       return;
     }
 
-    // 情境 B：吃什麼權重輪盤（主動轉移話題）
+    // 吃什麼輪盤
     if (/吃什麼|想吃|晚餐|午餐|宵夜|吃啥/.test(currentInput)) {
-      setFollowUpQueue([]); // 話題截斷，優先吃什麼
       triggerFoodRoulette();
       return;
     }
 
-    // 情境 C：追問對話串判定（超過 5 分鐘逾時放棄）
-    const isFollowUpExpired = (nowTs - lastInteractionTime) > 300000; // 300,000ms = 5 分鐘
-    if (followUpQueue.length > 0 && !isFollowUpExpired) {
-      const [nextReply, ...remaining] = followUpQueue;
+    // 若有待續的 follow_up 隊列：直接取出下一句，並帶入 replyTo 產生引用回覆
+    if (followUpQueue.length > 0) {
+      const [nextItem, ...remaining] = followUpQueue;
       setFollowUpQueue(remaining);
-      setLastInteractionTime(nowTs);
 
       setTimeout(() => {
-        sendStaggeredMessages(nextReply);
+        sendStaggeredMessages(nextItem.replyText, { replyTo: nextItem.replyTo });
       }, 700);
       return;
     }
 
-    // 若隊列過期則清空
-    if (followUpQueue.length > 0 && isFollowUpExpired) {
-      setFollowUpQueue([]);
-    }
-
-    // 情境 D：一般隨機台詞
+    // 無隊列時：隨機日常台詞，並將該台詞的所有 follow_ups 完整收錄
     const textDiags = dialogueList.filter(d => (d.type || '').trim().toLowerCase() === 'text');
     const picked = textDiags.length > 0
       ? textDiags[Math.floor(Math.random() * textDiags.length)]
@@ -586,11 +581,8 @@ export default function App() {
     setTimeout(() => {
       if (picked) {
         sendStaggeredMessages(picked.trigger_content, { audioAfter: picked.audio_after });
-        if (picked.follow_ups) {
-          const newFollows = picked.follow_ups.split(/;|\n/).map(s => s.trim()).filter(Boolean);
-          setFollowUpQueue(newFollows);
-          setLastInteractionTime(Date.now());
-        }
+        const newQueue = extractAllFollowUps(picked, picked.trigger_content);
+        if (newQueue.length > 0) setFollowUpQueue(newQueue);
       } else {
         const fallbacks = ['好，我聽到了～', '吃飯了嗎？', '忙完回我一聲', '待會見～'];
         sendStaggeredMessages(fallbacks[Math.floor(Math.random() * fallbacks.length)]);
@@ -603,17 +595,17 @@ export default function App() {
       setMessages([{ id: Date.now(), role: 'assistant', type: 'text', content: '今天有好好吃飯嗎？', time: getCurrentTime() }]);
       setFollowUpQueue([]);
       localStorage.removeItem('soo_chat_messages');
-      localStorage.removeItem('soo_follow_up_queue');
+      localStorage.removeItem('soo_follow_up_queue_v2');
     }
   };
 
-  // 分類抽卡（點擊按鈕）
+  // 分類抽卡（點擊按鈕，完整載入 follow_ups）
   const triggerCategoryRandom = (catKey) => {
     const target = catKey.toLowerCase().trim();
     const pool = masterMedia.filter(m => (m.category || '').toLowerCase().trim() === target && (m.images || '').trim().length > 0);
 
     if (pool.length === 0) {
-      alert(`Master 表格中找不到分類為 "${catKey}" 且含有照片的資料`);
+      alert(`Master 表格中找不到分類為 "${catKey}" 的照片`);
       return;
     }
 
@@ -641,55 +633,14 @@ export default function App() {
       }, 700);
     }
 
-    if (item.follow_ups) {
-      const newFollows = item.follow_ups.split(/;|\n/).map(s => s.trim()).filter(Boolean);
-      setFollowUpQueue(newFollows);
-      setLastInteractionTime(Date.now());
+    // 解決 Follow up 中斷 bug：將所有後續追問完整壓入隊列，保留照片標題以供回覆
+    const itemFollowUps = extractAllFollowUps(item, item.caption || item.album_name || '照片分享');
+    if (itemFollowUps.length > 0) {
+      setFollowUpQueue(prev => [...prev, ...itemFollowUps]);
     }
   };
 
-  // 每 3 分鐘隨機互動引擎
-  useEffect(() => {
-    const autoInterval = setInterval(() => {
-      if (callStatus !== 'idle' || isVideoCalling) return;
-
-      const actions = [
-        'photo_gym', 'photo_car', 'photo_selfie', 'photo_gd', 'photo_outing', 'photo_mag', 'photo_off',
-        'voice_memo', 'text_msg', 'incoming_audio', 'incoming_video', 'urgent_chain_calls'
-      ];
-      const picked = actions[Math.floor(Math.random() * actions.length)];
-
-      if (picked.startsWith('photo_')) {
-        const cat = picked.replace('photo_', '');
-        triggerCategoryRandom(cat === 'mag' ? 'magazine' : cat === 'off' ? 'official' : cat);
-      } else if (picked === 'voice_memo') {
-        const audioDiags = dialogueList.filter(d => (d.type || '').trim().toLowerCase() === 'audio');
-        if (audioDiags.length > 0) {
-          const chosen = audioDiags[Math.floor(Math.random() * audioDiags.length)];
-          sendVoiceMessage({ src: formatAudioUrl(chosen.trigger_content), duration: '0:03' });
-          if (chosen.follow_ups) {
-            setTimeout(() => sendStaggeredMessages(chosen.follow_ups), 1200);
-          }
-        }
-      } else if (picked === 'text_msg') {
-        const textDiags = dialogueList.filter(d => (d.type || '').trim().toLowerCase() === 'text');
-        if (textDiags.length > 0) {
-          const chosen = textDiags[Math.floor(Math.random() * textDiags.length)];
-          sendStaggeredMessages(chosen.trigger_content, { audioAfter: chosen.audio_after });
-        }
-      } else if (picked === 'incoming_audio') {
-        triggerIncomingCall('audio', 'normal');
-      } else if (picked === 'incoming_video') {
-        triggerIncomingCall('video', 'normal');
-      } else if (picked === 'urgent_chain_calls') {
-        triggerIncomingCall('audio', 'urgent_chain');
-      }
-    }, 180000); // 3 分鐘
-
-    return () => clearInterval(autoInterval);
-  }, [masterMedia, dialogueList, callStatus, isVideoCalling]);
-
-  // 通話音訊與影片控制
+  // 通話音訊與影片播放管理
   useEffect(() => {
     if (callStatus === 'ringing') {
       if (ringAudioRef.current) {
@@ -746,7 +697,7 @@ export default function App() {
     return groups;
   }, [masterMedia]);
 
-  // Master Media 分流：行事曆列表
+  // Master Media 分流：行事曆
   const eventItems = React.useMemo(() => {
     return masterMedia.filter(m => (m.date || '').trim().length > 0).map(m => ({
       date: m.date,
@@ -756,7 +707,7 @@ export default function App() {
     }));
   }, [masterMedia]);
 
-  // Master Media 分流：情報列表
+  // Master Media 分流：情報專區
   const newsItems = React.useMemo(() => {
     return masterMedia.filter(m => (m.news_title || m.news_summary || '').trim().length > 0).map(m => {
       const raw = (m.images || '').trim();
@@ -773,6 +724,19 @@ export default function App() {
     });
   }, [masterMedia]);
 
+  // 訪談分組（依 interview_id）
+  const interviewGroups = React.useMemo(() => {
+    const groups = {};
+    interviewData.forEach(row => {
+      const id = row.interview_id ? row.interview_id.trim() : 'VOGUE_HK_2026';
+      if (!groups[id]) groups[id] = [];
+      groups[id].push(row);
+    });
+    return groups;
+  }, [interviewData]);
+
+  const currentInterviewRows = interviewGroups[activeInterviewId] || [];
+
   return (
     <div className="flex h-[100dvh] w-screen bg-slate-900 justify-center items-center select-none overflow-hidden sm:p-3">
       {/* 鈴聲與音檔 */}
@@ -782,7 +746,7 @@ export default function App() {
       {/* 主聊天容器 */}
       <div className="w-full sm:max-w-[420px] h-[100dvh] sm:h-[92vh] sm:max-h-[880px] bg-[#ECEEF1] sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden relative border-0 sm:border sm:border-slate-700">
         
-        {/* 全螢幕來電介面 */}
+        {/* 全螢幕來電介面（8秒） */}
         {callStatus !== 'idle' && (
           <div className="absolute inset-0 bg-slate-950/95 z-50 flex flex-col justify-between items-center py-16 px-6 text-white backdrop-blur-md animate-fade-in">
             <div className="flex flex-col items-center mt-10 space-y-4">
@@ -818,7 +782,7 @@ export default function App() {
           </div>
         )}
 
-        {/* 📹 全螢幕視訊通話介面 */}
+        {/* 📹 全螢幕視訊通話（保證播放） */}
         {isVideoCalling && (
           <div className="absolute inset-0 bg-black z-50 flex flex-col justify-between items-center py-12 px-6 text-white animate-fade-in">
             <div className="absolute inset-0 z-0 overflow-hidden">
@@ -827,6 +791,7 @@ export default function App() {
                 src="/video/video_call.mp4"
                 playsInline
                 autoPlay
+                preload="auto"
                 onEnded={() => {
                   setIsVideoCalling(false);
                   addCallRecord(`視訊通話 ${formatSeconds(videoDuration)}`, 'user', formatSeconds(videoDuration));
@@ -947,6 +912,12 @@ export default function App() {
                   <div className={`max-w-[72%] rounded-2xl px-3.5 py-2 text-[13.5px] leading-relaxed shadow-sm ${
                     isUser ? 'bg-[#81D4D2] text-[#0F3332] rounded-tr-none' : 'bg-white text-slate-900 rounded-tl-none border border-slate-200/60'
                   }`}>
+                    {/* 引用回覆小框（呈現跳著回覆） */}
+                    {msg.replyTo && (
+                      <div className="mb-1.5 px-2 py-1 bg-slate-100/90 rounded-md border-l-2 border-[#5FBDB9] text-[11px] text-slate-500 line-clamp-1">
+                        回覆: {msg.replyTo}
+                      </div>
+                    )}
                     <p className="whitespace-pre-wrap">{msg.content}</p>
                   </div>
                 )}
@@ -997,29 +968,33 @@ export default function App() {
           </button>
         </div>
 
-        {/* ➕ 彈出擴充選單面板 */}
+        {/* ➕ 彈出擴充選單面板（新增訪談按鈕） */}
         {isPlusMenuOpen && (
-          <div className="bg-[#4E727A]/95 backdrop-blur-md px-4 py-3 flex justify-around border-t border-[#3D5C63] z-20 animate-fade-in shadow-xl">
+          <div className="bg-[#4E727A]/95 backdrop-blur-md px-3 py-3 flex justify-around border-t border-[#3D5C63] z-20 animate-fade-in shadow-xl">
             <button onClick={() => { setActiveModal('album'); setIsPlusMenuOpen(false); }} className="flex flex-col items-center space-y-1 text-white active:scale-90 transition">
-              <div className="w-11 h-11 rounded-2xl bg-white/10 flex items-center justify-center text-lg shadow-sm">🖼️</div>
-              <span className="text-[11px] text-teal-100">相簿</span>
+              <div className="w-10 h-10 rounded-2xl bg-white/10 flex items-center justify-center text-lg shadow-sm">🖼️</div>
+              <span className="text-[10.5px] text-teal-100">相簿</span>
             </button>
             <button onClick={() => { setActiveModal('calendar'); setIsPlusMenuOpen(false); }} className="flex flex-col items-center space-y-1 text-white active:scale-90 transition">
-              <div className="w-11 h-11 rounded-2xl bg-white/10 flex items-center justify-center text-lg shadow-sm">📅</div>
-              <span className="text-[11px] text-teal-100">行事曆</span>
+              <div className="w-10 h-10 rounded-2xl bg-white/10 flex items-center justify-center text-lg shadow-sm">📅</div>
+              <span className="text-[10.5px] text-teal-100">行事曆</span>
+            </button>
+            <button onClick={() => { setActiveModal('interview'); setIsPlusMenuOpen(false); }} className="flex flex-col items-center space-y-1 text-white active:scale-90 transition">
+              <div className="w-10 h-10 rounded-2xl bg-white/10 flex items-center justify-center text-lg shadow-sm">🎙️</div>
+              <span className="text-[10.5px] text-teal-100">專訪</span>
             </button>
             <button onClick={() => { setActiveModal('voices'); setIsPlusMenuOpen(false); }} className="flex flex-col items-center space-y-1 text-white active:scale-90 transition">
-              <div className="w-11 h-11 rounded-2xl bg-white/10 flex items-center justify-center text-lg shadow-sm">🎙️</div>
-              <span className="text-[11px] text-teal-100">語音列表</span>
+              <div className="w-10 h-10 rounded-2xl bg-white/10 flex items-center justify-center text-lg shadow-sm">📼</div>
+              <span className="text-[10.5px] text-teal-100">語音庫</span>
             </button>
             <button onClick={() => { setActiveModal('news'); setIsPlusMenuOpen(false); }} className="flex flex-col items-center space-y-1 text-white active:scale-90 transition">
-              <div className="w-11 h-11 rounded-2xl bg-white/10 flex items-center justify-center text-lg shadow-sm">📰</div>
-              <span className="text-[11px] text-teal-100">情報</span>
+              <div className="w-10 h-10 rounded-2xl bg-white/10 flex items-center justify-center text-lg shadow-sm">📰</div>
+              <span className="text-[10.5px] text-teal-100">情報</span>
             </button>
           </div>
         )}
 
-        {/* 底部輸入列 */}
+        {/* 底部輸入列（永遠保持空白 placeholder） */}
         <div className="bg-[#4E727A] p-2.5 flex items-center space-x-2 border-t border-[#3D5C63] z-20 shrink-0 pb-6">
           <button
             onClick={() => setIsPlusMenuOpen(!isPlusMenuOpen)}
@@ -1032,7 +1007,7 @@ export default function App() {
           <input
             type="text"
             className="flex-1 bg-white/95 rounded-full px-4 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#81D4D2]"
-            placeholder="輸入... (試試輸入「吃什麼」或「起床」)"
+            placeholder=""
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
             onKeyDown={(e) => {
@@ -1044,7 +1019,7 @@ export default function App() {
           </button>
         </div>
 
-        {/* 彈出視窗 1️⃣：相簿功能（來自 Master Media 分流） */}
+        {/* 彈出視窗 1️⃣：相簿功能 */}
         {activeModal === 'album' && (
           <div className="absolute inset-0 bg-slate-950/95 z-50 flex flex-col text-white backdrop-blur-md animate-fade-in">
             <div className="pt-12 pb-3 px-4 bg-[#4E727A] flex items-center justify-between shadow border-b border-[#3D5C63]">
@@ -1080,7 +1055,7 @@ export default function App() {
           </div>
         )}
 
-        {/* 彈出視窗 2️⃣：行事曆功能（來自 Master Media 分流） */}
+        {/* 彈出視窗 2️⃣：行事曆功能 */}
         {activeModal === 'calendar' && (
           <div className="absolute inset-0 bg-slate-950/95 z-50 flex flex-col text-white backdrop-blur-md animate-fade-in">
             <div className="pt-12 pb-3 px-4 bg-[#4E727A] flex items-center justify-between shadow border-b border-[#3D5C63]">
@@ -1126,7 +1101,7 @@ export default function App() {
               </div>
 
               <div className="bg-white/5 rounded-2xl p-3.5 space-y-1.5 border border-white/10 mt-4 max-h-48 overflow-y-auto">
-                <span className="text-xs font-semibold text-[#81D4D2]">近期重點行程 (Master 分流)</span>
+                <span className="text-xs font-semibold text-[#81D4D2]">近期重點行程</span>
                 {eventItems.length > 0 ? (
                   eventItems.map((ev, idx) => (
                     <p key={idx} className="text-[11px] text-slate-300">
@@ -1141,35 +1116,131 @@ export default function App() {
           </div>
         )}
 
-        {/* 彈出視窗 3️⃣：語音列表全集 */}
+        {/* 彈出視窗 3️⃣：專訪特輯 (Interviews) */}
+        {activeModal === 'interview' && (
+          <div className="absolute inset-0 bg-[#0B1120] z-50 flex flex-col text-slate-100 backdrop-blur-md animate-fade-in">
+            <div className="pt-12 pb-3 px-4 bg-[#4E727A] flex items-center justify-between border-b border-[#3D5C63] shadow">
+              <div className="flex flex-col">
+                <span className="font-semibold text-base tracking-wide text-white">專訪對話室 (Interviews)</span>
+                <span className="text-[10px] text-teal-100/70">深度訪談・現場實錄</span>
+              </div>
+              <button onClick={() => setActiveModal(null)} className="text-xs text-teal-100 hover:text-white px-2.5 py-1 rounded-md bg-white/10">
+                關閉
+              </button>
+            </div>
+
+            {/* 訪談選擇 Tab */}
+            <div className="flex border-b border-white/10 px-3 pt-2 bg-slate-900/60 overflow-x-auto scrollbar-none">
+              {Object.keys(interviewGroups).map(idKey => (
+                <button
+                  key={idKey}
+                  onClick={() => setActiveInterviewId(idKey)}
+                  className={`pb-2 mr-3 text-xs whitespace-nowrap font-medium tracking-wide border-b-2 transition ${
+                    activeInterviewId === idKey ? 'border-[#81D4D2] text-[#81D4D2]' : 'border-transparent text-slate-400'
+                  }`}
+                >
+                  {interviewGroups[idKey][0]?.title || idKey}
+                </button>
+              ))}
+            </div>
+
+            {/* 訪談內容區（左右來回對話流） */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+              {currentInterviewRows.length > 0 ? (
+                currentInterviewRows.map((row, idx) => {
+                  const isIntro = row.section_type === 'intro';
+                  const isCredit = row.section_type === 'credit';
+                  const isSoo = (row.speaker || '').trim().toLowerCase() === 'soo';
+
+                  if (isIntro) {
+                    return (
+                      <div key={idx} className="bg-slate-800/80 p-4 rounded-2xl border border-[#81D4D2]/30 space-y-2 shadow-sm">
+                        <div className="flex items-center justify-between text-[11px] text-[#81D4D2] font-mono">
+                          <span>EDITORIAL INTRO</span>
+                          <span>{row.date}</span>
+                        </div>
+                        <p className="text-[12.5px] leading-relaxed text-slate-200 font-light whitespace-pre-wrap">
+                          {row.content}
+                        </p>
+                      </div>
+                    );
+                  }
+
+                  if (isCredit) {
+                    return (
+                      <div key={idx} className="bg-black/40 p-4 rounded-2xl border border-white/10 mt-6 text-[10.5px] text-slate-400 space-y-1 leading-relaxed font-mono">
+                        <span className="text-[#81D4D2] font-semibold block mb-1">CREDITS</span>
+                        <p className="whitespace-pre-wrap">{row.content}</p>
+                        {row.note && <p className="text-slate-500 mt-2">{row.note}</p>}
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div key={idx} className={`flex items-end ${isSoo ? 'justify-end' : 'justify-start'} space-x-2`}>
+                      {!isSoo && (
+                        <div className="w-7 h-7 rounded-full bg-slate-700 flex items-center justify-center text-[10px] font-bold text-slate-300 shrink-0 mb-1 border border-slate-600">
+                          Q
+                        </div>
+                      )}
+
+                      <div className={`max-w-[80%] rounded-2xl px-3.5 py-2.5 text-[12.5px] leading-relaxed shadow-sm ${
+                        isSoo 
+                          ? 'bg-[#1E293B] text-teal-50 border border-teal-500/30 rounded-tr-none' 
+                          : 'bg-white/10 text-slate-200 border border-white/10 rounded-tl-none'
+                      }`}>
+                        <div className="text-[9px] font-mono text-slate-400 mb-1">
+                          {isSoo ? 'Lee Soo-hyuk' : row.speaker || 'Interviewer'}
+                        </div>
+                        <p className="whitespace-pre-wrap">{row.content}</p>
+                      </div>
+
+                      {isSoo && (
+                        <div className="w-7 h-7 rounded-full overflow-hidden shrink-0 mb-1 ring-1 ring-[#81D4D2]/40">
+                          <img src="https://images.plurk.com/6PooPJr1YbOhrMp5CCFdbl.jpg" alt="avatar" className="w-full h-full object-cover" />
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="text-center py-12 text-slate-500 text-xs">
+                  試算表 interviews 分頁目前無資料。
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* 彈出視窗 4️⃣：語音原聲帶（依原始檔名，底線轉空白） */}
         {activeModal === 'voices' && (
           <div className="absolute inset-0 bg-slate-950/95 z-50 flex flex-col text-white backdrop-blur-md animate-fade-in">
             <div className="pt-12 pb-3 px-4 bg-[#4E727A] flex items-center justify-between shadow border-b border-[#3D5C63]">
-              <span className="font-medium text-base tracking-wide">語音原聲帶 (Voice Memos)</span>
+              <span className="font-medium text-base tracking-wide">原聲音訊庫 (Audio Files)</span>
               <button onClick={() => setActiveModal(null)} className="text-sm text-teal-100 hover:text-white px-2 py-1">關閉</button>
             </div>
 
             <div className="flex-1 overflow-y-auto p-4 space-y-2.5">
-              {ALL_VOICE_LIST.map((item) => (
+              {RAW_VOICE_LIST.map((item) => (
                 <div key={item.id} className="bg-slate-900/80 p-3 rounded-2xl border border-white/5 flex items-center justify-between">
-                  <div className="flex flex-col space-y-0.5">
-                    <span className="text-xs font-medium text-slate-200">{item.title}</span>
-                    <span className="text-[10px] text-slate-500 font-mono">{item.duration}</span>
+                  <div className="flex flex-col space-y-0.5 max-w-[55%]">
+                    <span className="text-xs font-mono font-medium text-slate-200 truncate">{item.title}</span>
+                    <span className="text-[10px] text-slate-500 font-mono">/audio/{item.title}.mp3</span>
                   </div>
-                  <AudioBubble audioSrc={formatAudioUrl(item.src)} durationText={item.duration} />
+                  <AudioBubble audioSrc={item.src} durationText={item.duration} />
                 </div>
               ))}
             </div>
           </div>
         )}
 
-        {/* 彈出視窗 4️⃣：情報與動態（來自 Master Media 分流） */}
+        {/* 彈出視窗 5️⃣：情報與動態 */}
         {activeModal === 'news' && (
           <div className="absolute inset-0 bg-[#0F172A] z-50 flex flex-col text-slate-100 backdrop-blur-md animate-fade-in">
             <div className="pt-12 pb-3 px-4 bg-[#4E727A] flex items-center justify-between border-b border-[#3D5C63] shadow">
               <div className="flex flex-col">
                 <span className="font-semibold text-base tracking-wide text-white">情報專區 (News & Intel)</span>
-                <span className="text-[10px] text-teal-100/70">官方通告・媒體新聞・站姐高清預覽</span>
+                <span className="text-[10px] text-teal-100/70">官方通告・媒體新聞</span>
               </div>
               <button onClick={() => setActiveModal(null)} className="text-xs text-teal-100 hover:text-white px-2.5 py-1 rounded-md bg-white/10">
                 關閉
@@ -1217,7 +1288,7 @@ export default function App() {
                 ))
               ) : (
                 <div className="text-center py-12 text-slate-500 text-xs">
-                  Master 表格目前無 news_title 或 news_summary 資料。
+                  Master 表格目前無 news 資料。
                 </div>
               )}
             </div>
