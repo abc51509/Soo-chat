@@ -316,7 +316,6 @@ export default function App() {
       });
     }
 
-    // 備援清單（當試算表尚未填寫時預設載入）
     const fallbackFiles = [
       '1_get up_cozy.mp3', '2_plz_get_up.mp3', '3_can_u_get_up.mp3', '4_time_to_get_up_now.mp3',
       '5_get_up_yell.mp3', 'Can_u_b_my_gf.mp3', 'Do_u_like_it.mp3', 'eat.mp3',
@@ -498,7 +497,7 @@ export default function App() {
     }, 800);
   };
 
-  // 來電觸發 (8 秒)
+  // 來電觸發 (8 秒超時掛斷)
   const triggerIncomingCall = (type = 'audio', scenario = 'normal') => {
     setCallType(type);
     setCallStatus('ringing');
@@ -585,7 +584,27 @@ export default function App() {
     setIsVideoCalling(true);
   };
 
-  // 晨喚階梯排程
+  // 快捷主動觸發：文字訊息
+  const triggerManualText = () => {
+    const textDiags = dialogueList.filter(d => (d.type || '').trim().toLowerCase() === 'text');
+    if (textDiags.length === 0) {
+      sendStaggeredMessages('在幹嘛呢？;今天想你了');
+      return;
+    }
+    const picked = textDiags[Math.floor(Math.random() * textDiags.length)];
+    sendStaggeredMessages(picked.trigger_content, { audioAfter: picked.audio_after });
+    const newQueue = extractAllFollowUps(picked, picked.trigger_content);
+    if (newQueue.length > 0) setFollowUpQueue(newQueue);
+  };
+
+  // 快捷主動觸發：隨機語音
+  const triggerManualVoice = () => {
+    if (dynamicVoiceList.length === 0) return;
+    const picked = dynamicVoiceList[Math.floor(Math.random() * dynamicVoiceList.length)];
+    sendVoiceMessage({ src: picked.src, duration: picked.duration });
+  };
+
+  // 🌟 修正後的晨喚機制：嚴格時間區間 + 13:00 嚴格截斷
   useEffect(() => {
     const checkWakeupSchedule = () => {
       const todayStr = getTodayDateStr();
@@ -594,23 +613,38 @@ export default function App() {
       const now = new Date();
       const currentVal = now.getHours() * 60 + now.getMinutes();
 
+      // 嚴格截斷：早上 07:00 前 (420) 或下午 13:00 後 (780)，完全不觸發晨喚
+      if (currentVal < 420 || currentVal > 780) return;
+
       const storageKey = `soo_wakeup_done_${todayStr}`;
       const triggeredSteps = JSON.parse(localStorage.getItem(storageKey) || '[]');
 
       let stepToRun = null;
       let voiceToPlay = null;
 
-      if (currentVal >= 510 && currentVal < 570 && !triggeredSteps.includes('s1')) {
+      // 1：07:00 - 07:59
+      if (currentVal >= 420 && currentVal < 480 && !triggeredSteps.includes('s1')) {
         stepToRun = 's1';
         voiceToPlay = { src: '/audio/1_get up_cozy.mp3', duration: '0:03' };
-      } else if (currentVal >= 570 && currentVal < 630 && !triggeredSteps.includes('s2')) {
+      } 
+      // 2：08:00 - 09:29
+      else if (currentVal >= 480 && currentVal < 570 && !triggeredSteps.includes('s2')) {
         stepToRun = 's2';
         voiceToPlay = { src: '/audio/2_plz_get_up.mp3', duration: '0:04' };
-      } else if (currentVal >= 630 && currentVal < 690 && !triggeredSteps.includes('s3')) {
+      } 
+      // 3：09:30 - 11:29
+      else if (currentVal >= 570 && currentVal < 690 && !triggeredSteps.includes('s3')) {
         stepToRun = 's3';
+        voiceToPlay = { src: '/audio/3_can_u_get_up.mp3', duration: '0:03' };
+      } 
+      // 4：11:30 - 11:59
+      else if (currentVal >= 690 && currentVal < 720 && !triggeredSteps.includes('s4')) {
+        stepToRun = 's4';
         voiceToPlay = { src: '/audio/4_time_to_get_up_now.mp3', duration: '0:03' };
-      } else if (currentVal >= 690 && !triggeredSteps.includes(`s4_${Math.floor(currentVal / 30)}`)) {
-        stepToRun = `s4_${Math.floor(currentVal / 30)}`;
+      } 
+      // 5：12:00 - 13:00
+      else if (currentVal >= 720 && currentVal <= 780 && !triggeredSteps.includes('s5')) {
+        stepToRun = 's5';
         voiceToPlay = { src: '/audio/5_get_up_yell.mp3', duration: '0:04' };
       }
 
@@ -1173,8 +1207,38 @@ export default function App() {
           <div ref={messagesEndRef} />
         </div>
 
-        {/* 劇本控制板 */}
+        {/* 劇本控制板（整合 📞 💬 📼 快捷鍵 + 7 個生活圖卡） */}
         <div className="bg-slate-900/10 px-2.5 py-2 flex space-x-2 overflow-x-auto border-t border-slate-200/80 z-10 scrollbar-none shrink-0">
+          {/* 📞 觸發洙赫來電 */}
+          <button 
+            onClick={() => triggerIncomingCall('audio', 'normal')} 
+            title="洙赫打電話給你" 
+            className="text-[12px] whitespace-nowrap bg-teal-50 hover:bg-teal-100 text-teal-800 font-semibold px-3 py-1.5 rounded-full shadow-sm border border-teal-300/80 transition shrink-0 active:scale-95"
+          >
+            📞
+          </button>
+
+          {/* 💬 觸發洙赫日常文字 */}
+          <button 
+            onClick={triggerManualText} 
+            title="洙赫傳日常訊息" 
+            className="text-[12px] whitespace-nowrap bg-teal-50 hover:bg-teal-100 text-teal-800 font-semibold px-3 py-1.5 rounded-full shadow-sm border border-teal-300/80 transition shrink-0 active:scale-95"
+          >
+            💬
+          </button>
+
+          {/* 📼 觸發洙赫隨機語音 */}
+          <button 
+            onClick={triggerManualVoice} 
+            title="洙赫傳隨機語音" 
+            className="text-[12px] whitespace-nowrap bg-teal-50 hover:bg-teal-100 text-teal-800 font-semibold px-3 py-1.5 rounded-full shadow-sm border border-teal-300/80 transition shrink-0 active:scale-95"
+          >
+            📼
+          </button>
+
+          <div className="w-[1px] h-6 bg-slate-300/80 my-auto shrink-0" />
+
+          {/* 生活與媒體抽卡鈕 */}
           <button onClick={() => triggerCategoryRandom('gym')} title="健身" className="text-[12px] whitespace-nowrap bg-white hover:bg-slate-50 text-slate-800 font-medium px-3 py-1.5 rounded-full shadow-sm border border-slate-200 transition shrink-0 active:scale-95">
             🏋️
           </button>
@@ -1245,11 +1309,9 @@ export default function App() {
           </button>
         </div>
 
-        {/* 彈出視窗 1️⃣：相簿功能（四宮格橫向滑動書架 + 點入三宮格全圖預覽） */}
+        {/* 彈出視窗 1️⃣：相簿功能 */}
         {activeModal === 'album' && (
           <div className="absolute inset-0 bg-[#0B1120] z-50 flex flex-col text-white backdrop-blur-md animate-fade-in">
-            
-            {/* 相簿內頁 View：三宮格全部預覽 */}
             {selectedAlbumName && activeAlbumDetail ? (
               <div className="flex-1 flex flex-col overflow-hidden">
                 <div className="pt-12 pb-3 px-4 bg-[#4E727A] flex items-center justify-between border-b border-[#3D5C63] shadow shrink-0">
@@ -1292,7 +1354,6 @@ export default function App() {
                 </div>
               </div>
             ) : (
-              /* 相簿總覽 View：四宮格（2x2）橫向滑動書架 */
               <div className="flex-1 flex flex-col overflow-hidden">
                 <div className="pt-12 pb-3 px-4 bg-[#4E727A] flex items-center justify-between border-b border-[#3D5C63] shadow shrink-0">
                   <div className="flex flex-col">
@@ -1363,7 +1424,6 @@ export default function App() {
                 )}
               </div>
             )}
-
           </div>
         )}
 
@@ -1431,8 +1491,6 @@ export default function App() {
         {/* 彈出視窗 3️⃣：FEED (雙排四宮格目錄 + 多影片垂直渲染 + 手勢返回) */}
         {activeModal === 'feed' && (
           <div className="absolute inset-0 bg-[#0B1120] z-50 flex flex-col text-slate-100 backdrop-blur-md animate-fade-in">
-            
-            {/* 詳情內頁 View */}
             {selectedFeedItem ? (
               <div 
                 className="flex-1 flex flex-col overflow-hidden"
@@ -1536,7 +1594,7 @@ export default function App() {
                     </div>
                   )}
 
-                  {/* 5. Layout Design 排版圖片區 (sub_type === 'layout') */}
+                  {/* 5. Layout Design 排版圖片區 */}
                   {selectedFeedItem.layout_images && selectedFeedItem.layout_images.length > 0 && (
                     <div className="space-y-3">
                       {selectedFeedItem.layout_images.map((layoutImg, lIdx) => (
@@ -1547,7 +1605,7 @@ export default function App() {
                     </div>
                   )}
 
-                  {/* 6. Interview 訪談對話室 (Q 頭像在頂部並與氣泡頂端平齊) */}
+                  {/* 6. Interview 訪談對話室 */}
                   {currentInterviewDialogue.length > 0 && (
                     <div className="space-y-3.5 pt-4 border-t border-white/10">
                       {currentInterviewDialogue.map((row, idx) => {
@@ -1591,7 +1649,7 @@ export default function App() {
                     </div>
                   )}
 
-                  {/* 7. 剩餘的所有照片 (Remaining Images 直排瀑布流) */}
+                  {/* 7. 剩餘的所有照片 */}
                   {selectedFeedItem.remaining_images && selectedFeedItem.remaining_images.length > 0 && (
                     <div className="space-y-3 pt-2">
                       {selectedFeedItem.remaining_images.map((imgUrl, rIdx) => (
@@ -1617,7 +1675,6 @@ export default function App() {
                 </div>
               </div>
             ) : (
-              /* FEED 列表 View (雙欄四宮格 + 智能人像裁切 + 來源加重置左) */
               <div className="flex-1 flex flex-col overflow-hidden">
                 <div className="pt-12 pb-3 px-4 bg-[#4E727A] flex items-center justify-between border-b border-[#3D5C63] shadow shrink-0">
                   <div className="flex flex-col">
@@ -1687,11 +1744,10 @@ export default function App() {
                 </div>
               </div>
             )}
-
           </div>
         )}
 
-        {/* 彈出視窗 4️⃣：語音原聲帶庫（完全動態讀取 dialogues 中 type === 'audio'） */}
+        {/* 彈出視窗 4️⃣：語音原聲帶庫 */}
         {activeModal === 'voices' && (
           <div className="absolute inset-0 bg-slate-950/95 z-50 flex flex-col text-white backdrop-blur-md animate-fade-in">
             <div className="pt-12 pb-3 px-4 bg-[#4E727A] flex items-center justify-between shadow border-b border-[#3D5C63]">
