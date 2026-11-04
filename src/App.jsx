@@ -77,6 +77,27 @@ const getYouTubeEmbedUrl = (rawUrl) => {
   return `https://www.youtube.com/embed/${videoId}?autoplay=0&controls=1&playsinline=1&modestbranding=1`;
 };
 
+// 影片來源格式化（支援純檔名、public/video/ 相對路徑與外部 URL）
+const formatVideoSource = (raw) => {
+  if (!raw) return { type: 'none', url: '' };
+  const clean = raw.trim();
+  const ytUrl = getYouTubeEmbedUrl(clean);
+  if (ytUrl) {
+    return { type: 'youtube', url: ytUrl };
+  }
+
+  // 檔名或本地檔案處理
+  let finalPath = clean;
+  if (!finalPath.startsWith('http') && !finalPath.startsWith('/')) {
+    if (!finalPath.startsWith('video/')) {
+      finalPath = '/video/' + finalPath;
+    } else {
+      finalPath = '/' + finalPath;
+    }
+  }
+  return { type: 'direct', url: finalPath };
+};
+
 // 音訊路徑安全解析補全
 const formatAudioUrl = (raw) => {
   if (!raw) return '';
@@ -206,6 +227,7 @@ export default function App() {
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   };
 
+  // 🌟 拔除預設訊息，改為純淨空陣列
   const [messages, setMessages] = useState(() => {
     try {
       const saved = localStorage.getItem('soo_chat_messages');
@@ -213,7 +235,7 @@ export default function App() {
     } catch (e) {
       console.error(e);
     }
-    return [{ id: 1, role: 'assistant', type: 'text', content: '今天有好好吃飯嗎？', time: getCurrentTime() }];
+    return [];
   });
 
   const [inputText, setInputText] = useState('');
@@ -620,9 +642,10 @@ export default function App() {
     }, 800);
   };
 
+  // 🌟 清空對話：清空為空陣列
   const handleClearMessages = () => {
     if (window.confirm(`目前共有 ${messages.length} 則訊息，確定要清空所有紀錄嗎？`)) {
-      setMessages([{ id: Date.now(), role: 'assistant', type: 'text', content: '今天有好好吃飯嗎？', time: getCurrentTime() }]);
+      setMessages([]);
       setFollowUpQueue([]);
       localStorage.removeItem('soo_chat_messages');
       localStorage.removeItem('soo_follow_up_queue_v2');
@@ -744,6 +767,7 @@ export default function App() {
       const newsTitleVal = getField(m, 'news_title', 'newstitle', 'title');
       const newsSummaryVal = getField(m, 'news_summary', 'newssummary', 'summary');
       const videoUrlVal = getField(m, 'video_url', 'videourl', 'video');
+      const videoCaptionVal = getField(m, 'video_caption', 'videocaption', 'video_desc', 'videodesc', 'video_title');
       const albumNameVal = getField(m, 'album_name', 'albumname', 'album');
       const interviewIdVal = getField(m, 'interview_id', 'interviewid', 'interview');
       const newsSourceVal = getField(m, 'news_source', 'newssource', 'source');
@@ -764,6 +788,7 @@ export default function App() {
           sub_title: getField(m, 'news_subtitle', 'newssubtitle', 'subtitle'),
           summary: newsSummaryVal,
           video_url: videoUrlVal,
+          video_caption: videoCaptionVal,
           credits: getField(m, 'credits', 'credit'),
           main_images: [],
           layout_images: []
@@ -775,6 +800,7 @@ export default function App() {
       if (getField(m, 'news_subtitle') && !grouped[groupKey].sub_title) grouped[groupKey].sub_title = getField(m, 'news_subtitle');
       if (newsSummaryVal && !grouped[groupKey].summary) grouped[groupKey].summary = newsSummaryVal;
       if (videoUrlVal && !grouped[groupKey].video_url) grouped[groupKey].video_url = videoUrlVal;
+      if (videoCaptionVal && !grouped[groupKey].video_caption) grouped[groupKey].video_caption = videoCaptionVal;
       if (getField(m, 'credits') && !grouped[groupKey].credits) grouped[groupKey].credits = getField(m, 'credits');
 
       const raw = getField(m, 'images', 'image');
@@ -961,82 +987,89 @@ export default function App() {
 
         {/* 對話區 */}
         <div className="flex-1 overflow-y-auto px-3.5 py-4 space-y-3.5 scroll-smooth">
-          <div className="text-center my-1">
-            <span className="bg-slate-300/60 text-slate-600 text-[10px] px-2.5 py-0.5 rounded-full font-medium">今天</span>
-          </div>
+          {messages.length > 0 ? (
+            <>
+              <div className="text-center my-1">
+                <span className="bg-slate-300/60 text-slate-600 text-[10px] px-2.5 py-0.5 rounded-full font-medium">今天</span>
+              </div>
 
-          {messages.map((msg) => {
-            const isUser = msg.role === 'user';
-            return (
-              <div key={msg.id} className={`flex items-end ${isUser ? 'justify-end' : 'justify-start'} space-x-1.5`}>
-                {!isUser && (
-                  <div className="w-8 h-8 rounded-full overflow-hidden shrink-0 mb-1 ring-1 ring-slate-300">
-                    <img src="https://images.plurk.com/6PooPJr1YbOhrMp5CCFdbl.jpg" alt="avatar" className="w-full h-full object-cover" />
-                  </div>
-                )}
-
-                {isUser && (
-                  <div className="flex flex-col items-end text-[9px] text-teal-800/80 pr-1 leading-tight font-light">
-                    <span className="text-teal-700 font-medium">已讀</span>
-                    <span>{msg.time}</span>
-                  </div>
-                )}
-
-                {/* 通話記錄：圖示一致，未接/取消用紅色呈現 */}
-                {msg.type === 'call_record' ? (
-                  <div className="flex items-center space-x-2.5 bg-white px-3.5 py-2.5 rounded-2xl shadow-sm border border-slate-200">
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
-                      msg.durationText ? 'bg-teal-50 text-[#4E727A]' : 'bg-rose-50 text-rose-500'
-                    }`}>
-                      <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
-                        <path d="M6.62 10.79a15.05 15.05 0 006.59 6.59l2.2-2.2a1 1 0 011.02-.24 11.72 11.72 0 003.68.59 1 1 0 011 1v3.5a1 1 0 01-1 1A17 17 0 013 4a1 1 0 011-1h3.5a1 1 0 011 1c0 1.25.2 2.48.59 3.68a1 1 0 01-.24 1.02l-2.23 2.09z" />
-                      </svg>
-                    </div>
-                    <div className="flex flex-col">
-                      <span className={`text-xs font-medium ${msg.durationText ? 'text-slate-800' : 'text-rose-600'}`}>
-                        {msg.statusText}
-                      </span>
-                      <span className="text-[9px] text-slate-400">
-                        {msg.durationText ? '通話已結束' : '點擊回撥'}
-                      </span>
-                    </div>
-                  </div>
-                ) : msg.type === 'audio' ? (
-                  <div className="flex flex-col space-y-1">
-                    <AudioBubble audioSrc={msg.audioSrc} durationText={msg.durationText} />
-                    {msg.content && <span className="text-[11px] text-slate-600 pl-1 font-light italic">{msg.content}</span>}
-                  </div>
-                ) : msg.type === 'album_grid' ? (
-                  <div className="flex flex-col bg-white p-1.5 rounded-2xl max-w-[280px] shadow-sm border border-slate-200/80">
-                    <div className="grid grid-cols-3 gap-1 rounded-xl overflow-hidden">
-                      {msg.images.map((img, i) => (
-                        <a key={i} href={img} target="_blank" rel="noreferrer" className="block aspect-[3/4] overflow-hidden bg-slate-100">
-                          <img src={img} alt="Cut" loading="lazy" className="w-full h-full object-cover hover:scale-105 transition duration-200" />
-                        </a>
-                      ))}
-                    </div>
-                  </div>
-                ) : msg.type === 'photo' ? (
-                  <div className="max-w-[70%] rounded-2xl overflow-hidden shadow-md border border-slate-200">
-                    <img src={msg.imageUrl} alt="selfie" className="w-full max-h-72 object-cover" />
-                  </div>
-                ) : (
-                  <div className={`max-w-[72%] rounded-2xl px-3.5 py-2 text-[13.5px] leading-relaxed shadow-sm ${
-                    isUser ? 'bg-[#81D4D2] text-[#0F3332] rounded-tr-none' : 'bg-white text-slate-900 rounded-tl-none border border-slate-200/60'
-                  }`}>
-                    {msg.replyTo && (
-                      <div className="mb-1.5 px-2 py-1 bg-slate-100/90 rounded-md border-l-2 border-[#5FBDB9] text-[11px] text-slate-500 line-clamp-1">
-                        回覆: {msg.replyTo}
+              {messages.map((msg) => {
+                const isUser = msg.role === 'user';
+                return (
+                  <div key={msg.id} className={`flex items-end ${isUser ? 'justify-end' : 'justify-start'} space-x-1.5`}>
+                    {!isUser && (
+                      <div className="w-8 h-8 rounded-full overflow-hidden shrink-0 mb-1 ring-1 ring-slate-300">
+                        <img src="https://images.plurk.com/6PooPJr1YbOhrMp5CCFdbl.jpg" alt="avatar" className="w-full h-full object-cover" />
                       </div>
                     )}
-                    <p className="whitespace-pre-wrap">{msg.content}</p>
-                  </div>
-                )}
 
-                {!isUser && <span className="text-[9px] text-slate-400 pl-1 leading-tight font-light">{msg.time}</span>}
-              </div>
-            );
-          })}
+                    {isUser && (
+                      <div className="flex flex-col items-end text-[9px] text-teal-800/80 pr-1 leading-tight font-light">
+                        <span className="text-teal-700 font-medium">已讀</span>
+                        <span>{msg.time}</span>
+                      </div>
+                    )}
+
+                    {msg.type === 'call_record' ? (
+                      <div className="flex items-center space-x-2.5 bg-white px-3.5 py-2.5 rounded-2xl shadow-sm border border-slate-200">
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
+                          msg.durationText ? 'bg-teal-50 text-[#4E727A]' : 'bg-rose-50 text-rose-500'
+                        }`}>
+                          <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
+                            <path d="M6.62 10.79a15.05 15.05 0 006.59 6.59l2.2-2.2a1 1 0 011.02-.24 11.72 11.72 0 003.68.59 1 1 0 011 1v3.5a1 1 0 01-1 1A17 17 0 013 4a1 1 0 011-1h3.5a1 1 0 011 1c0 1.25.2 2.48.59 3.68a1 1 0 01-.24 1.02l-2.23 2.09z" />
+                          </svg>
+                        </div>
+                        <div className="flex flex-col">
+                          <span className={`text-xs font-medium ${msg.durationText ? 'text-slate-800' : 'text-rose-600'}`}>
+                            {msg.statusText}
+                          </span>
+                          <span className="text-[9px] text-slate-400">
+                            {msg.durationText ? '通話已結束' : '點擊回撥'}
+                          </span>
+                        </div>
+                      </div>
+                    ) : msg.type === 'audio' ? (
+                      <div className="flex flex-col space-y-1">
+                        <AudioBubble audioSrc={msg.audioSrc} durationText={msg.durationText} />
+                        {msg.content && <span className="text-[11px] text-slate-600 pl-1 font-light italic">{msg.content}</span>}
+                      </div>
+                    ) : msg.type === 'album_grid' ? (
+                      <div className="flex flex-col bg-white p-1.5 rounded-2xl max-w-[280px] shadow-sm border border-slate-200/80">
+                        <div className="grid grid-cols-3 gap-1 rounded-xl overflow-hidden">
+                          {msg.images.map((img, i) => (
+                            <a key={i} href={img} target="_blank" rel="noreferrer" className="block aspect-[3/4] overflow-hidden bg-slate-100">
+                              <img src={img} alt="Cut" loading="lazy" className="w-full h-full object-cover hover:scale-105 transition duration-200" />
+                            </a>
+                          ))}
+                        </div>
+                      </div>
+                    ) : msg.type === 'photo' ? (
+                      <div className="max-w-[70%] rounded-2xl overflow-hidden shadow-md border border-slate-200">
+                        <img src={msg.imageUrl} alt="selfie" className="w-full max-h-72 object-cover" />
+                      </div>
+                    ) : (
+                      <div className={`max-w-[72%] rounded-2xl px-3.5 py-2 text-[13.5px] leading-relaxed shadow-sm ${
+                        isUser ? 'bg-[#81D4D2] text-[#0F3332] rounded-tr-none' : 'bg-white text-slate-900 rounded-tl-none border border-slate-200/60'
+                      }`}>
+                        {msg.replyTo && (
+                          <div className="mb-1.5 px-2 py-1 bg-slate-100/90 rounded-md border-l-2 border-[#5FBDB9] text-[11px] text-slate-500 line-clamp-1">
+                            回覆: {msg.replyTo}
+                          </div>
+                        )}
+                        <p className="whitespace-pre-wrap">{msg.content}</p>
+                      </div>
+                    )}
+
+                    {!isUser && <span className="text-[9px] text-slate-400 pl-1 leading-tight font-light">{msg.time}</span>}
+                  </div>
+                );
+              })}
+            </>
+          ) : (
+            <div className="h-full flex items-center justify-center text-slate-400 text-xs font-light">
+              暫無對話紀錄
+            </div>
+          )}
 
           {isTyping && (
             <div className="flex items-center space-x-1.5 justify-start">
@@ -1223,7 +1256,7 @@ export default function App() {
           </div>
         )}
 
-        {/* 彈出視窗 3️⃣：FEED (直排畫報美學，整合 by news_source 與白灰底訪談) */}
+        {/* 彈出視窗 3️⃣：FEED (直排畫報美學，修復雙模影片與置中說明) */}
         {activeModal === 'feed' && (
           <div className="absolute inset-0 bg-[#0B1120] z-50 flex flex-col text-slate-100 backdrop-blur-md animate-fade-in">
             
@@ -1280,18 +1313,41 @@ export default function App() {
                     </div>
                   )}
 
-                  {/* 3. Video 串接預留區 (YouTube Embed) */}
-                  {selectedFeedItem.video_url && getYouTubeEmbedUrl(selectedFeedItem.video_url) && (
-                    <div className="rounded-2xl overflow-hidden aspect-video w-full bg-black shadow-lg border border-white/10">
-                      <iframe 
-                        src={getYouTubeEmbedUrl(selectedFeedItem.video_url)} 
-                        title="Video Player"
-                        className="w-full h-full border-0"
-                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                        allowFullScreen
-                      />
-                    </div>
-                  )}
+                  {/* 3. Video 區塊 (支援 YouTube Embed 與本地 MP4 檔名播放，下方帶置中說明文字) */}
+                  {selectedFeedItem.video_url && (() => {
+                    const videoInfo = formatVideoSource(selectedFeedItem.video_url);
+                    if (videoInfo.type === 'none') return null;
+
+                    return (
+                      <div className="space-y-2">
+                        <div className="rounded-2xl overflow-hidden aspect-video w-full bg-black shadow-lg border border-white/10 flex items-center justify-center">
+                          {videoInfo.type === 'youtube' ? (
+                            <iframe 
+                              src={videoInfo.url} 
+                              title="Video Player"
+                              className="w-full h-full border-0"
+                              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                              allowFullScreen
+                            />
+                          ) : (
+                            <video 
+                              src={videoInfo.url} 
+                              controls 
+                              playsInline 
+                              className="w-full h-full object-contain bg-black"
+                            />
+                          )}
+                        </div>
+
+                        {/* 🌟 影片置中說明文字 (video_caption) */}
+                        {selectedFeedItem.video_caption && (
+                          <p className="text-[11.5px] text-slate-400 font-light text-center leading-normal px-4">
+                            {selectedFeedItem.video_caption}
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })()}
 
                   {/* 4. Summary 摘要內文 */}
                   {selectedFeedItem.summary && (
@@ -1322,7 +1378,6 @@ export default function App() {
 
                         if (!contentText) return null;
 
-                        // Editorial: 置中純文字，不帶泡泡、不用斜體
                         if (isEditorial) {
                           return (
                             <div key={idx} className="my-6 px-4 text-center">
@@ -1334,20 +1389,17 @@ export default function App() {
                           );
                         }
 
-                        // Q 與 Soo 雙邊皆為白/灰底氣泡
                         return (
                           <div 
                             key={idx} 
                             className={`w-full flex items-end ${isSoo ? 'justify-end' : 'justify-start'} space-x-2`}
                           >
-                            {/* 採訪者 Q 靠左，圓形頭像框 */}
                             {!isSoo && (
                               <div className="w-7 h-7 rounded-full bg-slate-700/90 flex items-center justify-center text-[11px] font-semibold text-slate-200 shrink-0 mb-1 border border-slate-600 shadow-sm">
                                 Q
                               </div>
                             )}
 
-                            {/* 氣泡本體 */}
                             <div className={`max-w-[80%] rounded-2xl px-3.5 py-2.5 text-[12.5px] leading-relaxed shadow-sm bg-white/10 text-slate-100 border border-white/10 ${
                               isSoo ? 'rounded-tr-none' : 'rounded-tl-none'
                             }`}>
