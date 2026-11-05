@@ -631,11 +631,23 @@ export default function App() {
         };
       }
 
+      // 影片與 Caption 關聯解析（支援單影片完整換行，避免被誤切）
       if (m.video_url) {
-        const urls = m.video_url.split(/;|\n/).map(s => s.trim()).filter(Boolean);
-        const caps = (m.video_caption || '').split(/;|\n/).map(s => s.trim());
+        const urls = m.video_url.split(/;|\n{2,}/).map(s => s.trim()).filter(Boolean);
+        let caps = [];
+        if (urls.length <= 1) {
+          caps = [m.video_caption || ''];
+        } else {
+          caps = (m.video_caption || '').split(';').map(s => s.trim());
+        }
+
         urls.forEach((u, i) => {
-          if (!grouped[key].videos.some(v => v.url === u)) grouped[key].videos.push({ url: u, caption: caps[i] || '' });
+          if (!grouped[key].videos.some(v => v.url === u)) {
+            grouped[key].videos.push({
+              url: u,
+              caption: caps[i] !== undefined ? caps[i] : (caps[0] || '')
+            });
+          }
         });
       }
 
