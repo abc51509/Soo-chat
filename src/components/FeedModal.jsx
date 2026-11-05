@@ -1,0 +1,264 @@
+import React, { useRef, useEffect } from 'react';
+
+export default function FeedModal({
+  feedItems,
+  selectedFeedItem,
+  setSelectedFeedItem,
+  currentInterviewDialogue,
+  formatVideoSource,
+  feedScrollPosition,
+  setFeedScrollPosition
+}) {
+  const feedListScrollRef = useRef(null);
+
+  useEffect(() => {
+    if (!selectedFeedItem && feedListScrollRef.current && feedScrollPosition > 0) {
+      feedListScrollRef.current.scrollTop = feedScrollPosition;
+    }
+  }, [selectedFeedItem, feedScrollPosition]);
+
+  const handleOpenDetail = (item) => {
+    if (feedListScrollRef.current) {
+      setFeedScrollPosition(feedListScrollRef.current.scrollTop);
+    }
+    setSelectedFeedItem(item);
+  };
+
+  return (
+    <div className="absolute inset-0 bg-[#0B1120] z-50 flex flex-col text-slate-100 backdrop-blur-md animate-fade-in">
+      {selectedFeedItem ? (
+        <div className="flex-1 flex flex-col overflow-hidden">
+          <div className="pt-12 pb-5 px-5 bg-[#4E727A] border-b border-[#3D5C63] shadow-md shrink-0 h-24"></div>
+
+          <div className="flex-1 overflow-y-auto p-4 space-y-5">
+            <div className="space-y-1">
+              <h2 className="text-xl font-bold text-white tracking-tight leading-snug">
+                {selectedFeedItem.main_title}
+              </h2>
+              {selectedFeedItem.sub_title && (
+                <h4 className="text-[13px] font-medium text-[#81D4D2]">
+                  {selectedFeedItem.sub_title}
+                </h4>
+              )}
+              <div className="flex items-center space-x-1.5 text-[11px] font-mono text-slate-400 pt-0.5">
+                {selectedFeedItem.source && (
+                  <>
+                    <span className="text-slate-300">by {selectedFeedItem.source}</span>
+                    {selectedFeedItem.time_text && <span>•</span>}
+                  </>
+                )}
+                {selectedFeedItem.time_text && <span>{selectedFeedItem.time_text}</span>}
+              </div>
+            </div>
+
+            {selectedFeedItem.hero_image && (
+              <div className="rounded-2xl overflow-hidden bg-slate-800 shadow-xl border border-white/5">
+                <img
+                  src={selectedFeedItem.hero_image}
+                  alt="Hero"
+                  className="w-full h-auto object-cover"
+                />
+              </div>
+            )}
+
+            {selectedFeedItem.videos?.length > 0 && (
+              <div className="space-y-4">
+                {selectedFeedItem.videos.map((vid, vIdx) => {
+                  const videoInfo = formatVideoSource(vid.url);
+                  if (videoInfo.type === 'none') return null;
+
+                  return (
+                    <div key={vIdx} className="space-y-2">
+                      <div className="rounded-2xl overflow-hidden aspect-video w-full bg-black shadow-lg border border-white/10 flex items-center justify-center">
+                        {videoInfo.type === 'youtube' ? (
+                          <iframe
+                            src={videoInfo.url}
+                            title={`Video Player ${vIdx + 1}`}
+                            className="w-full h-full border-0"
+                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                            allowFullScreen
+                          />
+                        ) : (
+                          <video
+                            src={videoInfo.url}
+                            controls
+                            playsInline
+                            className="w-full h-full object-contain bg-black"
+                          />
+                        )}
+                      </div>
+                      {vid.caption && (
+                        <p className="text-[11.5px] text-slate-400 font-light text-center leading-relaxed px-4 whitespace-pre-wrap">
+                          {vid.caption}
+                        </p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {selectedFeedItem.summary && (
+              <div className="bg-slate-800/40 p-4 rounded-2xl border border-white/5 text-[13px] leading-relaxed text-slate-300 font-light whitespace-pre-wrap">
+                {selectedFeedItem.summary}
+              </div>
+            )}
+
+            {selectedFeedItem.layout_images?.length > 0 && (
+              <div className="space-y-3">
+                {selectedFeedItem.layout_images.map((layoutImg, lIdx) => (
+                  <div
+                    key={lIdx}
+                    className="rounded-2xl overflow-hidden bg-slate-900 shadow-lg border border-white/10"
+                  >
+                    <img
+                      src={layoutImg}
+                      alt={`Layout ${lIdx + 1}`}
+                      loading="lazy"
+                      className="w-full h-auto object-cover"
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {currentInterviewDialogue.length > 0 && (
+              <div className="space-y-3.5 pt-4 border-t border-white/10">
+                {currentInterviewDialogue.map((row, idx) => {
+                  const speakerRaw = (row.speaker || '').trim().toLowerCase();
+                  const isEditorial = speakerRaw === 'editorial';
+                  const isSoo = speakerRaw === 'soo' || speakerRaw.includes('lee');
+                  const contentText = row.content || '';
+
+                  if (!contentText) return null;
+
+                  if (isEditorial) {
+                    return (
+                      <div key={idx} className="my-6 px-4 text-center">
+                        <p className="text-[12.5px] leading-relaxed text-slate-300 font-normal tracking-wide whitespace-pre-wrap">
+                          {contentText}
+                        </p>
+                        <div className="w-8 h-[1px] bg-white/20 mx-auto mt-3"></div>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div
+                      key={idx}
+                      className={`w-full flex ${
+                        isSoo ? 'justify-end items-start' : 'justify-start items-start'
+                      } space-x-2`}
+                    >
+                      {!isSoo && (
+                        <div className="w-7 h-7 rounded-full bg-slate-700/90 flex items-center justify-center text-[11px] font-semibold text-slate-200 shrink-0 mt-0.5 border border-slate-600 shadow-sm">
+                          Q
+                        </div>
+                      )}
+
+                      <div
+                        className={`max-w-[80%] rounded-2xl px-3.5 py-2.5 text-[12.5px] leading-relaxed shadow-sm bg-white/10 text-slate-100 border border-white/10 ${
+                          isSoo ? 'rounded-tr-none' : 'rounded-tl-none'
+                        }`}
+                      >
+                        <p className="whitespace-pre-wrap">{contentText}</p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {selectedFeedItem.remaining_images?.length > 0 && (
+              <div className="space-y-3 pt-2">
+                {selectedFeedItem.remaining_images.map((imgUrl, rIdx) => (
+                  <div
+                    key={rIdx}
+                    className="rounded-2xl overflow-hidden bg-slate-900 shadow-lg border border-white/10"
+                  >
+                    <img
+                      src={imgUrl}
+                      alt={`Photo ${rIdx + 2}`}
+                      loading="lazy"
+                      className="w-full h-auto object-cover"
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {selectedFeedItem.credits && (
+              <div className="bg-black/50 p-4 rounded-2xl border border-white/10 text-[10.5px] text-slate-400 leading-relaxed font-mono mt-6">
+                <span className="text-[#81D4D2] font-semibold block mb-1">CREDITS</span>
+                <p className="whitespace-pre-wrap">{selectedFeedItem.credits}</p>
+              </div>
+            )}
+          </div>
+        </div>
+      ) : (
+        <div className="flex-1 flex flex-col overflow-hidden">
+          <div className="pt-12 pb-5 px-5 bg-[#4E727A] flex items-center justify-start border-b border-[#3D5C63] shadow-md shrink-0">
+            <span className="font-bold text-xl tracking-wider text-white">FEED</span>
+          </div>
+
+          <div ref={feedListScrollRef} className="flex-1 overflow-y-auto p-3">
+            <div className="grid grid-cols-2 gap-2.5">
+              {feedItems.map((item, idx) => (
+                <article
+                  key={idx}
+                  onClick={() => handleOpenDetail(item)}
+                  className="bg-[#1E293B]/75 rounded-2xl border border-slate-700/60 p-2.5 flex flex-col justify-between space-y-2 shadow-sm hover:border-[#81D4D2]/60 hover:bg-[#1E293B] cursor-pointer transition active:scale-[0.97]"
+                >
+                  <div>
+                    <div className="mb-2">
+                      <span
+                        className="font-black text-xl tracking-tight truncate block leading-tight text-transparent select-none"
+                        style={{
+                          WebkitTextStroke: '1.5px #81D4D2',
+                          textStroke: '1.5px #81D4D2'
+                        }}
+                      >
+                        {item.source || 'FEED'}
+                      </span>
+                    </div>
+
+                    {item.hero_image && (
+                      <div className="rounded-xl overflow-hidden aspect-[4/3] w-full bg-slate-800 shadow-inner mb-2 relative">
+                        <img
+                          src={item.hero_image}
+                          alt="Preview"
+                          loading="lazy"
+                          className="w-full h-full object-cover object-[center_20%]"
+                        />
+                      </div>
+                    )}
+
+                    <div className="space-y-0.5">
+                      <h3 className="text-[12.5px] font-bold text-white leading-tight line-clamp-2">
+                        {item.main_title}
+                      </h3>
+                      {item.sub_title && (
+                        <h4 className="text-[10.5px] font-medium text-slate-300 line-clamp-1">
+                          {item.sub_title}
+                        </h4>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="pt-2 flex items-center justify-between text-[10px] border-t border-white/5">
+                    <span className="text-slate-400 font-mono text-[9px] truncate mr-1">
+                      {item.time_text}
+                    </span>
+                    <span className="text-[#81D4D2] font-semibold tracking-wide shrink-0">
+                      Read More ➔
+                    </span>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
