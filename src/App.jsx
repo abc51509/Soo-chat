@@ -22,16 +22,24 @@ const fetchSheetData = async (sheetName) => {
     const table = json.table;
     if (!table?.rows?.length) return [];
 
-    const colKeys = table.cols.map((col, idx) => ({
-      key: (col.label || '').trim().toLowerCase().replace(/[^a-z0-9_]/g, '') || `col_${idx}`,
-      idx
-    }));
+    const colKeys = table.cols.map((col, idx) => {
+      const raw = (col.label || '').trim();
+      const clean = raw.toLowerCase().replace(/[^a-z0-9_]/g, '');
+      return {
+        raw,
+        clean: clean || `col_${idx}`,
+        idx
+      };
+    });
 
     return table.rows.map(r => {
       const entry = {};
-      colKeys.forEach(({ key, idx }) => {
+      colKeys.forEach(({ raw, clean, idx }) => {
         const cell = r.c?.[idx];
-        entry[key] = cell?.v != null ? String(cell.v).trim() : (cell?.f != null ? String(cell.f).trim() : '');
+        const val = cell?.v != null ? String(cell.v).trim() : (cell?.f != null ? String(cell.f).trim() : '');
+        entry[clean] = val;
+        if (raw) entry[raw] = val;
+        entry[`col_${idx}`] = val;
       });
       return entry;
     });
@@ -44,7 +52,9 @@ const fetchSheetData = async (sheetName) => {
 const getField = (obj, ...keys) => {
   if (!obj) return '';
   for (const k of keys) {
+    const cleanKey = k.toLowerCase().replace(/[^a-z0-9_]/g, '');
     if (obj[k]?.trim()) return obj[k].trim();
+    if (obj[cleanKey]?.trim()) return obj[cleanKey].trim();
   }
   return '';
 };
@@ -231,7 +241,6 @@ export default function App() {
       }));
   }, [dialogueList]);
 
-  // 靠左側邊緣向右滑動判定，防止在相簿內部左右翻頁時誤觸返回
   const handleTouchStart = (e) => {
     touchStartX.current = e.touches[0].clientX;
     touchStartY.current = e.touches[0].clientY;
@@ -411,7 +420,6 @@ export default function App() {
     }
   };
 
-  // 測試按鈕功能
   const triggerManualText = () => {
     const textDiags = dialogueList.filter(d => (d.type || '').trim().toLowerCase() === 'text');
     const picked = textDiags.length ? textDiags[Math.floor(Math.random() * textDiags.length)] : null;
@@ -445,7 +453,6 @@ export default function App() {
     }
   };
 
-  // 晨喚階梯排程 (07:00-13:00 嚴格截斷)
   useEffect(() => {
     const checkWakeup = () => {
       const todayStr = getTodayDateStr();
@@ -563,7 +570,6 @@ export default function App() {
     return () => clearInterval(t);
   }, [isVideoCalling]);
 
-  // 相簿分組（擷取每本相簿最新日期，供時間倒序排列使用）
   const albumList = useMemo(() => {
     const groups = {};
     masterMedia.forEach((m) => {
@@ -610,35 +616,45 @@ export default function App() {
       .map(m => ({ date: m.date, title: m.album_name || m.caption || '行程', status: m.sub_type || '' }));
   }, [masterMedia]);
 
+  // 🌟 修復重點：聚合 FEED，完整抓取 interview_id
   const feedItems = useMemo(() => {
     const grouped = {};
     masterMedia.forEach(m => {
-      const mainTitle = getField(m, 'news_title', 'album_name');
-      if (!mainTitle && !m.video_url && !m.interview_id) return;
-      const key = mainTitle || m.id;
+      const mainTitle = getField(m, 'news_title', 'album_name', 'title');
+      const interviewId = getField(m, 'interview_id', 'interviewid', 'interview');
+      const videoUrl = getField(m, 'video_url', 'videourl', 'video');
+
+      if (!mainTitle && !videoUrl && !interviewId && !m.images) return;
+      const key = mainTitle || m.album_name || m.id || 'feed_item';
 
       if (!grouped[key]) {
         grouped[key] = {
-          main_title: mainTitle,
-          sub_title: getField(m, 'news_subtitle'),
-          source: getField(m, 'news_source'),
+          main_title: mainTitle || m.album_name,
+          sub_title: getField(m, 'news_subtitle', 'subtitle'),
+          source: getField(m, 'news_source', 'source'),
           time_text: getField(m, 'date'),
-          summary: getField(m, 'news_summary'),
+          summary: getField(m, 'news_summary', 'summary'),
+          interview_id: interviewId,
           videos: [],
-          credits: getField(m, 'credits'),
+          credits: getField(m, 'credits', 'credit'),
           main_images: [],
           layout_images: []
         };
       }
 
-      // 影片與 Caption 關聯解析（支援單影片完整換行，避免被誤切）
-      if (m.video_url) {
-        const urls = m.video_url.split(/;|\n{2,}/).map(s => s.trim()).filter(Boolean);
+      // 若後續列有更新到 interview_id 則補上
+      if (interviewId && !grouped[key].interview_id) {
+        grouped[key].interview_id = interviewId;
+      }
+
+      if (videoUrl) {
+        const urls = videoUrl.split(/;|\n{2,}/).map(s => s.trim()).filter(Boolean);
+        const rawCaption = getField(m, 'video_caption', 'videocaption', 'video_desc');
         let caps = [];
         if (urls.length <= 1) {
-          caps = [m.video_caption || ''];
+          caps = [rawCaption];
         } else {
-          caps = (m.video_caption || '').split(';').map(s => s.trim());
+          caps = rawCaption.split(';').map(s => s.trim());
         }
 
         urls.forEach((u, i) => {
@@ -651,8 +667,10 @@ export default function App() {
         });
       }
 
-      const imgs = (m.images || '').split(/[\s,]+/).map(u => u.trim()).filter(u => u.startsWith('http'));
-      if (m.sub_type?.trim().toLowerCase() === 'layout') {
+      const rawImgs = getField(m, 'images', 'image');
+      const imgs = rawImgs.split(/[\s,]+/).map(u => u.trim()).filter(u => u.startsWith('http'));
+      const subType = getField(m, 'sub_type', 'subtype').toLowerCase();
+      if (subType === 'layout') {
         grouped[key].layout_images.push(...imgs);
       } else {
         grouped[key].main_images.push(...imgs);
@@ -666,11 +684,21 @@ export default function App() {
     }));
   }, [masterMedia]);
 
+  // 🌟 修復重點：比對 interviewData，加入去除大小寫與兩端空白的比對容錯
   const currentInterviewDialogue = useMemo(() => {
     if (!selectedFeedItem?.interview_id) return [];
+    const targetId = selectedFeedItem.interview_id.trim().toLowerCase();
+
     return interviewData
-      .filter(row => row.interview_id?.trim() === selectedFeedItem.interview_id.trim())
-      .map(row => ({ speaker: row.speaker || 'Q', content: row.content || '' }));
+      .filter(row => {
+        const rowId = getField(row, 'interview_id', 'interviewid', 'id', 'col_0').trim().toLowerCase();
+        return rowId && rowId === targetId;
+      })
+      .map(row => ({
+        speaker: getField(row, 'speaker', 'role', 'name', 'col_1') || 'Q',
+        content: getField(row, 'content', 'text', 'dialogue', 'answer', 'col_2') || ''
+      }))
+      .filter(item => item.content.length > 0);
   }, [selectedFeedItem, interviewData]);
 
   return (
