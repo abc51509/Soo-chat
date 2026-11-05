@@ -33,7 +33,7 @@ export default function FeedModal({
   return (
     <div className="absolute inset-0 bg-[#0B1120] z-50 flex flex-col text-slate-100 backdrop-blur-md animate-fade-in select-none">
       {selectedFeedItem ? (
-        /* 🌟 個別新聞 / Interview 詳情頁：完全取消頂部 Bar，整面純色直通頂部 */
+        /* 個別新聞 / Interview 詳情頁：完全取消頂部 Bar，整面純色直通頂部 */
         <div
           ref={feedDetailScrollRef}
           className="flex-1 overflow-y-auto px-5 pt-14 pb-12 space-y-6"
@@ -77,10 +77,13 @@ export default function FeedModal({
                 const videoInfo = formatVideoSource(vid.url);
                 if (videoInfo.type === 'none') return null;
 
-                // 徹底轉換試算表中的換行符與分號，保證換行不受截斷
-                const formattedCaption = (vid.caption || '')
+                // 徹底轉換試算表中的換行符與分號，拆分成陣列保證實體標籤換行
+                const captionLines = (vid.caption || '')
                   .replace(/\\n/g, '\n')
-                  .replace(/;/g, '\n');
+                  .replace(/;/g, '\n')
+                  .split(/\r?\n/)
+                  .map(line => line.trim())
+                  .filter(Boolean);
 
                 return (
                   <div key={vIdx} className="space-y-3">
@@ -103,12 +106,14 @@ export default function FeedModal({
                       )}
                     </div>
 
-                    {/* 完整呈現多行 Video Caption */}
-                    {formattedCaption && (
-                      <div className="px-2">
-                        <p className="text-[12px] text-slate-300 font-light text-center leading-relaxed whitespace-pre-wrap break-words">
-                          {formattedCaption}
-                        </p>
+                    {/* 實體拆行渲染，100% 保證每一行都依序換行 */}
+                    {captionLines.length > 0 && (
+                      <div className="px-3 text-center space-y-1">
+                        {captionLines.map((line, lIdx) => (
+                          <p key={lIdx} className="text-[12px] text-slate-300 font-light leading-relaxed break-words">
+                            {line}
+                          </p>
+                        ))}
                       </div>
                     )}
                   </div>
@@ -223,7 +228,7 @@ export default function FeedModal({
           )}
         </div>
       ) : (
-        /* 🌟 FEED 主目錄列表 */
+        /* FEED 主目錄列表 */
         <div className="flex-1 flex flex-col overflow-hidden">
           <div className="pt-12 pb-5 px-5 bg-[#4E727A] flex items-center justify-start border-b border-[#3D5C63] shadow-md shrink-0">
             <span className="font-bold text-xl tracking-wider text-white">FEED</span>
@@ -238,7 +243,7 @@ export default function FeedModal({
                   className="bg-[#1E293B]/75 rounded-2xl border border-slate-700/60 p-2.5 flex flex-col justify-between space-y-2 shadow-sm hover:border-[#81D4D2]/60 hover:bg-[#1E293B] cursor-pointer transition active:scale-[0.97]"
                 >
                   <div>
-                    {/* Source：字距已調回（無擴大字距），緊湊微縮以防 Arena Homme+ 等長字串截斷 */}
+                    {/* Source：字距已調回，緊湊微縮以防長單字截斷 */}
                     <div className="mb-2 h-6 flex items-center">
                       <span
                         className="font-black text-[17px] tracking-tight truncate block leading-none text-transparent select-none uppercase"
