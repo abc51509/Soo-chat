@@ -231,6 +231,7 @@ export default function App() {
       }));
   }, [dialogueList]);
 
+  // 靠左側邊緣向右滑動判定，防止在相簿內部左右翻頁時誤觸返回
   const handleTouchStart = (e) => {
     touchStartX.current = e.touches[0].clientX;
     touchStartY.current = e.touches[0].clientY;
@@ -240,7 +241,10 @@ export default function App() {
     const deltaX = e.changedTouches[0].clientX - touchStartX.current;
     const deltaY = e.changedTouches[0].clientY - touchStartY.current;
 
-    if (deltaX > 70 && Math.abs(deltaY) < 60) {
+    const isEdgeSwipe = touchStartX.current < 45;
+    const isHorizontalSwipe = deltaX > 75 && Math.abs(deltaY) < 40;
+
+    if (isEdgeSwipe && isHorizontalSwipe) {
       if (selectedFeedItem) {
         setSelectedFeedItem(null);
       } else if (activeModal) {
@@ -559,27 +563,46 @@ export default function App() {
     return () => clearInterval(t);
   }, [isVideoCalling]);
 
-  // 資料運算
+  // 相簿分組（擷取每本相簿最新日期，供時間倒序排列使用）
   const albumList = useMemo(() => {
     const groups = {};
-    masterMedia.forEach(m => {
-      const albumKey = m.album_name?.trim() || '未分類歸檔';
-      if (!groups[albumKey]) groups[albumKey] = { title: albumKey, images: [] };
-      const imgs = (m.images || '').trim().split(/[\s,]+/).filter(u => u.startsWith('http'));
+    masterMedia.forEach((m) => {
+      let albumKey = m.album_name?.trim() || '所有相片';
+      if (albumKey === '未分類歸檔') albumKey = '所有相片';
+
+      if (!groups[albumKey]) {
+        groups[albumKey] = {
+          title: albumKey,
+          images: [],
+          latestDate: ''
+        };
+      }
+
+      const imgs = (m.images || '')
+        .trim()
+        .split(/[\s,]+/)
+        .filter((u) => u.startsWith('http'));
       groups[albumKey].images.push(...imgs);
+
+      const d = (m.date || '').trim();
+      if (d && d > groups[albumKey].latestDate) {
+        groups[albumKey].latestDate = d;
+      }
     });
 
-    return Object.values(groups).map(g => {
-      const unique = Array.from(new Set(g.images));
-      return { title: g.title, cover: unique[0] || null, images: unique, count: unique.length };
-    }).filter(g => g.count > 0);
+    return Object.values(groups)
+      .map((g) => {
+        const unique = Array.from(new Set(g.images));
+        return {
+          title: g.title,
+          cover: unique[0] || null,
+          images: unique,
+          count: unique.length,
+          latestDate: g.latestDate
+        };
+      })
+      .filter((g) => g.count > 0);
   }, [masterMedia]);
-
-  const albumPages = useMemo(() => {
-    const pages = [];
-    for (let i = 0; i < albumList.length; i += 4) pages.push(albumList.slice(i, i + 4));
-    return pages;
-  }, [albumList]);
 
   const currentMonthEvents = useMemo(() => {
     return masterMedia
@@ -667,7 +690,7 @@ export default function App() {
                   <svg className="w-7 h-7 fill-white rotate-[135deg]" viewBox="0 0 24 24"><path d="M6.62 10.79a15.05 15.05 0 006.59 6.59l2.2-2.2a1 1 0 011.02-.24 11.72 11.72 0 003.68.59 1 1 0 011 1v3.5a1 1 0 01-1 1A17 17 0 013 4a1 1 0 011-1h3.5a1 1 0 011 1c0 1.25.2 2.48.59 3.68a1 1 0 01-.24 1.02l-2.23 2.09z" /></svg>
                 </button>
                 <button onClick={handleAcceptCall} className="w-16 h-16 rounded-full bg-[#5FBDB9] active:scale-95 transition flex items-center justify-center animate-bounce">
-                  <svg className="w-7 h-7 fill-white" viewBox="0 0 24 24"><path d="M6.62 10.79a15.05 15.05 0 006.59 6.59l2.2-2.2a1 1 0 011.02-.24 11.72 11.72 0 003.68.59 1 1 0 011 1c0 1.25.2 2.48.59 3.68a1 1 0 01-.24 1.02l-2.23 2.09z" /></svg>
+                  <svg className="w-7 h-7 fill-white" viewBox="0 0 24 24"><path d="M6.62 10.79a15.05 15.05 0 006.59 6.59l2.2-2.2a1 1 0 011.02-.24 11.72 11.72 0 003.68.59 1 1 0 011 1v3.5a1 1 0 01-1 1A17 17 0 013 4a1 1 0 011-1h3.5a1 1 0 011 1c0 1.25.2 2.48.59 3.68a1 1 0 01-.24 1.02l-2.23 2.09z" /></svg>
                 </button>
               </div>
             ) : (
@@ -843,7 +866,7 @@ export default function App() {
 
         {/* 抽屜模組調用 */}
         {activeModal === 'album' && (
-          <AlbumModal albumList={albumList} albumPages={albumPages} onClose={() => setActiveModal(null)} />
+          <AlbumModal albumList={albumList} />
         )}
 
         {activeModal === 'calendar' && (
