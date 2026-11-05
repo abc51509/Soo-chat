@@ -70,15 +70,20 @@ export default function FeedModal({
             </div>
           )}
 
-          {/* 影片區塊（包含無圖情境下的 Caption 自動換行處理） */}
+          {/* 影片區塊 */}
           {selectedFeedItem.videos?.length > 0 && (
-            <div className="space-y-5">
+            <div className="space-y-6">
               {selectedFeedItem.videos.map((vid, vIdx) => {
                 const videoInfo = formatVideoSource(vid.url);
                 if (videoInfo.type === 'none') return null;
 
+                // 徹底轉換試算表中的換行符與分號，保證換行不受截斷
+                const formattedCaption = (vid.caption || '')
+                  .replace(/\\n/g, '\n')
+                  .replace(/;/g, '\n');
+
                 return (
-                  <div key={vIdx} className="space-y-2.5">
+                  <div key={vIdx} className="space-y-3">
                     <div className="rounded-2xl overflow-hidden aspect-video w-full bg-black shadow-lg border border-white/10 flex items-center justify-center">
                       {videoInfo.type === 'youtube' ? (
                         <iframe
@@ -97,11 +102,14 @@ export default function FeedModal({
                         />
                       )}
                     </div>
-                    {/* 🌟 影片 Caption：支援 \n 與分號換行、自動斷詞 */}
-                    {vid.caption && (
-                      <p className="text-[12px] text-slate-400 font-light text-center leading-relaxed px-3 whitespace-pre-line break-words">
-                        {vid.caption.replace(/;/g, '\n')}
-                      </p>
+
+                    {/* 完整呈現多行 Video Caption */}
+                    {formattedCaption && (
+                      <div className="px-2">
+                        <p className="text-[12px] text-slate-300 font-light text-center leading-relaxed whitespace-pre-wrap break-words">
+                          {formattedCaption}
+                        </p>
+                      </div>
                     )}
                   </div>
                 );
@@ -111,8 +119,8 @@ export default function FeedModal({
 
           {/* 摘要文字 */}
           {selectedFeedItem.summary && (
-            <div className="bg-slate-900/60 p-4 rounded-2xl border border-white/5 text-[13px] leading-relaxed text-slate-300 font-light whitespace-pre-line break-words">
-              {selectedFeedItem.summary}
+            <div className="bg-slate-900/60 p-4 rounded-2xl border border-white/5 text-[13px] leading-relaxed text-slate-300 font-light whitespace-pre-wrap break-words">
+              {selectedFeedItem.summary.replace(/\\n/g, '\n')}
             </div>
           )}
 
@@ -149,8 +157,8 @@ export default function FeedModal({
                 if (isEditorial) {
                   return (
                     <div key={idx} className="my-6 px-4 text-center">
-                      <p className="text-[12.5px] leading-relaxed text-slate-300 font-normal tracking-wide whitespace-pre-line">
-                        {contentText}
+                      <p className="text-[12.5px] leading-relaxed text-slate-300 font-normal tracking-wide whitespace-pre-wrap">
+                        {contentText.replace(/\\n/g, '\n')}
                       </p>
                       <div className="w-8 h-[1px] bg-white/20 mx-auto mt-3"></div>
                     </div>
@@ -175,7 +183,9 @@ export default function FeedModal({
                         isSoo ? 'rounded-tr-none' : 'rounded-tl-none'
                       }`}
                     >
-                      <p className="whitespace-pre-line break-words">{contentText}</p>
+                      <p className="whitespace-pre-wrap break-words">
+                        {contentText.replace(/\\n/g, '\n')}
+                      </p>
                     </div>
                   </div>
                 );
@@ -206,12 +216,14 @@ export default function FeedModal({
           {selectedFeedItem.credits && (
             <div className="bg-black/60 p-4 rounded-2xl border border-white/10 text-[10.5px] text-slate-400 leading-relaxed font-mono mt-6">
               <span className="text-[#81D4D2] font-semibold block mb-1">CREDITS</span>
-              <p className="whitespace-pre-line break-words">{selectedFeedItem.credits}</p>
+              <p className="whitespace-pre-wrap break-words">
+                {selectedFeedItem.credits.replace(/\\n/g, '\n')}
+              </p>
             </div>
           )}
         </div>
       ) : (
-        /* 🌟 FEED 主目錄列表（維持頂部 Bar，獨立滾動容器） */
+        /* 🌟 FEED 主目錄列表 */
         <div className="flex-1 flex flex-col overflow-hidden">
           <div className="pt-12 pb-5 px-5 bg-[#4E727A] flex items-center justify-start border-b border-[#3D5C63] shadow-md shrink-0">
             <span className="font-bold text-xl tracking-wider text-white">FEED</span>
@@ -226,18 +238,18 @@ export default function FeedModal({
                   className="bg-[#1E293B]/75 rounded-2xl border border-slate-700/60 p-2.5 flex flex-col justify-between space-y-2 shadow-sm hover:border-[#81D4D2]/60 hover:bg-[#1E293B] cursor-pointer transition active:scale-[0.97]"
                 >
                   <div>
-                   {/* 🌟 Source：字距回調（移除 tracking），微調縮排避免長單字被裁切 */}
-<div className="mb-2 h-7 flex items-center">
-  <span
-    className="font-black text-[17px] sm:text-lg tracking-tight truncate block leading-none text-transparent select-none uppercase"
-    style={{
-      WebkitTextStroke: '1px #81D4D2',
-      textStroke: '1px #81D4D2'
-    }}
-  >
-    {item.source || 'FEED'}
-  </span>
-</div>
+                    {/* Source：字距已調回（無擴大字距），緊湊微縮以防 Arena Homme+ 等長字串截斷 */}
+                    <div className="mb-2 h-6 flex items-center">
+                      <span
+                        className="font-black text-[17px] tracking-tight truncate block leading-none text-transparent select-none uppercase"
+                        style={{
+                          WebkitTextStroke: '1px #81D4D2',
+                          textStroke: '1px #81D4D2'
+                        }}
+                      >
+                        {item.source || 'FEED'}
+                      </span>
+                    </div>
 
                     {item.hero_image && (
                       <div className="rounded-xl overflow-hidden aspect-[4/3] w-full bg-slate-800 shadow-inner mb-2 relative">
