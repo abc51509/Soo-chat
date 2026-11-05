@@ -12,14 +12,12 @@ export default function FeedModal({
   const feedListScrollRef = useRef(null);
   const feedDetailScrollRef = useRef(null);
 
-  // 當返回列表時，精準還原列表的滾動高度
   useEffect(() => {
     if (!selectedFeedItem && feedListScrollRef.current) {
       feedListScrollRef.current.scrollTop = feedScrollPosition;
     }
   }, [selectedFeedItem, feedScrollPosition]);
 
-  // 點入詳情時，記錄當前列表高度，並將詳情滾輪歸零
   const handleOpenDetail = (item) => {
     if (feedListScrollRef.current) {
       setFeedScrollPosition(feedListScrollRef.current.scrollTop);
@@ -33,7 +31,7 @@ export default function FeedModal({
   return (
     <div className="absolute inset-0 bg-[#0B1120] z-50 flex flex-col text-slate-100 backdrop-blur-md animate-fade-in select-none">
       {selectedFeedItem ? (
-        /* 個別新聞 / Interview 詳情頁：完全取消頂部 Bar，整面純色直通頂部 */
+        /* 個別新聞 / Interview 詳情頁 */
         <div
           ref={feedDetailScrollRef}
           className="flex-1 overflow-y-auto px-5 pt-14 pb-12 space-y-6"
@@ -59,7 +57,7 @@ export default function FeedModal({
             </div>
           </div>
 
-          {/* 第一張主圖 (Hero Image，若無圖片則自然略過) */}
+          {/* 第一張主圖 (Hero Image) */}
           {selectedFeedItem.hero_image && (
             <div className="rounded-2xl overflow-hidden bg-slate-900 shadow-xl border border-white/5">
               <img
@@ -77,7 +75,6 @@ export default function FeedModal({
                 const videoInfo = formatVideoSource(vid.url);
                 if (videoInfo.type === 'none') return null;
 
-                // 徹底轉換試算表中的換行符與分號，拆分成陣列保證實體標籤換行
                 const captionLines = (vid.caption || '')
                   .replace(/\\n/g, '\n')
                   .replace(/;/g, '\n')
@@ -106,7 +103,6 @@ export default function FeedModal({
                       )}
                     </div>
 
-                    {/* 實體拆行渲染，100% 保證每一行都依序換行 */}
                     {captionLines.length > 0 && (
                       <div className="px-3 text-center space-y-1">
                         {captionLines.map((line, lIdx) => (
@@ -148,14 +144,14 @@ export default function FeedModal({
             </div>
           )}
 
-          {/* 訪談對話室 */}
-          {currentInterviewDialogue.length > 0 && (
+          {/* 🌟 訪談對話室 (Q&A 區塊) */}
+          {currentInterviewDialogue && currentInterviewDialogue.length > 0 && (
             <div className="space-y-4 pt-4 border-t border-white/10">
               {currentInterviewDialogue.map((row, idx) => {
                 const speakerRaw = (row.speaker || '').trim().toLowerCase();
                 const isEditorial = speakerRaw === 'editorial';
-                const isSoo = speakerRaw === 'soo' || speakerRaw.includes('lee');
-                const contentText = row.content || '';
+                const isSoo = speakerRaw === 'soo' || speakerRaw.includes('lee') || speakerRaw.includes('洙赫');
+                const contentText = (row.content || '').trim();
 
                 if (!contentText) return null;
 
@@ -243,7 +239,6 @@ export default function FeedModal({
                   className="bg-[#1E293B]/75 rounded-2xl border border-slate-700/60 p-2.5 flex flex-col justify-between space-y-2 shadow-sm hover:border-[#81D4D2]/60 hover:bg-[#1E293B] cursor-pointer transition active:scale-[0.97]"
                 >
                   <div>
-                    {/* Source：字距已調回，緊湊微縮以防長單字截斷 */}
                     <div className="mb-2 h-6 flex items-center">
                       <span
                         className="font-black text-[17px] tracking-tight truncate block leading-none text-transparent select-none uppercase"
