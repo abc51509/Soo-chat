@@ -226,18 +226,18 @@ export default function FeedModal({
                   className="bg-[#1E293B]/75 rounded-2xl border border-slate-700/60 p-2.5 flex flex-col justify-between space-y-2 shadow-sm hover:border-[#81D4D2]/60 hover:bg-[#1E293B] cursor-pointer transition active:scale-[0.97]"
                 >
                   <div>
-                    {/* 🌟 Source：外框線條調細至 1px，並增加微距 tracking-[0.05em] */}
-                    <div className="mb-2">
-                      <span
-                        className="font-black text-xl tracking-[0.05em] truncate block leading-tight text-transparent select-none"
-                        style={{
-                          WebkitTextStroke: '1px #81D4D2',
-                          textStroke: '1px #81D4D2'
-                        }}
-                      >
-                        {item.source || 'FEED'}
-                      </span>
-                    </div>
+                   {/* 🌟 Source：字距回調（移除 tracking），微調縮排避免長單字被裁切 */}
+<div className="mb-2 h-7 flex items-center">
+  <span
+    className="font-black text-[17px] sm:text-lg tracking-tight truncate block leading-none text-transparent select-none uppercase"
+    style={{
+      WebkitTextStroke: '1px #81D4D2',
+      textStroke: '1px #81D4D2'
+    }}
+  >
+    {item.source || 'FEED'}
+  </span>
+</div>
 
                     {item.hero_image && (
                       <div className="rounded-xl overflow-hidden aspect-[4/3] w-full bg-slate-800 shadow-inner mb-2 relative">
