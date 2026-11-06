@@ -90,7 +90,7 @@ const formatAudioUrl = (raw) => {
   return clean.startsWith('audio/') ? `/${clean}` : `/audio/${clean}`;
 };
 
-// 🌟 智慧相簿名稱組裝：優先讀取 issue 刊號，沒填則回退至 date 自動轉換
+// 智慧相簿名稱組裝：優先讀取 issue 刊號，沒填則回退至 date 自動轉換
 const MONTH_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 const formatAlbumTitle = (item) => {
@@ -139,7 +139,7 @@ const formatAlbumTitle = (item) => {
   }
   if (body) parts.push(body);
 
-  // 4. 地點：in {location}（有值才接上）
+  // 4. 地點：in {location}
   const loc = getField(item, 'location', 'place', 'city');
   if (loc) {
     parts.push(`in ${loc}`);
@@ -692,7 +692,7 @@ export default function App() {
     return () => clearInterval(t);
   }, [isVideoCalling]);
 
-  // 🌟 相簿分組（使用 event_id 聚合，並自動套用優先吃 issue 的組裝名稱）
+  // 🌟 相簿分組（使用 event_id 聚合，組裝名稱，並過濾未滿 3 張照片的群組）
   const albumList = useMemo(() => {
     const groups = {};
 
@@ -734,7 +734,8 @@ export default function App() {
           latestDate: g.latestDate
         };
       })
-      .filter((g) => g.count > 0)
+      // 🌟 嚴格限制：照片數量必須大於等於 3 張才獨立成相簿
+      .filter((g) => g.count >= 3)
       .sort((a, b) => b.latestDate.localeCompare(a.latestDate));
   }, [masterMedia]);
 
@@ -1023,7 +1024,7 @@ export default function App() {
           <button onClick={() => triggerCategoryRandom('official')} className="text-[12px] bg-white text-slate-800 font-medium px-3 py-1.5 rounded-full border border-slate-200 shrink-0">✨</button>
         </div>
 
-        {/* ＋號選單（作品列表置中：相簿 ➔ 檔案 ➔ 作品 ➔ 日曆 ➔ FEED） */}
+        {/* ＋號選單 */}
         {isPlusMenuOpen && (
           <div className="bg-[#4E727A]/95 backdrop-blur-md px-4 py-4 flex justify-around items-center border-t border-[#3D5C63] z-20 animate-fade-in shadow-xl">
             <button onClick={() => { setActiveModal('album'); setIsPlusMenuOpen(false); }} className="p-2 active:scale-75 transition">
