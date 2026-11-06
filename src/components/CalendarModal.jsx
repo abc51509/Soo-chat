@@ -10,34 +10,7 @@ const MONTH_ABBR = [
   'Jul.', 'Aug.', 'Sep.', 'Oct.', 'Nov.', 'Dec.'
 ];
 
-// 13 種活動分類專屬隨機 Emoji 對照表
-const EVENT_EMOJI_MAP = [
-  { keywords: ['畫報', '畫報拍攝', '雜誌', '拍攝', 'magazine', 'photoshoot'], emojis: ['📸', '🎞️'] },
-  { keywords: ['時裝周', '時裝週', 'fashion week', 'fw', 'runway'], emojis: ['🕶️', '🧥'] },
-  { keywords: ['出國', '回國', '機場', '出境', '入境', 'flight', 'travel'], emojis: ['🛫', '🛬', '🧳'] },
-  { keywords: ['品牌開幕', '新品牌開幕出席', '開幕', '品牌活動', 'event', 'opening'], emojis: ['🥂', '💎'] },
-  { keywords: ['新劇上線', '新劇', '電視劇', '影集', 'drama'], emojis: ['📺', '🛋️'] },
-  { keywords: ['電影上映', '電影', '首映', 'movie', 'film'], emojis: ['📽️', '🎟️'] },
-  { keywords: ['生日', 'birthday', 'bday'], emojis: ['🍷', '🎂'] },
-  { keywords: ['模特出道日', '模特出道', 'model debut'], emojis: ['🕴️', '👞'] },
-  { keywords: ['演員出道日', '演員出道', 'actor debut'], emojis: ['🎬', '🎭'] },
-  { keywords: ['在家放空日', '放空', '休息', '在家', 'rest', 'off'], emojis: ['🛋️', '🔋'] },
-  { keywords: ['ai 研究時間', 'ai研究', 'ai', 'research'], emojis: ['🤖', '💻'] },
-  { keywords: ['健康管理', '健身', '運動', 'gym', 'health', 'workout'], emojis: ['🍵', '🏋️‍♂️'] },
-  { keywords: ['烤肉聚餐', '烤肉', '聚餐', '聚會', 'bbq', 'dinner'], emojis: ['🥩', '🍻'] },
-];
-
-const getEventEmoji = (eventText = '') => {
-  const text = String(eventText).toLowerCase().trim();
-  for (const group of EVENT_EMOJI_MAP) {
-    if (group.keywords.some(k => text.includes(k.toLowerCase()))) {
-      return group.emojis[Math.floor(Math.random() * group.emojis.length)];
-    }
-  }
-  return '✨';
-};
-
-export default function CalendarModal({ allMediaEvents = [] }) {
+export default function CalendarModal({ allMediaEvents = [], typeEmojiMap = {} }) {
   const today = useMemo(() => new Date(), []);
   const maxYear = today.getFullYear();
   const maxMonth = today.getMonth(); // 0-based
@@ -94,20 +67,24 @@ export default function CalendarModal({ allMediaEvents = [] }) {
   const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
   const firstDayOfWeek = new Date(viewYear, viewMonth, 1).getDay();
 
-  // 依年、月純數字比對當前月份行程，並注入 Emoji
+  // 🌟 依年、月純數字比對當前月份行程，並優先依 settings 中的 typeEmojiMap 分配 Emoji
   const currentMonthNum = viewMonth + 1;
   const activeMonthEvents = useMemo(() => {
     return (allMediaEvents || [])
       .filter(ev => ev.year === viewYear && ev.month === currentMonthNum)
       .map(ev => {
-        const matchString = `${ev.status || ''} ${ev.category || ''} ${ev.title || ''}`;
+        const typeKey = (ev.type || ev.status || '').toLowerCase().trim();
+        // 優先從 settings 試算表對應，沒有的話預設 ✨
+        const emojiPool = typeEmojiMap[typeKey] || ['✨'];
+        const randomEmoji = emojiPool[Math.floor(Math.random() * emojiPool.length)];
+
         return {
           ...ev,
-          emoji: getEventEmoji(matchString)
+          emoji: randomEmoji
         };
       })
       .sort((a, b) => a.day - b.day);
-  }, [allMediaEvents, viewYear, currentMonthNum]);
+  }, [allMediaEvents, viewYear, currentMonthNum, typeEmojiMap]);
 
   return (
     <div
