@@ -609,11 +609,16 @@ export default function App() {
       })
       .filter((g) => g.count > 0);
   }, [masterMedia]);
-
-  const currentMonthEvents = useMemo(() => {
+// 取得 media 分頁所有具備日期的行程，供日曆完整跨月查詢
+  const allMediaEvents = useMemo(() => {
     return masterMedia
-      .filter(m => (m.date || '').trim().startsWith('2026-11') || (m.date || '').trim().startsWith('2026/11'))
-      .map(m => ({ date: m.date, title: m.album_name || m.caption || '行程', status: m.sub_type || '' }));
+      .filter(m => (m.date || '').trim().length > 0)
+      .map(m => ({
+        date: m.date.trim(),
+        title: m.album_name || m.news_title || m.caption || '行程',
+        status: m.sub_type || '',
+        category: m.category || ''
+      }));
   }, [masterMedia]);
 
   // 🌟 修復重點：聚合 FEED，完整抓取 interview_id
@@ -910,7 +915,7 @@ export default function App() {
         )}
 
         {activeModal === 'calendar' && (
-          <CalendarModal currentMonthEvents={currentMonthEvents} />
+          <CalendarModal allMediaEvents={allMediaEvents} />
         )}
 
         {activeModal === 'feed' && (
