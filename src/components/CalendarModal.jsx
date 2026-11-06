@@ -10,23 +10,48 @@ const MONTH_ABBR = [
   'Jul.', 'Aug.', 'Sep.', 'Oct.', 'Nov.', 'Dec.'
 ];
 
-export default function CalendarModal({ currentMonthEvents = [] }) {
-  // 當前系統時間（作為上限）
+// 🌟 13 種活動分類專屬隨機 Emoji 對照表
+const EVENT_EMOJI_MAP = [
+  { keywords: ['畫報', '畫報拍攝', '雜誌', '拍攝', 'magazine', 'photoshoot'], emojis: ['📸', '🎞️'] },
+  { keywords: ['時裝周', '時裝週', 'fashion week', 'fw', 'runway'], emojis: ['🕶️', '🧥'] },
+  { keywords: ['出國', '回國', '機場', '出境', '入境', 'flight', 'travel'], emojis: ['🛫', '🛬', '🧳'] },
+  { keywords: ['品牌開幕', '新品牌開幕出席', '開幕', '品牌活動', 'event', 'opening'], emojis: ['🥂', '💎'] },
+  { keywords: ['新劇上線', '新劇', '電視劇', '影集', 'drama'], emojis: ['📺', '🛋️'] },
+  { keywords: ['電影上映', '電影', '首映', 'movie', 'film'], emojis: ['📽️', '🎟️'] },
+  { keywords: ['生日', 'birthday', 'bday'], emojis: ['🍷', '🎂'] },
+  { keywords: ['模特出道日', '模特出道', 'model debut'], emojis: ['🕴️', '👞'] },
+  { keywords: ['演員出道日', '演員出道', 'actor debut'], emojis: ['🎬', '🎭'] },
+  { keywords: ['在家放空日', '放空', '休息', '在家', 'rest', 'off'], emojis: ['🛋️', '🔋'] },
+  { keywords: ['ai 研究時間', 'ai研究', 'ai', 'research'], emojis: ['🤖', '💻'] },
+  { keywords: ['健康管理', '健身', '運動', 'gym', 'health', 'workout'], emojis: ['🍵', '🏋️‍♂️'] },
+  { keywords: ['烤肉聚餐', '烤肉', '聚餐', '聚會', 'bbq', 'dinner'], emojis: ['🥩', '🍻'] },
+];
+
+// 根據事件關鍵字匹配分類，隨機取得該分類的 Emoji
+const getEventEmoji = (eventText = '') => {
+  const text = String(eventText).toLowerCase().trim();
+  for (const group of EVENT_EMOJI_MAP) {
+    if (group.keywords.some(k => text.includes(k.toLowerCase()))) {
+      return group.emojis[Math.floor(Math.random() * group.emojis.length)];
+    }
+  }
+  // 未明確符合的預設通用標記
+  return '✨';
+};
+
+export default function CalendarModal({ allMediaEvents = [] }) {
   const today = useMemo(() => new Date(), []);
   const maxYear = today.getFullYear();
   const maxMonth = today.getMonth(); // 0-based
   const minYear = 2006;
   const minMonth = 0; // 2006 年 1 月
 
-  // 當前瀏覽的年份與月份
   const [viewYear, setViewYear] = useState(maxYear);
   const [viewMonth, setViewMonth] = useState(maxMonth);
 
-  // 滑動觸控座標
   const touchStartX = useRef(0);
   const touchStartY = useRef(0);
 
-  // 計算能否往前 / 往後切換
   const canGoPrev = viewYear > minYear || (viewYear === minYear && viewMonth > minMonth);
   const canGoNext = viewYear < maxYear || (viewYear === maxYear && viewMonth < maxMonth);
 
@@ -50,7 +75,7 @@ export default function CalendarModal({ currentMonthEvents = [] }) {
     }
   };
 
-  // 左右滑動切換月份（避開邊緣以防觸發全域退出）
+  // 觸控手勢滑動切換月份
   const onTouchStart = (e) => {
     touchStartX.current = e.touches[0].clientX;
     touchStartY.current = e.touches[0].clientY;
@@ -60,38 +85,43 @@ export default function CalendarModal({ currentMonthEvents = [] }) {
     const deltaX = e.changedTouches[0].clientX - touchStartX.current;
     const deltaY = e.changedTouches[0].clientY - touchStartY.current;
 
-    // 水平滑動大於 50px 且垂直位移小於 50px
     if (Math.abs(deltaX) > 50 && Math.abs(deltaY) < 50) {
       if (deltaX < 0) {
-        // 向左滑 ➔ 下個月
         handleNextMonth();
       } else if (deltaX > 0 && touchStartX.current > 60) {
-        // 向右滑 ➔ 上個月（起點大於 60px 避免與全域左側邊緣返回衝突）
         handlePrevMonth();
       }
     }
   };
 
-  // 當月天數與第一天是星期幾
   const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
-  const firstDayOfWeek = new Date(viewYear, viewMonth, 1).getDay(); // 0 是週日
+  const firstDayOfWeek = new Date(viewYear, viewMonth, 1).getDay();
 
-  // 格式化當前檢視月份前綴（例如 "2026-11"）
   const currentPrefix = `${viewYear}-${String(viewMonth + 1).padStart(2, '0')}`;
   const currentPrefixSlash = `${viewYear}/${String(viewMonth + 1).padStart(2, '0')}`;
   const currentPrefixDot = `${viewYear}.${String(viewMonth + 1).padStart(2, '0')}`;
 
-  // 過濾該年該月的所有行程
+  // 🌟 動態比對當前年月的行程，並附加隨機分配的 Emoji
   const activeMonthEvents = useMemo(() => {
-    return (currentMonthEvents || []).filter(ev => {
-      const d = (ev.date || '').trim();
-      return (
-        d.startsWith(currentPrefix) ||
-        d.startsWith(currentPrefixSlash) ||
-        d.startsWith(currentPrefixDot)
-      );
-    });
-  }, [currentMonthEvents, currentPrefix, currentPrefixSlash, currentPrefixDot]);
+    return (allMediaEvents || [])
+      .filter(ev => {
+        const d = (ev.date || '').trim();
+        return (
+          d.startsWith(currentPrefix) ||
+          d.startsWith(currentPrefixSlash) ||
+          d.startsWith(currentPrefixDot)
+        );
+      })
+      .map(ev => {
+        // 從 sub_type, category 或 title 綜合判定分類
+        const matchString = `${ev.status || ''} ${ev.category || ''} ${ev.title || ''}`;
+        return {
+          ...ev,
+          emoji: getEventEmoji(matchString)
+        };
+      })
+      .sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+  }, [allMediaEvents, currentPrefix, currentPrefixSlash, currentPrefixDot]);
 
   return (
     <div
@@ -99,14 +129,14 @@ export default function CalendarModal({ currentMonthEvents = [] }) {
       onTouchStart={onTouchStart}
       onTouchEnd={onTouchEnd}
     >
-      {/* 頂部導航列 */}
+      {/* 頂部標題列 */}
       <div className="pt-12 pb-5 px-5 bg-[#4E727A] flex items-center justify-start shadow-md border-b border-[#3D5C63] shrink-0">
         <span className="font-bold text-xl tracking-wider text-white">CALENDAR</span>
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 flex flex-col justify-between">
         <div>
-          {/* 月份切換列（支援點擊箭頭或滑動） */}
+          {/* 月份切換列 */}
           <div className="flex items-center justify-between px-2 mb-4">
             <button
               onClick={handlePrevMonth}
@@ -140,21 +170,19 @@ export default function CalendarModal({ currentMonthEvents = [] }) {
           </div>
 
           {/* 星期標頭 */}
-          <div className="grid grid-cols-7 gap-1 text-center text-[11px] text-slate-400 mb-2">
+          <div className="grid grid-cols-7 gap-1 text-center text-[11px] text-slate-400 mb-2 font-mono">
             <span>SUN</span><span>MON</span><span>TUE</span><span>WED</span><span>THU</span><span>FRI</span><span>SAT</span>
           </div>
 
-          {/* 日曆格子 (動態位移與天數) */}
+          {/* 🌟 日曆格子：以隨機 Emoji 取代原先圓點 */}
           <div className="grid grid-cols-7 gap-1.5">
-            {/* 1 號之前的空白補位 */}
             {Array.from({ length: firstDayOfWeek }).map((_, i) => (
               <div key={`empty-${i}`} className="aspect-square bg-transparent" />
             ))}
 
-            {/* 當月天數 */}
             {Array.from({ length: daysInMonth }).map((_, i) => {
               const dayNum = i + 1;
-              const hasSchedule = activeMonthEvents.some(ev => {
+              const dayEvents = activeMonthEvents.filter(ev => {
                 const parts = (ev.date || '').replace(/[^\d]/g, ' ').trim().split(/\s+/);
                 return parts.length >= 3 && parseInt(parts[2], 10) === dayNum;
               });
@@ -162,11 +190,17 @@ export default function CalendarModal({ currentMonthEvents = [] }) {
               return (
                 <div
                   key={`day-${dayNum}`}
-                  className="aspect-square rounded-lg p-1.5 flex flex-col justify-between border bg-slate-900/60 border-white/5 hover:border-[#81D4D2]/40 transition"
+                  className="aspect-square rounded-lg p-1.5 flex flex-col justify-between border bg-slate-900/60 border-white/5 hover:border-[#81D4D2]/40 transition relative overflow-hidden"
                 >
-                  <span className="text-[10px] font-mono text-slate-400">{dayNum}</span>
-                  {hasSchedule && (
-                    <div className="w-1.5 h-1.5 rounded-full bg-[#81D4D2] self-end"></div>
+                  <span className="text-[10px] font-mono text-slate-400 leading-none">{dayNum}</span>
+                  
+                  {/* 當日有行程時，在右下角以 Emoji 呈現 */}
+                  {dayEvents.length > 0 && (
+                    <div className="flex items-center justify-end self-end">
+                      <span className="text-sm select-none leading-none filter drop-shadow">
+                        {dayEvents[0].emoji}
+                      </span>
+                    </div>
                   )}
                 </div>
               );
@@ -174,18 +208,19 @@ export default function CalendarModal({ currentMonthEvents = [] }) {
           </div>
         </div>
 
-        {/* 🌟 行程清單：標題依當月縮寫變動，例如 "Nov. Schedule" */}
+        {/* 🌟 當月行程清單：標題縮寫 + 條列項目帶上 Emoji */}
         <div className="bg-white/5 rounded-2xl p-4 space-y-2 border border-white/10 mt-4 max-h-52 overflow-y-auto">
-          <span className="text-xs font-semibold text-[#81D4D2] tracking-wider block">
+          <span className="text-xs font-semibold text-[#81D4D2] tracking-wider block font-mono">
             {MONTH_ABBR[viewMonth]} Schedule
           </span>
           {activeMonthEvents.length > 0 ? (
             activeMonthEvents.map((ev, idx) => (
               <div key={idx} className="flex items-start space-x-2 text-[11.5px] text-slate-300">
-                <span className="text-teal-400 font-mono shrink-0">•</span>
-                <span>
-                  <strong className="text-white font-mono mr-1">{ev.date}</strong>
-                  {ev.title} {ev.status ? `(${ev.status})` : ''}
+                <span className="text-xs shrink-0 select-none">{ev.emoji}</span>
+                <span className="leading-snug">
+                  <strong className="text-white font-mono mr-1.5">{ev.date}</strong>
+                  <span>{ev.title}</span>
+                  {ev.status && <span className="text-slate-400 ml-1 text-[10.5px]">({ev.status})</span>}
                 </span>
               </div>
             ))
