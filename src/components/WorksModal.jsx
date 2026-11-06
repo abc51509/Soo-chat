@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 
+// 移除 ALL，僅保留 5 大實體分類
 const TABS = [
-  { key: 'ALL', label: 'ALL' },
   { key: 'DRAMA', label: 'DRAMA' },
   { key: 'MOVIE', label: 'MOVIE' },
   { key: 'VARIETY', label: 'VARIETY' },
@@ -10,7 +10,8 @@ const TABS = [
 ];
 
 export default function WorksModal({ worksData = [] }) {
-  const [activeTab, setActiveTab] = useState('ALL');
+  // 預設為第一項 DRAMA
+  const [activeTab, setActiveTab] = useState('DRAMA');
 
   // 本地儲存已看過（打勾）的作品清單，以「分類_年份_作品名稱」作為唯一 key
   const [watchedList, setWatchedList] = useState(() => {
@@ -59,11 +60,10 @@ export default function WorksModal({ worksData = [] }) {
 
   // 依照當前選中的 Tab 過濾
   const displayedWorks = useMemo(() => {
-    if (activeTab === 'ALL') return formattedWorks;
     return formattedWorks.filter((w) => w.type === activeTab);
   }, [formattedWorks, activeTab]);
 
-  // 計算目前完成度
+  // 計算當前分類的完成度
   const watchedCount = displayedWorks.filter((w) => watchedList.includes(w.id)).length;
   const totalCount = displayedWorks.length;
   const percent = totalCount > 0 ? Math.round((watchedCount / totalCount) * 100) : 0;
@@ -85,7 +85,7 @@ export default function WorksModal({ worksData = [] }) {
         </div>
       </div>
 
-      {/* 分類 Tab 橫向滾動列 */}
+      {/* 分類 Tab 橫向列（已刪除 ALL，只保留 5 類） */}
       <div className="bg-slate-900/90 px-4 py-2.5 flex space-x-2 overflow-x-auto scrollbar-none border-b border-white/5 shrink-0">
         {TABS.map((tab) => {
           const isActive = activeTab === tab.key;
@@ -106,7 +106,7 @@ export default function WorksModal({ worksData = [] }) {
       </div>
 
       {/* 作品卡片清單 */}
-      <div className="flex-1 overflow-y-auto p-3.5 space-y-2.5">
+      <div className="flex-1 overflow-y-auto p-3.5 space-y-3">
         {displayedWorks.length > 0 ? (
           displayedWorks.map((work) => {
             const isChecked = watchedList.includes(work.id);
@@ -121,8 +121,8 @@ export default function WorksModal({ worksData = [] }) {
                     : 'bg-[#1E293B]/80 border-slate-700/60 hover:border-slate-600'
                 }`}
               >
-                {/* 左側打勾框 */}
-                <div className="pr-3 pl-1 shrink-0">
+                {/* 左側打勾圓圈 */}
+                <div className="pr-2.5 pl-0.5 shrink-0">
                   <div
                     className={`w-6 h-6 rounded-full flex items-center justify-center transition border ${
                       isChecked
@@ -136,8 +136,8 @@ export default function WorksModal({ worksData = [] }) {
                   </div>
                 </div>
 
-                {/* 劇照小縮圖 (直式海報比例 3:4) */}
-                <div className="w-14 h-[72px] rounded-xl overflow-hidden bg-slate-800 border border-white/10 shrink-0 mr-3 relative shadow-inner">
+                {/* 🌟 橫式劇照小圖（寬度加大一倍至 w-28，比例約 4:3 aspect-[4/3]） */}
+                <div className="w-28 aspect-[4/3] rounded-xl overflow-hidden bg-slate-800 border border-white/10 shrink-0 mr-3 relative shadow-inner">
                   {work.coverImage ? (
                     <img
                       src={work.coverImage}
@@ -148,9 +148,8 @@ export default function WorksModal({ worksData = [] }) {
                       }`}
                     />
                   ) : (
-                    <div className="w-full h-full flex flex-col items-center justify-center text-slate-500 text-[9px] font-mono p-1 text-center leading-none">
-                      <span>NO</span>
-                      <span>POSTER</span>
+                    <div className="w-full h-full flex flex-col items-center justify-center text-slate-500 text-[10px] font-mono p-1 text-center leading-tight">
+                      <span>NO STILL</span>
                     </div>
                   )}
                   {/* 分類標籤 */}
