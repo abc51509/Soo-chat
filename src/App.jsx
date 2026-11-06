@@ -609,16 +609,34 @@ export default function App() {
       })
       .filter((g) => g.count > 0);
   }, [masterMedia]);
-// 取得 media 分頁所有具備日期的行程，供日曆完整跨月查詢
+// 針對 YYYY,MM,DD 格式的精準逗號切割解析
   const allMediaEvents = useMemo(() => {
     return masterMedia
-      .filter(m => (m.date || '').trim().length > 0)
-      .map(m => ({
-        date: m.date.trim(),
-        title: m.album_name || m.news_title || m.caption || '行程',
-        status: m.sub_type || '',
-        category: m.category || ''
-      }));
+      .map(m => {
+        const rawDate = (m.date || '').trim();
+        if (!rawDate) return null;
+
+        // 直接以逗號切割
+        const parts = rawDate.split(',');
+        if (parts.length < 3) return null;
+
+        const year = parseInt(parts[0].trim(), 10);
+        const month = parseInt(parts[1].trim(), 10);
+        const day = parseInt(parts[2].trim(), 10);
+
+        if (isNaN(year) || isNaN(month) || isNaN(day)) return null;
+
+        return {
+          rawDate,
+          year,
+          month,
+          day,
+          title: m.album_name || m.news_title || m.caption || '行程',
+          status: m.sub_type || '',
+          category: m.category || ''
+        };
+      })
+      .filter(Boolean);
   }, [masterMedia]);
 
   // 🌟 修復重點：聚合 FEED，完整抓取 interview_id
