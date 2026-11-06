@@ -1,3 +1,29 @@
+原因出在「`settings` 表的資料結構與讀取方式」！
+
+在之前的程式碼中，我們預設 `key` 與 `value`（設定頭貼、名稱）放在 A、B 欄，而 `type_code`、`label`、`emojis` 放在 E、F、G 欄。
+現在你把 **`type_code`、`label`、`emojis` 直接放在 A、B、C 欄（第一列標題就是這三個）**，這時：
+
+1. `r.key` 根本不存在，原本抓系統設定的邏輯會撲空。
+2. GViz 解析欄位名稱時，如果試算表抬頭有空格、大小寫不同，或者被轉為 `type_code` / `typecode` / `emojis`，目前的解析如果有一點沒對齊，`emojiMap` 就會是空的 `{}`，日曆找不到分類池，就只能全部 fallback 退回預設的 `✨`！
+
+此外，`media` 表中的欄位名稱可能是 `type`，如果試算表第一列抬頭是 `Type` 或 `category`，也需要多重容錯安全取值。
+
+---
+
+### 修復方案
+
+我們只需要更新 **`src/App.jsx`** 裡面的：
+
+1. **`settings` 解析區塊**：同時支援 A 欄是 `type_code` 或是 `key` 的排版，並做多重欄位名稱容錯（無論是大寫、小寫、帶空格均能命中）。
+2. **`allMediaEvents` 的 `type` 欄位抓取**：強化對 `m.type`、`m.category`、`m.sub_type` 的比對，確保傳進日曆時有帶上正確的代碼（如 `mag`、`show`、`open`）。
+
+---
+
+### 請更新 `src/App.jsx` 的兩處（或直接覆蓋下方完整代碼）
+
+打開 `src/App.jsx`，將整份替換為以下強化解析版：
+
+```jsx
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import AlbumModal from './components/AlbumModal';
 import CalendarModal from './components/CalendarModal';
@@ -6,7 +32,7 @@ import FileModal from './components/FileModal';
 
 const SPREADSHEET_ID = '11P8tG-MhZiwrBcGf9TyFirQNwPxKC2YPVbv4XHMEV-A';
 
-// 通用 GViz 資料讀取器
+// 通用 GViz 資料讀取器（強化鍵值正規化）
 const fetchSheetData = async (sheetName) => {
   try {
     const url = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:json&headers=1&sheet=${encodeURIComponent(sheetName)}&t=${Date.now()}`;
@@ -138,7 +164,6 @@ export default function App() {
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   };
 
-  // 🌟 動態設定檔 State
   const [appSettings, setAppSettings] = useState({
     name: 'Soo',
     avatar: 'https://images.plurk.com/6PooPJr1YbOhrMp5CCFdbl.jpg',
@@ -220,7 +245,7 @@ export default function App() {
     localStorage.setItem('soo_follow_up_queue_v2', JSON.stringify(followUpQueue));
   }, [followUpQueue]);
 
-  // 🌟 資料載入（包含 settings 表）
+  // 🌟 資料載入：強化解析 settings（精準命中 ABC 欄位 type_code / label / emojis）
   useEffect(() => {
     Promise.all([
       fetchSheetData('media'),
@@ -239,12 +264,25 @@ export default function App() {
         const emojiMap = {};
 
         settingRows.forEach(r => {
-          if (r.key) conf[r.key.toLowerCase().trim()] = r.value;
-          if (r.type_code && r.emojis) {
-            emojiMap[r.type_code.trim().toLowerCase()] = r.emojis
-              .split(/[,，]/)
+          // 支援 key-value 設定
+          const k = getField(r, 'key', 'setting_key');
+          const v = getField(r, 'value', 'setting_value');
+          if (k) conf[k.toLowerCase()] = v;
+
+          // 🌟 支援 ABC 欄位為 type_code, label, emojis
+          const code = getField(r, 'type_code', 'typecode', 'type', 'col_0').toLowerCase();
+          const emoStr = getField(r, 'emojis', 'emoji', 'col_2');
+
+          if (code && emoStr) {
+            // 切割所有逗號（支援半形與全形逗號）
+            const parsedEmojis = emoStr
+              .split(/[,，\s]+/)
               .map(e => e.trim())
               .filter(Boolean);
+
+            if (parsedEmojis.length > 0) {
+              emojiMap[code] = parsedEmojis;
+            }
           }
         });
 
@@ -664,11 +702,11 @@ export default function App() {
       .filter((g) => g.count > 0);
   }, [masterMedia]);
 
-  // 🌟 針對 YYYY,MM,DD 格式的精準逗號切割解析
+  // 🌟 針對 YYYY,MM,DD 格式的精準逗號切割解析（強化抓取 type）
   const allMediaEvents = useMemo(() => {
     return masterMedia
       .map(m => {
-        const rawDate = (m.date || '').trim();
+        const rawDate = getField(m, 'date');
         if (!rawDate) return null;
 
         const parts = rawDate.split(',');
@@ -680,14 +718,17 @@ export default function App() {
 
         if (isNaN(year) || isNaN(month) || isNaN(day)) return null;
 
+        // 🌟 多重欄位容錯，確保抓出 type (如 mag, show, open 等)
+        const typeValue = getField(m, 'type', 'sub_type', 'subtype', 'category');
+
         return {
           rawDate,
           year,
           month,
           day,
           title: m.album_name || m.news_title || m.caption || '行程',
-          status: m.sub_type || m.status || '',
-          type: m.type || m.category || ''
+          status: m.status || m.sub_type || '',
+          type: typeValue
         };
       })
       .filter(Boolean);
@@ -985,7 +1026,6 @@ export default function App() {
           <AlbumModal albumList={albumList} />
         )}
 
-        {/* 🌟 Calendar 傳入完整的 allMediaEvents 與 typeEmojiMap */}
         {activeModal === 'calendar' && (
           <CalendarModal 
             allMediaEvents={allMediaEvents} 
@@ -1013,3 +1053,5 @@ export default function App() {
     </div>
   );
 }
+
+```
