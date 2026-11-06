@@ -1,29 +1,3 @@
-原因出在「`settings` 表的資料結構與讀取方式」！
-
-在之前的程式碼中，我們預設 `key` 與 `value`（設定頭貼、名稱）放在 A、B 欄，而 `type_code`、`label`、`emojis` 放在 E、F、G 欄。
-現在你把 **`type_code`、`label`、`emojis` 直接放在 A、B、C 欄（第一列標題就是這三個）**，這時：
-
-1. `r.key` 根本不存在，原本抓系統設定的邏輯會撲空。
-2. GViz 解析欄位名稱時，如果試算表抬頭有空格、大小寫不同，或者被轉為 `type_code` / `typecode` / `emojis`，目前的解析如果有一點沒對齊，`emojiMap` 就會是空的 `{}`，日曆找不到分類池，就只能全部 fallback 退回預設的 `✨`！
-
-此外，`media` 表中的欄位名稱可能是 `type`，如果試算表第一列抬頭是 `Type` 或 `category`，也需要多重容錯安全取值。
-
----
-
-### 修復方案
-
-我們只需要更新 **`src/App.jsx`** 裡面的：
-
-1. **`settings` 解析區塊**：同時支援 A 欄是 `type_code` 或是 `key` 的排版，並做多重欄位名稱容錯（無論是大寫、小寫、帶空格均能命中）。
-2. **`allMediaEvents` 的 `type` 欄位抓取**：強化對 `m.type`、`m.category`、`m.sub_type` 的比對，確保傳進日曆時有帶上正確的代碼（如 `mag`、`show`、`open`）。
-
----
-
-### 請更新 `src/App.jsx` 的兩處（或直接覆蓋下方完整代碼）
-
-打開 `src/App.jsx`，將整份替換為以下強化解析版：
-
-```jsx
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import AlbumModal from './components/AlbumModal';
 import CalendarModal from './components/CalendarModal';
@@ -1053,5 +1027,3 @@ export default function App() {
     </div>
   );
 }
-
-```
