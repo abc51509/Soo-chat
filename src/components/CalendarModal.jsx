@@ -10,7 +10,7 @@ const MONTH_ABBR = [
   'Jul.', 'Aug.', 'Sep.', 'Oct.', 'Nov.', 'Dec.'
 ];
 
-// 🌟 13 種活動分類專屬隨機 Emoji 對照表
+// 13 種活動分類專屬隨機 Emoji 對照表
 const EVENT_EMOJI_MAP = [
   { keywords: ['畫報', '畫報拍攝', '雜誌', '拍攝', 'magazine', 'photoshoot'], emojis: ['📸', '🎞️'] },
   { keywords: ['時裝周', '時裝週', 'fashion week', 'fw', 'runway'], emojis: ['🕶️', '🧥'] },
@@ -27,7 +27,6 @@ const EVENT_EMOJI_MAP = [
   { keywords: ['烤肉聚餐', '烤肉', '聚餐', '聚會', 'bbq', 'dinner'], emojis: ['🥩', '🍻'] },
 ];
 
-// 根據事件關鍵字匹配分類，隨機取得該分類的 Emoji
 const getEventEmoji = (eventText = '') => {
   const text = String(eventText).toLowerCase().trim();
   for (const group of EVENT_EMOJI_MAP) {
@@ -35,7 +34,6 @@ const getEventEmoji = (eventText = '') => {
       return group.emojis[Math.floor(Math.random() * group.emojis.length)];
     }
   }
-  // 未明確符合的預設通用標記
   return '✨';
 };
 
@@ -75,7 +73,6 @@ export default function CalendarModal({ allMediaEvents = [] }) {
     }
   };
 
-  // 觸控手勢滑動切換月份
   const onTouchStart = (e) => {
     touchStartX.current = e.touches[0].clientX;
     touchStartY.current = e.touches[0].clientY;
@@ -97,31 +94,20 @@ export default function CalendarModal({ allMediaEvents = [] }) {
   const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
   const firstDayOfWeek = new Date(viewYear, viewMonth, 1).getDay();
 
-  const currentPrefix = `${viewYear}-${String(viewMonth + 1).padStart(2, '0')}`;
-  const currentPrefixSlash = `${viewYear}/${String(viewMonth + 1).padStart(2, '0')}`;
-  const currentPrefixDot = `${viewYear}.${String(viewMonth + 1).padStart(2, '0')}`;
-
-  // 🌟 動態比對當前年月的行程，並附加隨機分配的 Emoji
+  // 依年、月純數字比對當前月份行程，並注入 Emoji
+  const currentMonthNum = viewMonth + 1;
   const activeMonthEvents = useMemo(() => {
     return (allMediaEvents || [])
-      .filter(ev => {
-        const d = (ev.date || '').trim();
-        return (
-          d.startsWith(currentPrefix) ||
-          d.startsWith(currentPrefixSlash) ||
-          d.startsWith(currentPrefixDot)
-        );
-      })
+      .filter(ev => ev.year === viewYear && ev.month === currentMonthNum)
       .map(ev => {
-        // 從 sub_type, category 或 title 綜合判定分類
         const matchString = `${ev.status || ''} ${ev.category || ''} ${ev.title || ''}`;
         return {
           ...ev,
           emoji: getEventEmoji(matchString)
         };
       })
-      .sort((a, b) => (a.date || '').localeCompare(b.date || ''));
-  }, [allMediaEvents, currentPrefix, currentPrefixSlash, currentPrefixDot]);
+      .sort((a, b) => a.day - b.day);
+  }, [allMediaEvents, viewYear, currentMonthNum]);
 
   return (
     <div
@@ -174,7 +160,7 @@ export default function CalendarModal({ allMediaEvents = [] }) {
             <span>SUN</span><span>MON</span><span>TUE</span><span>WED</span><span>THU</span><span>FRI</span><span>SAT</span>
           </div>
 
-          {/* 🌟 日曆格子：以隨機 Emoji 取代原先圓點 */}
+          {/* 日曆格子 (純數字比對 ev.day === dayNum) */}
           <div className="grid grid-cols-7 gap-1.5">
             {Array.from({ length: firstDayOfWeek }).map((_, i) => (
               <div key={`empty-${i}`} className="aspect-square bg-transparent" />
@@ -182,10 +168,7 @@ export default function CalendarModal({ allMediaEvents = [] }) {
 
             {Array.from({ length: daysInMonth }).map((_, i) => {
               const dayNum = i + 1;
-              const dayEvents = activeMonthEvents.filter(ev => {
-                const parts = (ev.date || '').replace(/[^\d]/g, ' ').trim().split(/\s+/);
-                return parts.length >= 3 && parseInt(parts[2], 10) === dayNum;
-              });
+              const dayEvents = activeMonthEvents.filter(ev => ev.day === dayNum);
 
               return (
                 <div
@@ -194,7 +177,6 @@ export default function CalendarModal({ allMediaEvents = [] }) {
                 >
                   <span className="text-[10px] font-mono text-slate-400 leading-none">{dayNum}</span>
                   
-                  {/* 當日有行程時，在右下角以 Emoji 呈現 */}
                   {dayEvents.length > 0 && (
                     <div className="flex items-center justify-end self-end">
                       <span className="text-sm select-none leading-none filter drop-shadow">
@@ -208,7 +190,7 @@ export default function CalendarModal({ allMediaEvents = [] }) {
           </div>
         </div>
 
-        {/* 🌟 當月行程清單：標題縮寫 + 條列項目帶上 Emoji */}
+        {/* 下方重點行程條列 */}
         <div className="bg-white/5 rounded-2xl p-4 space-y-2 border border-white/10 mt-4 max-h-52 overflow-y-auto">
           <span className="text-xs font-semibold text-[#81D4D2] tracking-wider block font-mono">
             {MONTH_ABBR[viewMonth]} Schedule
@@ -218,7 +200,7 @@ export default function CalendarModal({ allMediaEvents = [] }) {
               <div key={idx} className="flex items-start space-x-2 text-[11.5px] text-slate-300">
                 <span className="text-xs shrink-0 select-none">{ev.emoji}</span>
                 <span className="leading-snug">
-                  <strong className="text-white font-mono mr-1.5">{ev.date}</strong>
+                  <strong className="text-white font-mono mr-1.5">{ev.rawDate}</strong>
                   <span>{ev.title}</span>
                   {ev.status && <span className="text-slate-400 ml-1 text-[10.5px]">({ev.status})</span>}
                 </span>
