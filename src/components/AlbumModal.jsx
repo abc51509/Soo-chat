@@ -5,7 +5,7 @@ export default function AlbumModal({ albumList = [] }) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isViewerOpen, setIsViewerOpen] = useState(false);
 
-  // 手勢座標與位移狀態
+  // 大圖手勢位移狀態
   const [dragX, setDragX] = useState(0);
   const [dragY, setDragY] = useState(0);
   const touchStartX = useRef(0);
@@ -29,7 +29,6 @@ export default function AlbumModal({ albumList = [] }) {
     setDragY(0);
   };
 
-  // 無縫循環換頁
   const goNext = useCallback(() => {
     if (total <= 1) return;
     setCurrentIndex((prev) => (prev + 1) % total);
@@ -40,7 +39,6 @@ export default function AlbumModal({ albumList = [] }) {
     setCurrentIndex((prev) => (prev - 1 + total) % total);
   }, [total]);
 
-  // 當 currentIndex 改變時，自動將底部 iPhone 風格縮圖置中
   useEffect(() => {
     if (thumbnailScrollRef.current && isViewerOpen) {
       const activeThumb = thumbnailScrollRef.current.children[currentIndex];
@@ -54,7 +52,7 @@ export default function AlbumModal({ albumList = [] }) {
     }
   }, [currentIndex, isViewerOpen]);
 
-  // 大圖手勢滑動判定
+  // 大圖手勢滑動
   const onViewerTouchStart = (e) => {
     touchStartX.current = e.touches[0].clientX;
     touchStartY.current = e.touches[0].clientY;
@@ -66,7 +64,6 @@ export default function AlbumModal({ albumList = [] }) {
     const diffX = e.touches[0].clientX - touchStartX.current;
     const diffY = e.touches[0].clientY - touchStartY.current;
 
-    // 若垂直位移較大且往下拖，阻斷原生滾動以支援下拉關閉
     if (Math.abs(diffY) > Math.abs(diffX) && diffY > 0) {
       e.preventDefault();
       setDragY(diffY);
@@ -82,13 +79,13 @@ export default function AlbumModal({ albumList = [] }) {
     const diffX = e.changedTouches[0].clientX - touchStartX.current;
     const diffY = e.changedTouches[0].clientY - touchStartY.current;
 
-    // 判定大幅度下滑關閉（下拉超過 80px）
+    // 下滑關閉
     if (diffY > 80 && Math.abs(diffX) < 100) {
       closeViewer();
       return;
     }
 
-    // 判定左右滑動換頁（橫向超過 40px）
+    // 左右滑動切換
     if (Math.abs(diffX) > 40 && Math.abs(diffY) < 70) {
       if (diffX < 0) {
         goNext();
@@ -125,7 +122,7 @@ export default function AlbumModal({ albumList = [] }) {
         </div>
       </div>
 
-      {/* 全螢幕大圖瀏覽器：純滑動手勢＋下拉關閉＋iPhone 風格縮圖列 */}
+      {/* 全螢幕大圖瀏覽器 */}
       {isViewerOpen && selectedAlbum && (
         <div
           onTouchStart={onViewerTouchStart}
@@ -134,7 +131,6 @@ export default function AlbumModal({ albumList = [] }) {
           style={{ touchAction: 'none', overscrollBehavior: 'contain' }}
           className="fixed inset-0 bg-black/95 z-[60] flex flex-col justify-between items-center py-6 px-3 animate-fade-in"
         >
-          {/* 頂部操作提示 */}
           <div className="w-full flex justify-between items-center text-xs font-mono text-slate-400 px-3 pt-2">
             <span className="text-slate-500 text-[11px]">下滑關閉</span>
             <button
@@ -145,7 +141,6 @@ export default function AlbumModal({ albumList = [] }) {
             </button>
           </div>
 
-          {/* 照片主體（支援手勢位移回饋，純滑動無箭頭遮擋） */}
           <div
             onClick={closeViewer}
             className="relative w-full flex-1 flex items-center justify-center overflow-hidden my-auto"
@@ -167,7 +162,7 @@ export default function AlbumModal({ albumList = [] }) {
             </div>
           </div>
 
-          {/* iPhone 風格下方微型縮圖列 */}
+          {/* iPhone 風格縮圖列 */}
           {total > 1 && (
             <div
               ref={thumbnailScrollRef}
@@ -200,9 +195,9 @@ export default function AlbumModal({ albumList = [] }) {
       )}
 
       {/* 主內容區 */}
-      <div className="flex-1 overflow-y-auto p-3.5">
-        {selectedAlbum ? (
-          /* 點入後的照片九宮格瀑布流 */
+      {selectedAlbum ? (
+        /* 點入後的相簿照片瀑布流 */
+        <div className="flex-1 overflow-y-auto p-3.5">
           <div className="grid grid-cols-3 gap-1.5">
             {selectedAlbum.images.map((imgUrl, idx) => (
               <div
@@ -219,17 +214,19 @@ export default function AlbumModal({ albumList = [] }) {
               </div>
             ))}
           </div>
-        ) : (
-          /* 🌟 外層相簿卡片目錄：經典雙排網格（grid-cols-2），直向滑動，封面直式（aspect-[3/4]）齊平 */
-          <div className="grid grid-cols-2 gap-3.5 pb-6">
+        </div>
+      ) : (
+        /* 🌟 重新撰寫：兩排、橫向滑動軌道（grid-rows-2 + grid-flow-col）、對齊橫向中線、直式封面 */
+        <div className="flex-1 flex items-center overflow-x-auto overflow-y-hidden px-4 py-3 scrollbar-none snap-x snap-mandatory">
+          <div className="grid grid-rows-2 grid-flow-col gap-3 my-auto auto-cols-[150px] sm:auto-cols-[165px]">
             {albumList.map((album, idx) => (
               <div
                 key={idx}
                 onClick={() => setSelectedAlbum(album)}
-                className="bg-[#1E293B]/80 rounded-2xl border border-slate-700/60 p-2.5 flex flex-col justify-between space-y-2.5 shadow-sm hover:border-[#81D4D2]/60 hover:bg-[#1E293B] cursor-pointer transition active:scale-[0.97]"
+                className="snap-start flex flex-col bg-[#1E293B]/85 rounded-xl border border-slate-700/60 p-2 shadow-md hover:border-[#81D4D2]/60 hover:bg-[#1E293B] cursor-pointer transition-all active:scale-[0.96]"
               >
-                {/* 封面照片：直式比例 aspect-[3/4]，高度齊平 */}
-                <div className="rounded-xl overflow-hidden aspect-[3/4] w-full bg-slate-800 shadow-inner relative">
+                {/* 🌟 封面：直式海報比例 (aspect-[3/4]) */}
+                <div className="rounded-lg overflow-hidden aspect-[3/4] w-full bg-slate-800 shadow-inner relative shrink-0">
                   {album.cover ? (
                     <img
                       src={album.cover}
@@ -238,27 +235,27 @@ export default function AlbumModal({ albumList = [] }) {
                       className="w-full h-full object-cover"
                     />
                   ) : (
-                    <div className="w-full h-full flex items-center justify-center text-slate-600 text-xs font-mono">
+                    <div className="w-full h-full flex items-center justify-center text-slate-600 text-[10px] font-mono">
                       NO COVER
                     </div>
                   )}
                   {/* 照片張數標籤 */}
-                  <span className="absolute bottom-1.5 right-1.5 bg-black/75 backdrop-blur-sm text-[#81D4D2] text-[9px] font-mono px-1.5 py-0.5 rounded-full border border-white/10">
+                  <span className="absolute bottom-1 right-1 bg-black/75 backdrop-blur-sm text-[#81D4D2] text-[8.5px] font-mono px-1.5 py-0.2 rounded-full border border-white/10">
                     {album.count} P
                   </span>
                 </div>
 
-                {/* 相簿名稱：直接讀取 album_name，自然折行 */}
-                <div className="px-0.5">
-                  <h3 className="text-[12.5px] font-bold text-white leading-snug line-clamp-2">
+                {/* 相簿組裝名稱：來源-時間-品牌-相簿名稱 */}
+                <div className="pt-1.5 px-0.5 min-h-[32px] flex items-center">
+                  <h3 className="text-[11px] font-medium text-slate-100 leading-snug line-clamp-2">
                     {album.title}
                   </h3>
                 </div>
               </div>
             ))}
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
