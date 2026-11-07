@@ -1,371 +1,165 @@
-import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 
-const MONTH_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+export default function AlbumModal({ albumList }) {
+  const [selectedAlbumName, setSelectedAlbumName] = useState(null);
+  const scrollContainerRef = useRef(null);
 
-const getField = (obj, ...keys) => {
-  if (!obj) return '';
-  for (const k of keys) {
-    const cleanKey = k.toLowerCase().replace(/[^a-z0-9_]/g, '');
-    if (obj[k]?.trim()) return obj[k].trim();
-    if (obj[cleanKey]?.trim()) return obj[cleanKey].trim();
-  }
-  return '';
-};
+  // 1. 相簿排序：固定「所有相片」在第一本，其餘依最新 date 倒序排列
+  const sortedAlbumList = React.useMemo(() => {
+    if (!albumList || albumList.length === 0) return [];
 
-// 🌟 命名格式：來源-時間-品牌-相簿名稱
-const assembleAlbumTitle = (item) => {
-  const rawAlbumName = (item.album_name || '').trim();
-  if (!rawAlbumName || rawAlbumName === '所有相片' || rawAlbumName === '未分類歸檔') {
-    return '其他相片';
-  }
+    const allPhotosAlbum = albumList.find(
+      (a) => a.title === '所有相片' || a.title === '未分類歸檔'
+    ) || {
+      title: '所有相片',
+      cover: albumList[0]?.cover || null,
+      images: Array.from(new Set(albumList.flatMap((a) => a.images || []))),
+      count: 0,
+      latestDate: '9999-99-99'
+    };
 
-  const parts = [];
+    allPhotosAlbum.title = '所有相片';
+    allPhotosAlbum.count = allPhotosAlbum.images.length;
 
-  const source = getField(item, 'news_source', 'source');
-  if (source) parts.push(source);
-
-  const issue = getField(item, 'issue', 'period');
-  if (issue) {
-    parts.push(issue);
-  } else {
-    const rawDate = getField(item, 'date');
-    if (rawDate) {
-      const dParts = rawDate.split(',');
-      if (dParts.length >= 2) {
-        const y = dParts[0].trim();
-        const mIdx = parseInt(dParts[1].trim(), 10) - 1;
-        if (!isNaN(mIdx) && mIdx >= 0 && mIdx < 12) {
-          parts.push(`${MONTH_SHORT[mIdx]} ${y}`);
-        }
-      }
-    }
-  }
-
-  const brand = getField(item, 'brand');
-  if (brand) parts.push(brand);
-
-  parts.push(rawAlbumName);
-  return parts.join('-');
-};
-
-export default function AlbumModal({ mediaData = [] }) {
-  const [selectedAlbum, setSelectedAlbum] = useState(null);
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [isViewerOpen, setIsViewerOpen] = useState(false);
-
-  // 🌟 相簿自給自足資料處理：只認 album_name，滿 3 張獨立成冊，不重複進入其他相片
-  const albumList = useMemo(() => {
-    const rawGroups = {};
-
-    mediaData.forEach((m) => {
-      const imgs = (m.images || '')
-        .trim()
-        .split(/[\s,]+/)
-        .filter((u) => u.startsWith('http'));
-
-      if (!imgs.length) return;
-
-      const rawName = (m.album_name || '').trim();
-      const key = rawName ? rawName : '__unclassified__';
-
-      if (!rawGroups[key]) {
-        rawGroups[key] = {
-          title: rawName ? assembleAlbumTitle(m) : '其他相片',
-          images: [],
-          latestDate: ''
-        };
-      }
-
-      rawGroups[key].images.push(...imgs);
-
-      const d = (m.date || '').trim();
-      if (d && d > rawGroups[key].latestDate) {
-        rawGroups[key].latestDate = d;
-      }
-    });
-
-    const independentAlbums = [];
-    const usedImagesInIndependent = new Set();
-    const leftoverImages = [];
-
-    // 滿 3 張獨立成冊
-    Object.entries(rawGroups).forEach(([key, g]) => {
-      const uniqueImgs = Array.from(new Set(g.images));
-      if (key !== '__unclassified__' && uniqueImgs.length >= 3) {
-        uniqueImgs.forEach(u => usedImagesInIndependent.add(u));
-        independentAlbums.push({
-          title: g.title,
-          cover: uniqueImgs[0] || null,
-          images: uniqueImgs,
-          count: uniqueImgs.length,
-          latestDate: g.latestDate
-        });
-      } else {
-        leftoverImages.push(...uniqueImgs);
-      }
-    });
-
-    independentAlbums.sort((a, b) => b.latestDate.localeCompare(a.latestDate));
-
-    // 未滿 3 張或無名稱者歸入「其他相片」
-    const trueLeftovers = Array.from(new Set(leftoverImages)).filter(
-      imgUrl => !usedImagesInIndependent.has(imgUrl)
-    );
-
-    if (trueLeftovers.length > 0) {
-      independentAlbums.push({
-        title: '其他相片',
-        cover: trueLeftovers[0],
-        images: trueLeftovers,
-        count: trueLeftovers.length,
-        latestDate: '0000,00,00'
+    const restAlbums = albumList
+      .filter((a) => a.title !== '所有相片' && a.title !== '未分類歸檔')
+      .sort((a, b) => {
+        const dateA = a.latestDate || a.date || '';
+        const dateB = b.latestDate || b.date || '';
+        return dateB.localeCompare(dateA);
       });
+
+    return [allPhotosAlbum, ...restAlbums];
+  }, [albumList]);
+
+  // 2. 四宮格分頁（每頁 4 本，不足 4 本亦保證 top-aligned 垂直對齊）
+  const pages = React.useMemo(() => {
+    const p = [];
+    for (let i = 0; i < sortedAlbumList.length; i += 4) {
+      p.push(sortedAlbumList.slice(i, i + 4));
     }
+    return p;
+  }, [sortedAlbumList]);
 
-    return independentAlbums;
-  }, [mediaData]);
-
-  // 大圖手勢位移狀態
-  const [dragX, setDragX] = useState(0);
-  const [dragY, setDragY] = useState(0);
-  const touchStartX = useRef(0);
-  const touchStartY = useRef(0);
-  const isDragging = useRef(false);
-  const thumbnailScrollRef = useRef(null);
-
-  const images = selectedAlbum?.images || [];
-  const total = images.length;
-
-  const openViewer = (idx) => {
-    setCurrentIndex(idx);
-    setIsViewerOpen(true);
-    setDragX(0);
-    setDragY(0);
-  };
-
-  const closeViewer = () => {
-    setIsViewerOpen(false);
-    setDragX(0);
-    setDragY(0);
-  };
-
-  const goNext = useCallback(() => {
-    if (total <= 1) return;
-    setCurrentIndex((prev) => (prev + 1) % total);
-  }, [total]);
-
-  const goPrev = useCallback(() => {
-    if (total <= 1) return;
-    setCurrentIndex((prev) => (prev - 1 + total) % total);
-  }, [total]);
+  // 3. 無縫無限循環滾動處理（若只有 1 頁則無需循環，多頁時首尾串接 clones）
+  const loopPages = React.useMemo(() => {
+    if (pages.length <= 1) return pages;
+    // [LastPageClone, ...Pages, FirstPageClone]
+    return [pages[pages.length - 1], ...pages, pages[0]];
+  }, [pages]);
 
   useEffect(() => {
-    if (thumbnailScrollRef.current && isViewerOpen) {
-      const activeThumb = thumbnailScrollRef.current.children[currentIndex];
-      if (activeThumb) {
-        activeThumb.scrollIntoView({
-          behavior: 'smooth',
-          inline: 'center',
-          block: 'nearest',
-        });
-      }
+    // 初始滾動至真實的第一頁
+    if (pages.length > 1 && scrollContainerRef.current) {
+      const container = scrollContainerRef.current;
+      container.scrollLeft = container.clientWidth;
     }
-  }, [currentIndex, isViewerOpen]);
+  }, [pages.length]);
 
-  // 大圖手勢滑動
-  const onViewerTouchStart = (e) => {
-    touchStartX.current = e.touches[0].clientX;
-    touchStartY.current = e.touches[0].clientY;
-    isDragging.current = true;
-  };
+  const handleScroll = () => {
+    if (pages.length <= 1 || !scrollContainerRef.current) return;
+    const container = scrollContainerRef.current;
+    const { scrollLeft, clientWidth } = container;
 
-  const onViewerTouchMove = (e) => {
-    if (!isDragging.current) return;
-    const diffX = e.touches[0].clientX - touchStartX.current;
-    const diffY = e.touches[0].clientY - touchStartY.current;
-
-    if (Math.abs(diffY) > Math.abs(diffX) && diffY > 0) {
-      e.preventDefault();
-      setDragY(diffY);
-    } else if (Math.abs(diffX) > Math.abs(diffY)) {
-      e.preventDefault();
-      setDragX(diffX);
+    // 滑到最前面的 Clone 時，無痕跳回最後一頁
+    if (scrollLeft <= 5) {
+      container.scrollLeft = clientWidth * pages.length;
+    }
+    // 滑到最後面的 Clone 時，無痕跳回第一頁
+    else if (scrollLeft >= clientWidth * (pages.length + 1) - 5) {
+      container.scrollLeft = clientWidth;
     }
   };
 
-  const onViewerTouchEnd = (e) => {
-    if (!isDragging.current) return;
-    isDragging.current = false;
-    const diffX = e.changedTouches[0].clientX - touchStartX.current;
-    const diffY = e.changedTouches[0].clientY - touchStartY.current;
-
-    if (diffY > 80 && Math.abs(diffX) < 100) {
-      closeViewer();
-      return;
-    }
-
-    if (Math.abs(diffX) > 40 && Math.abs(diffY) < 70) {
-      if (diffX < 0) {
-        goNext();
-      } else {
-        goPrev();
-      }
-    }
-
-    setDragX(0);
-    setDragY(0);
-  };
+  const activeAlbumDetail = selectedAlbumName
+    ? sortedAlbumList.find((a) => a.title === selectedAlbumName) || null
+    : null;
 
   return (
-    <div className="absolute inset-0 bg-[#0B1120] z-50 flex flex-col text-slate-100 backdrop-blur-md animate-fade-in select-none">
-      {/* 🌟 頂部導航列：pt-14 pb-2.5 items-end，文字完全下沉靠近 bar 底部 */}
-      <div className="pt-14 pb-2.5 px-5 bg-[#4E727A] flex items-end justify-between border-b border-[#3D5C63] shadow-md shrink-0 h-[88px]">
-        <div className="flex items-center space-x-2 min-w-0 pr-2">
-          {selectedAlbum && (
-            <button
-              onClick={() => {
-                setSelectedAlbum(null);
-                closeViewer();
-              }}
-              className="mr-1 text-white/80 hover:text-white p-0.5 active:scale-90 transition shrink-0"
-            >
-              <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24">
-                <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z" />
-              </svg>
-            </button>
-          )}
-          {/* 🌟 單一相簿名稱或 ALBUMS 字眼，自然沉貼底線 */}
-          <span className="font-bold text-lg tracking-wider text-white truncate leading-none">
-            {selectedAlbum ? selectedAlbum.title : 'ALBUM'}
-          </span>
-        </div>
-      </div>
-
-      {/* 全螢幕大圖瀏覽器 */}
-      {isViewerOpen && selectedAlbum && (
-        <div
-          onTouchStart={onViewerTouchStart}
-          onTouchMove={onViewerTouchMove}
-          onTouchEnd={onViewerTouchEnd}
-          style={{ touchAction: 'none', overscrollBehavior: 'contain' }}
-          className="fixed inset-0 bg-black/95 z-[60] flex flex-col justify-between items-center py-6 px-3 animate-fade-in"
-        >
-          <div className="w-full flex justify-between items-center text-xs font-mono text-slate-400 px-3 pt-2">
-            <span className="text-slate-500 text-[11px]">下滑關閉</span>
-            <button
-              onClick={closeViewer}
-              className="w-7 h-7 rounded-full bg-white/10 active:scale-90 flex items-center justify-center text-slate-300"
-            >
-              ✕
-            </button>
+    <div className="absolute inset-0 bg-[#0B1120] z-50 flex flex-col text-white backdrop-blur-md animate-fade-in select-none">
+      {selectedAlbumName && activeAlbumDetail ? (
+        /* 三宮格內頁 */
+        <div className="flex-1 flex flex-col overflow-hidden">
+          <div className="pt-12 pb-5 px-5 bg-[#4E727A] flex items-center justify-start border-b border-[#3D5C63] shadow-md shrink-0">
+            <span className="font-bold text-xl text-white truncate max-w-[320px]">
+              {activeAlbumDetail.title}
+            </span>
           </div>
 
-          <div
-            onClick={closeViewer}
-            className="relative w-full flex-1 flex items-center justify-center overflow-hidden my-auto"
-          >
-            <div
-              className="flex items-center justify-center w-full h-full transition-transform ease-out"
-              style={{
-                transform: `translate(${dragX}px, ${dragY}px)`,
-                transitionDuration: isDragging.current ? '0ms' : '180ms',
-                opacity: dragY > 0 ? Math.max(0.3, 1 - dragY / 250) : 1,
-              }}
-            >
-              <img
-                key={`photo-${currentIndex}`}
-                src={images[currentIndex]}
-                alt="Current"
-                className="max-w-[94vw] max-h-[70vh] object-contain rounded-lg shadow-2xl select-none"
-              />
+          <div className="flex-1 overflow-y-auto p-2">
+            <div className="grid grid-cols-3 gap-1.5 rounded-xl overflow-hidden">
+              {activeAlbumDetail.images.map((img, i) => (
+                <a
+                  key={i}
+                  href={img}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="block aspect-[3/4] bg-slate-800 overflow-hidden rounded-md group"
+                >
+                  <img
+                    src={img}
+                    alt={`Shot ${i + 1}`}
+                    loading="lazy"
+                    className="w-full h-full object-cover group-hover:scale-105 transition duration-200"
+                  />
+                </a>
+              ))}
             </div>
-          </div>
-
-          {/* iPhone 風格縮圖列 */}
-          {total > 1 && (
-            <div
-              ref={thumbnailScrollRef}
-              onClick={(e) => e.stopPropagation()}
-              className="w-full max-w-[380px] h-12 flex items-center space-x-1.5 overflow-x-auto scrollbar-none px-4 py-1 bg-black/40 rounded-xl backdrop-blur-md border border-white/10 shrink-0 mb-2"
-            >
-              {images.map((imgUrl, thumbIdx) => {
-                const isActive = thumbIdx === currentIndex;
-                return (
-                  <button
-                    key={thumbIdx}
-                    onClick={() => setCurrentIndex(thumbIdx)}
-                    className={`h-9 aspect-[3/4] rounded-md overflow-hidden shrink-0 transition-all ${
-                      isActive
-                        ? 'ring-2 ring-[#81D4D2] scale-105 opacity-100'
-                        : 'opacity-40 hover:opacity-75'
-                    }`}
-                  >
-                    <img
-                      src={imgUrl}
-                      alt={`Thumb ${thumbIdx}`}
-                      className="w-full h-full object-cover"
-                    />
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* 主內容區 */}
-      {selectedAlbum ? (
-        /* 點入後的相簿照片瀑布流 */
-        <div className="flex-1 overflow-y-auto p-3.5">
-          <div className="grid grid-cols-3 gap-1.5">
-            {selectedAlbum.images.map((imgUrl, idx) => (
-              <div
-                key={idx}
-                onClick={() => openViewer(idx)}
-                className="aspect-[3/4] rounded-lg overflow-hidden bg-slate-900 border border-white/5 cursor-pointer hover:opacity-90 active:scale-[0.98] transition shadow-sm"
-              >
-                <img
-                  src={imgUrl}
-                  alt={`Photo ${idx + 1}`}
-                  loading="lazy"
-                  className="w-full h-full object-cover"
-                />
-              </div>
-            ))}
           </div>
         </div>
       ) : (
-        /* 🌟 兩排、橫向滑動軌道（grid-rows-2 + grid-flow-col）、對齊橫向中線、直式封面 */
-        <div className="flex-1 flex items-center overflow-x-auto overflow-y-hidden px-4 py-3 scrollbar-none snap-x snap-mandatory">
-          <div className="grid grid-rows-2 grid-flow-col gap-3 my-auto auto-cols-[145px] sm:auto-cols-[160px]">
-            {albumList.map((album, idx) => (
-              <div
-                key={idx}
-                onClick={() => setSelectedAlbum(album)}
-                className="snap-start flex flex-col bg-[#1E293B]/85 rounded-xl border border-slate-700/60 p-2 shadow-md hover:border-[#81D4D2]/60 hover:bg-[#1E293B] cursor-pointer transition-all active:scale-[0.96]"
-              >
-                <div className="rounded-lg overflow-hidden aspect-[3/4] w-full bg-slate-800 shadow-inner relative shrink-0">
-                  {album.cover ? (
-                    <img
-                      src={album.cover}
-                      alt={album.title}
-                      loading="lazy"
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center text-slate-600 text-[10px] font-mono">
-                      NO COVER
-                    </div>
-                  )}
-                  <span className="absolute bottom-1 right-1 bg-black/75 backdrop-blur-sm text-[#81D4D2] text-[8.5px] font-mono px-1.5 py-0.2 rounded-full border border-white/10">
-                    {album.count} P
-                  </span>
-                </div>
+        /* 四宮格循環書架總覽 */
+        <div className="flex-1 flex flex-col overflow-hidden">
+          <div className="pt-12 pb-5 px-5 bg-[#4E727A] flex items-center justify-start border-b border-[#3D5C63] shadow-md shrink-0">
+            <span className="font-bold text-xl tracking-wider text-white">ALBUM</span>
+          </div>
 
-                <div className="pt-1.5 px-0.5 min-h-[30px] flex items-center">
-                  <h3 className="text-[10.5px] font-medium text-slate-100 leading-snug line-clamp-2">
-                    {album.title}
-                  </h3>
+          <div
+            ref={scrollContainerRef}
+            onScroll={handleScroll}
+            className="flex-1 flex overflow-x-auto snap-x snap-mandatory scrollbar-none items-start pt-6"
+            style={{ scrollBehavior: 'smooth' }}
+          >
+            {loopPages.map((pageGroup, pIdx) => (
+              <div
+                key={pIdx}
+                className="w-full shrink-0 snap-center px-4 self-start"
+              >
+                {/* 2x2 基準格位：嚴格垂直靠頂對齊 */}
+                <div className="grid grid-cols-2 gap-x-4 gap-y-5 items-start">
+                  {pageGroup.map((alb) => (
+                    <div
+                      key={alb.title}
+                      onClick={() => setSelectedAlbumName(alb.title)}
+                      className="flex flex-col cursor-pointer group active:scale-[0.98] transition"
+                    >
+                      {/* 封面相框 (固定 4:5 比例與對齊基準線) */}
+                      <div className="aspect-[4/5] rounded-2xl overflow-hidden bg-slate-800 shadow-md border border-white/10 relative group-hover:border-[#81D4D2]/60 transition">
+                        {alb.cover ? (
+                          <img
+                            src={alb.cover}
+                            alt={alb.title}
+                            loading="lazy"
+                            className="w-full h-full object-cover object-[center_20%]"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-slate-600 text-xs font-mono">
+                            NO COVER
+                          </div>
+                        )}
+                        <span className="absolute bottom-2 right-2 bg-black/60 backdrop-blur-sm text-white text-[9px] px-2 py-0.5 rounded-md font-mono">
+                          {alb.count}P
+                        </span>
+                      </div>
+
+                      {/* 相簿名稱：固定高度 (h-10) 與頂部對齊，確保不論單行或雙行都不影響格位齊平 */}
+                      <div className="mt-2.5 px-0.5 h-10 flex items-start">
+                        <h4 className="text-[12.5px] font-medium text-slate-200 group-hover:text-[#81D4D2] leading-tight line-clamp-2 break-words">
+                          {alb.title}
+                        </h4>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
             ))}
@@ -375,3 +169,4 @@ export default function AlbumModal({ mediaData = [] }) {
     </div>
   );
 }
+
