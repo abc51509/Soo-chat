@@ -90,6 +90,49 @@ const formatAudioUrl = (raw) => {
   return clean.startsWith('audio/') ? `/${clean}` : `/audio/${clean}`;
 };
 
+const MONTH_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+// 🌟 相簿命名格式：來源-時間-品牌-相簿名稱
+const assembleAlbumTitle = (item) => {
+  const rawAlbumName = (item.album_name || '').trim();
+  if (!rawAlbumName || rawAlbumName === '所有相片' || rawAlbumName === '未分類歸檔') {
+    return '其他相片';
+  }
+
+  const parts = [];
+
+  // 1. 來源
+  const source = getField(item, 'news_source', 'source');
+  if (source) parts.push(source);
+
+  // 2. 時間（優先 issue，次之由 date 轉換）
+  const issue = getField(item, 'issue', 'period');
+  if (issue) {
+    parts.push(issue);
+  } else {
+    const rawDate = getField(item, 'date');
+    if (rawDate) {
+      const dParts = rawDate.split(',');
+      if (dParts.length >= 2) {
+        const y = dParts[0].trim();
+        const mIdx = parseInt(dParts[1].trim(), 10) - 1;
+        if (!isNaN(mIdx) && mIdx >= 0 && mIdx < 12) {
+          parts.push(`${MONTH_SHORT[mIdx]} ${y}`);
+        }
+      }
+    }
+  }
+
+  // 3. 品牌
+  const brand = getField(item, 'brand');
+  if (brand) parts.push(brand);
+
+  // 4. 相簿名稱
+  parts.push(rawAlbumName);
+
+  return parts.join('-');
+};
+
 // 語音氣泡組件
 const AudioBubble = ({ audioSrc }) => {
   const [isPlaying, setIsPlaying] = useState(false);
@@ -634,7 +677,7 @@ export default function App() {
     return () => clearInterval(t);
   }, [isVideoCalling]);
 
-  // 🌟 ALBUM 唯一聚合與命名依據：只認 album_name！
+  // 🌟 相簿：唯一以 album_name 為聚合依據，命名採用「來源-時間-品牌-相簿名稱」
   const albumList = useMemo(() => {
     const rawGroups = {};
 
@@ -646,13 +689,12 @@ export default function App() {
 
       if (!imgs.length) return;
 
-      // 唯一依據：只認 album_name
       const rawName = (m.album_name || '').trim();
       const key = rawName ? rawName : '__unclassified__';
 
       if (!rawGroups[key]) {
         rawGroups[key] = {
-          title: rawName || '其他相片',
+          title: rawName ? assembleAlbumTitle(m) : '其他相片',
           images: [],
           latestDate: ''
         };
@@ -670,7 +712,7 @@ export default function App() {
     const usedImagesInIndependent = new Set();
     const leftoverImages = [];
 
-    // 第一輪：滿 3 張照片獨立成冊
+    // 第一輪：滿 3 張獨立成冊
     Object.entries(rawGroups).forEach(([key, g]) => {
       const uniqueImgs = Array.from(new Set(g.images));
       if (key !== '__unclassified__' && uniqueImgs.length >= 3) {
@@ -689,7 +731,7 @@ export default function App() {
 
     independentAlbums.sort((a, b) => b.latestDate.localeCompare(a.latestDate));
 
-    // 第二輪：未滿 3 張或沒填 album_name 的照片，統一放入「其他相片」
+    // 第二輪：未滿 3 張或未命名的零散照片，收納為「其他相片」
     const trueLeftovers = Array.from(new Set(leftoverImages)).filter(
       imgUrl => !usedImagesInIndependent.has(imgUrl)
     );
@@ -738,14 +780,13 @@ export default function App() {
       .filter(Boolean);
   }, [masterMedia]);
 
-  // 🌟 FEED 唯一聚合依據：只認 news_title！沒填就直接跳過不顯示
+  // FEED 聚合解析
   const feedItems = useMemo(() => {
     const grouped = {};
 
     masterMedia.forEach(m => {
-      // 唯一依據：只認 news_title
       const title = (m.news_title || '').trim();
-      if (!title) return; // 沒填 news_title 絕對不生成新聞文章！
+      if (!title) return;
 
       const videoUrl = getField(m, 'video_url', 'videourl', 'video');
       const eventId = getField(m, 'event_id', 'interview_id', 'id');
@@ -769,7 +810,6 @@ export default function App() {
         grouped[title].interview_id = eventId;
       }
 
-      // 多行相同新聞標題時，合併影片
       if (videoUrl) {
         const urls = videoUrl.split(/;|\n{2,}/).map(s => s.trim()).filter(Boolean);
         const rawCaption = getField(m, 'video_caption', 'videocaption', 'video_desc');
@@ -790,7 +830,6 @@ export default function App() {
         });
       }
 
-      // 多行相同新聞標題時，合併照片
       const rawImgs = getField(m, 'images', 'image');
       const imgs = rawImgs.split(/[\s,]+/).map(u => u.trim()).filter(u => u.startsWith('http'));
       const subType = getField(m, 'sub_type', 'subtype').toLowerCase();
@@ -994,7 +1033,7 @@ export default function App() {
           <button onClick={() => triggerCategoryRandom('official')} className="text-[12px] bg-white text-slate-800 font-medium px-3 py-1.5 rounded-full border border-slate-200 shrink-0">✨</button>
         </div>
 
-        {/* ＋號選單（作品列表置中：相簿 ➔ 檔案 ➔ 作品 ➔ 日曆 ➔ FEED） */}
+        {/* ＋號選單 */}
         {isPlusMenuOpen && (
           <div className="bg-[#4E727A]/95 backdrop-blur-md px-4 py-4 flex justify-around items-center border-t border-[#3D5C63] z-20 animate-fade-in shadow-xl">
             <button onClick={() => { setActiveModal('album'); setIsPlusMenuOpen(false); }} className="p-2 active:scale-75 transition">
