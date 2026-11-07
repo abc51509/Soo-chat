@@ -193,4 +193,3 @@ export default function WorksModal({ worksData = [] }) {
     </div>
   );
 }
-
