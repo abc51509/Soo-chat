@@ -10,7 +10,7 @@ const SPREADSHEET_ID = '11P8tG-MhZiwrBcGf9TyFirQNwPxKC2YPVbv4XHMEV-A';
 // 通用 GViz 資料讀取器
 const fetchSheetData = async (sheetName) => {
   try {
-    const url = `https://docs.google.com/spreadsheets/d/SPREADSHEETID/gviz/tq?tqx=out:json&headers=1&sheet={encodeURIComponent(sheetName)}&t=${Date.now()}`;
+    const url = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:json&headers=1&sheet=${encodeURIComponent(sheetName)}&t=${Date.now()}`;
     const res = await fetch(url);
     if (!res.ok) return [];
     const text = await res.text();
@@ -74,7 +74,7 @@ const formatVideoSource = (raw) => {
 
   let finalPath = clean;
   if (!finalPath.startsWith('http') && !finalPath.startsWith('/')) {
-    finalPath = finalPath.startsWith('video/') ? `/finalPath`:`/video/{finalPath}`;
+    finalPath = finalPath.startsWith('video/') ? `/${finalPath}` : `/video/${finalPath}`;
   }
   return { type: 'direct', url: finalPath };
 };
@@ -87,7 +87,65 @@ const formatAudioUrl = (raw) => {
   }
   if (clean.startsWith('http')) return clean;
   clean = clean.replace(/^\/+/, '');
-  return clean.startsWith('audio/') ? `/clean`:`/audio/{clean}`;
+  return clean.startsWith('audio/') ? `/${clean}` : `/audio/${clean}`;
+};
+
+// 智慧相簿名稱組裝：優先讀取 issue 刊號，沒填則回退至 date 自動轉換
+const MONTH_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+const formatAlbumTitle = (item) => {
+  const rawAlbumName = getField(item, 'album_name', 'album', 'title');
+  if (rawAlbumName === '所有相片' || rawAlbumName === '未分類歸檔') {
+    return '所有相片';
+  }
+
+  const parts = [];
+
+  // 1. 來源：《news_source》
+  const source = getField(item, 'news_source', 'source');
+  if (source) {
+    parts.push(source.startsWith('《') ? source : `《${source}》`);
+  }
+
+  // 2. 刊號/期數：優先讀取 issue！若無 issue 則以 date 的 YYYY,MM,DD 換算
+  const issue = getField(item, 'issue', 'period');
+  if (issue) {
+    parts.push(issue);
+  } else {
+    const rawDate = getField(item, 'date');
+    if (rawDate) {
+      const dParts = rawDate.split(',');
+      if (dParts.length >= 2) {
+        const y = dParts[0].trim();
+        const mIdx = parseInt(dParts[1].trim(), 10) - 1;
+        if (!isNaN(mIdx) && mIdx >= 0 && mIdx < 12) {
+          parts.push(`${MONTH_SHORT[mIdx]} ${y}`);
+        }
+      }
+    }
+  }
+
+  // 3. 品牌與相簿主旨
+  const brand = getField(item, 'brand');
+  const name = rawAlbumName;
+
+  let body = '';
+  if (brand && name) {
+    body = source ? `- ${brand} ${name}` : `${brand} ${name}`;
+  } else if (brand) {
+    body = source ? `- ${brand}` : brand;
+  } else if (name) {
+    body = source ? `- ${name}` : name;
+  }
+  if (body) parts.push(body);
+
+  // 4. 地點：in {location}
+  const loc = getField(item, 'location', 'place', 'city');
+  if (loc) {
+    parts.push(`in ${loc}`);
+  }
+
+  return parts.length > 0 ? parts.join(' ').replace(/\s+/g, ' ').trim() : (rawAlbumName || '精選相簿');
 };
 
 // 語音氣泡組件
@@ -129,17 +187,15 @@ const AudioBubble = ({ audioSrc }) => {
 };
 
 export default function App() {
-const getCurrentTime = () => {
-  const now = new Date();
-  return `String(now.getHours()).padStart(2,'0'):{String(now.getMinutes()).padStart(2, '0')}`;
-};
+  const getCurrentTime = () => {
+    const now = new Date();
+    return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+  };
 
-const formatSeconds = (sec) => {
-  const m = Math.floor(sec / 60);
-  const s = sec % 60;
-  return `String(m).padStart(2,'0'):{String(s).padStart(2, '0')}`;
-};
-
+  const getTodayDateStr = () => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  };
 
   const [appSettings, setAppSettings] = useState({
     name: 'Soo',
@@ -176,7 +232,7 @@ const formatSeconds = (sec) => {
   const [dialogueList, setDialogueList] = useState([]);
   const [foodWeights, setFoodWeights] = useState([]);
   const [interviewData, setInterviewData] = useState([]);
-  const [worksData, setWorksData] = useState([]); // 🌟 新增作品列表資料 State
+  const [worksData, setWorksData] = useState([]);
 
   const [followUpQueue, setFollowUpQueue] = useState(() => {
     try {
@@ -223,7 +279,6 @@ const formatSeconds = (sec) => {
     localStorage.setItem('soo_follow_up_queue_v2', JSON.stringify(followUpQueue));
   }, [followUpQueue]);
 
-  // 🌟 資料載入（包含 works 與 settings 表）
   useEffect(() => {
     Promise.all([
       fetchSheetData('media'),
@@ -231,7 +286,7 @@ const formatSeconds = (sec) => {
       fetchSheetData('food_weights'),
       fetchSheetData('interviews'),
       fetchSheetData('settings'),
-      fetchSheetData('works') // 🌟 新增抓取 works
+      fetchSheetData('works')
     ]).then(([mediaRows, diagRows, foodRows, interviewRows, settingRows, worksRows]) => {
       if (mediaRows.length) setMasterMedia(mediaRows);
       if (diagRows.length) setDialogueList(diagRows);
@@ -308,7 +363,6 @@ const formatSeconds = (sec) => {
       }));
   }, [dialogueList]);
 
-  // 左側邊緣滑動返回防誤觸
   const handleTouchStart = (e) => {
     touchStartX.current = e.touches[0].clientX;
     touchStartY.current = e.touches[0].clientY;
@@ -333,7 +387,7 @@ const formatSeconds = (sec) => {
   const formatSeconds = (sec) => {
     const m = Math.floor(sec / 60);
     const s = sec % 60;
-    return `String(m).padStart(2,'0'):{String(s).padStart(2, '0')}`;
+    return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
   };
 
   const sendStaggeredMessages = async (textBlock, options = {}) => {
@@ -638,30 +692,34 @@ const formatSeconds = (sec) => {
     return () => clearInterval(t);
   }, [isVideoCalling]);
 
-  // 相簿分組（依最新日期倒序）
+  // 🌟 相簿分組（使用 event_id 聚合，組裝名稱，並過濾未滿 3 張照片的群組）
   const albumList = useMemo(() => {
     const groups = {};
-    masterMedia.forEach((m) => {
-      let albumKey = m.album_name?.trim() || '所有相片';
-      if (albumKey === '未分類歸檔') albumKey = '所有相片';
 
-      if (!groups[albumKey]) {
-        groups[albumKey] = {
-          title: albumKey,
+    masterMedia.forEach((m) => {
+      const imgs = (m.images || '')
+        .trim()
+        .split(/[\s,]+/)
+        .filter((u) => u.startsWith('http'));
+
+      if (!imgs.length) return;
+
+      const eventKey = getField(m, 'event_id', 'album_name') || 'default_album';
+      const dynamicTitle = formatAlbumTitle(m);
+
+      if (!groups[eventKey]) {
+        groups[eventKey] = {
+          title: dynamicTitle,
           images: [],
           latestDate: ''
         };
       }
 
-      const imgs = (m.images || '')
-        .trim()
-        .split(/[\s,]+/)
-        .filter((u) => u.startsWith('http'));
-      groups[albumKey].images.push(...imgs);
+      groups[eventKey].images.push(...imgs);
 
       const d = (m.date || '').trim();
-      if (d && d > groups[albumKey].latestDate) {
-        groups[albumKey].latestDate = d;
+      if (d && d > groups[eventKey].latestDate) {
+        groups[eventKey].latestDate = d;
       }
     });
 
@@ -676,7 +734,9 @@ const formatSeconds = (sec) => {
           latestDate: g.latestDate
         };
       })
-      .filter((g) => g.count > 0);
+      // 🌟 嚴格限制：照片數量必須大於等於 3 張才獨立成相簿
+      .filter((g) => g.count >= 3)
+      .sort((a, b) => b.latestDate.localeCompare(a.latestDate));
   }, [masterMedia]);
 
   // 日曆事件解析
@@ -702,7 +762,7 @@ const formatSeconds = (sec) => {
           year,
           month,
           day,
-          title: m.album_name || m.news_title || m.caption || '行程',
+          title: formatAlbumTitle(m),
           status: m.status || m.sub_type || '',
           type: typeValue
         };
@@ -964,28 +1024,23 @@ const formatSeconds = (sec) => {
           <button onClick={() => triggerCategoryRandom('official')} className="text-[12px] bg-white text-slate-800 font-medium px-3 py-1.5 rounded-full border border-slate-200 shrink-0">✨</button>
         </div>
 
-        {/* ＋號選單（作品列表置中：相簿 ➔ 檔案 ➔ 作品 ➔ 日曆 ➔ FEED） */}
+        {/* ＋號選單 */}
         {isPlusMenuOpen && (
           <div className="bg-[#4E727A]/95 backdrop-blur-md px-4 py-4 flex justify-around items-center border-t border-[#3D5C63] z-20 animate-fade-in shadow-xl">
-            {/* 1. 相簿 */}
             <button onClick={() => { setActiveModal('album'); setIsPlusMenuOpen(false); }} className="p-2 active:scale-75 transition">
               <svg className="w-6 h-6 fill-white" viewBox="0 0 24 24"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>
             </button>
-            {/* 2. 檔案 */}
             <button onClick={() => { setActiveModal('voices'); setIsPlusMenuOpen(false); }} className="p-2 active:scale-75 transition">
               <svg className="w-6 h-6 fill-white" viewBox="0 0 24 24"><path d="M19 4H5c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm-1 12H6c-.55 0-1-.45-1-1V9c0-.55.45-1 1-1h12c.55 0 1 .45 1 1v6c0 .55-.45 1-1 1zM7.5 11c-.83 0-1.5.67-1.5 1.5S6.67 14 7.5 14s1.5-.67 1.5-1.5S8.33 11 7.5 11zm9 0c-.83 0-1.5.67-1.5 1.5s.67 1.5 1.5 1.5 1.5-.67 1.5-1.5-.67-1.5-1.5-1.5z"/></svg>
             </button>
-            {/* 🌟 3. 作品列表 (WORKS，最中間) */}
             <button onClick={() => { setActiveModal('works'); setIsPlusMenuOpen(false); }} className="p-2 active:scale-75 transition relative group">
               <svg className="w-6 h-6 fill-white" viewBox="0 0 24 24">
                 <path d="M18 4l2 4h-3l-2-4h-2l2 4h-3l-2-4H8l2 4H7L5 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V4h-4z"/>
               </svg>
             </button>
-            {/* 4. 日曆 */}
             <button onClick={() => { setActiveModal('calendar'); setIsPlusMenuOpen(false); }} className="p-2 active:scale-75 transition">
               <svg className="w-6 h-6 fill-white" viewBox="0 0 24 24"><path d="M19 4h-1V2h-2v2H8V2H6v2H5c-1.11 0-1.99.9-1.99 2L3 20c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V10h14v10zm0-12H5V6h14v2zm-7 5h5v5h-5z"/></svg>
             </button>
-            {/* 5. FEED */}
             <button onClick={() => { setActiveModal('feed'); setIsPlusMenuOpen(false); }} className="p-2 active:scale-75 transition">
               <svg className="w-6 h-6 fill-white" viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg>
             </button>
@@ -1016,7 +1071,6 @@ const formatSeconds = (sec) => {
           <FileModal dynamicVoiceList={dynamicVoiceList} AudioBubble={AudioBubble} />
         )}
 
-        {/* 🌟 抽屜 3：作品列表 */}
         {activeModal === 'works' && (
           <WorksModal worksData={worksData} />
         )}
@@ -1044,4 +1098,3 @@ const formatSeconds = (sec) => {
     </div>
   );
 }
-
