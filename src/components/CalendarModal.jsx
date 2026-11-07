@@ -177,6 +177,7 @@ export default function CalendarModal({ allMediaEvents = [], typeEmojiMap = {} }
               <div key={idx} className="flex items-start space-x-2 text-[11.5px] text-slate-300">
                 <span className="text-xs shrink-0 select-none">{ev.emoji}</span>
                 <span className="leading-snug">
+                  <strong className="text-white font-mono mr-1.5">{ev.rawDate}</strong>
                   <span>{ev.title}</span>
                   {ev.status && <span className="text-slate-400 ml-1 text-[10.5px]">({ev.status})</span>}
                 </span>
@@ -190,5 +191,3 @@ export default function CalendarModal({ allMediaEvents = [], typeEmojiMap = {} }
     </div>
   );
 }
-
-
