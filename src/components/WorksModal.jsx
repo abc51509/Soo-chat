@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 
+// 移除 ALL，僅保留 5 大實體分類
 const TABS = [
   { key: 'DRAMA', label: 'DRAMA' },
   { key: 'MOVIE', label: 'MOVIE' },
@@ -9,9 +10,10 @@ const TABS = [
 ];
 
 export default function WorksModal({ worksData = [] }) {
+  // 預設為第一項 DRAMA
   const [activeTab, setActiveTab] = useState('DRAMA');
 
-  // 本地儲存已看過（打勾）的作品清單
+  // 本地儲存已看過（打勾）的作品清單，以「分類_年份_作品名稱」作為唯一 key
   const [watchedList, setWatchedList] = useState(() => {
     try {
       const saved = localStorage.getItem('soo_watched_works');
@@ -25,13 +27,14 @@ export default function WorksModal({ worksData = [] }) {
     localStorage.setItem('soo_watched_works', JSON.stringify(watchedList));
   }, [watchedList]);
 
+  // 切換打勾狀態
   const toggleWatched = (workKey) => {
     setWatchedList((prev) =>
       prev.includes(workKey) ? prev.filter((k) => k !== workKey) : [...prev, workKey]
     );
   };
 
-  // 格式化資料並依年份倒序
+  // 格式化資料並依年份倒序（最新的排最上面）
   const formattedWorks = useMemo(() => {
     return worksData
       .map((item, idx) => {
@@ -55,24 +58,26 @@ export default function WorksModal({ worksData = [] }) {
       .sort((a, b) => b.year.localeCompare(a.year));
   }, [worksData]);
 
+  // 依照當前選中的 Tab 過濾
   const displayedWorks = useMemo(() => {
     return formattedWorks.filter((w) => w.type === activeTab);
   }, [formattedWorks, activeTab]);
 
+  // 計算當前分類的完成度
   const watchedCount = displayedWorks.filter((w) => watchedList.includes(w.id)).length;
   const totalCount = displayedWorks.length;
   const percent = totalCount > 0 ? Math.round((watchedCount / totalCount) * 100) : 0;
 
   return (
     <div className="absolute inset-0 bg-[#0B1120] z-50 flex flex-col text-slate-100 backdrop-blur-md animate-fade-in select-none">
-      {/* 🌟 頂部導航列：pt-14 pb-2.5 items-end h-[88px]，文字完全下沉靠近 bar 底部 */}
-      <div className="pt-14 pb-2.5 px-5 bg-[#4E727A] flex items-end justify-between border-b border-[#3D5C63] shadow-md shrink-0 h-[88px]">
-        <div className="flex items-baseline space-x-2">
-          <span className="font-bold text-xl tracking-wider text-white leading-none">WORKS</span>
-          <span className="text-[11px] text-teal-200/80 font-mono leading-none">Filmography</span>
+      {/* 頂部導航列 */}
+      <div className="pt-12 pb-4 px-5 bg-[#4E727A] flex items-center justify-between border-b border-[#3D5C63] shadow-md shrink-0">
+        <div>
+          <span className="font-bold text-xl tracking-wider text-white">WORKS</span>
+          <span className="text-[11px] text-teal-200/80 font-mono ml-2">Filmography</span>
         </div>
         {/* 打勾進度計數 */}
-        <div className="flex items-center space-x-1.5 bg-black/25 px-2.5 py-1 rounded-full border border-white/10 text-[11px] font-mono leading-none">
+        <div className="flex items-center space-x-1.5 bg-black/25 px-2.5 py-1 rounded-full border border-white/10 text-[11px] font-mono">
           <span className="text-[#81D4D2] font-semibold">{watchedCount}</span>
           <span className="text-slate-400">/</span>
           <span className="text-slate-300">{totalCount}</span>
@@ -80,7 +85,7 @@ export default function WorksModal({ worksData = [] }) {
         </div>
       </div>
 
-      {/* 分類 Tab 橫向列 */}
+      {/* 分類 Tab 橫向列（已刪除 ALL，只保留 5 類） */}
       <div className="bg-slate-900/90 px-4 py-2.5 flex space-x-2 overflow-x-auto scrollbar-none border-b border-white/5 shrink-0">
         {TABS.map((tab) => {
           const isActive = activeTab === tab.key;
@@ -131,7 +136,7 @@ export default function WorksModal({ worksData = [] }) {
                   </div>
                 </div>
 
-                {/* 橫式劇照小圖 (aspect-[4/3]) */}
+                {/* 🌟 橫式劇照小圖（寬度加大一倍至 w-28，比例約 4:3 aspect-[4/3]） */}
                 <div className="w-28 aspect-[4/3] rounded-xl overflow-hidden bg-slate-800 border border-white/10 shrink-0 mr-3 relative shadow-inner">
                   {work.coverImage ? (
                     <img
@@ -147,6 +152,7 @@ export default function WorksModal({ worksData = [] }) {
                       <span>NO STILL</span>
                     </div>
                   )}
+                  {/* 分類標籤 */}
                   <span className="absolute bottom-1 right-1 bg-black/75 backdrop-blur-sm text-[#81D4D2] text-[8px] font-mono px-1 rounded">
                     {work.type}
                   </span>
@@ -187,3 +193,4 @@ export default function WorksModal({ worksData = [] }) {
     </div>
   );
 }
+
