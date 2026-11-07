@@ -1,160 +1,171 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 
-export default function AlbumModal({ albumList = [] }) {
-  const [selectedAlbum, setSelectedAlbum] = useState(null);
-  const [viewingPhotoIndex, setViewingPhotoIndex] = useState(null);
+export default function AlbumModal({ albumList }) {
+  const [selectedAlbumName, setSelectedAlbumName] = useState(null);
+  const scrollContainerRef = useRef(null);
 
-  // 左右切換照片（支援無限循環）
-  const handlePrevPhoto = (e) => {
-    e.stopPropagation();
-    if (!selectedAlbum?.images?.length) return;
-    setViewingPhotoIndex((prev) =>
-      prev === 0 ? selectedAlbum.images.length - 1 : prev - 1
-    );
+  // 1. 相簿排序：固定「所有相片」在第一本，其餘依最新 date 倒序排列
+  const sortedAlbumList = React.useMemo(() => {
+    if (!albumList || albumList.length === 0) return [];
+
+    const allPhotosAlbum = albumList.find(
+      (a) => a.title === '所有相片' || a.title === '未分類歸檔'
+    ) || {
+      title: '所有相片',
+      cover: albumList[0]?.cover || null,
+      images: Array.from(new Set(albumList.flatMap((a) => a.images || []))),
+      count: 0,
+      latestDate: '9999-99-99'
+    };
+
+    allPhotosAlbum.title = '所有相片';
+    allPhotosAlbum.count = allPhotosAlbum.images.length;
+
+    const restAlbums = albumList
+      .filter((a) => a.title !== '所有相片' && a.title !== '未分類歸檔')
+      .sort((a, b) => {
+        const dateA = a.latestDate || a.date || '';
+        const dateB = b.latestDate || b.date || '';
+        return dateB.localeCompare(dateA);
+      });
+
+    return [allPhotosAlbum, ...restAlbums];
+  }, [albumList]);
+
+  // 2. 四宮格分頁（每頁 4 本，不足 4 本亦保證 top-aligned 垂直對齊）
+  const pages = React.useMemo(() => {
+    const p = [];
+    for (let i = 0; i < sortedAlbumList.length; i += 4) {
+      p.push(sortedAlbumList.slice(i, i + 4));
+    }
+    return p;
+  }, [sortedAlbumList]);
+
+  // 3. 無縫無限循環滾動處理（若只有 1 頁則無需循環，多頁時首尾串接 clones）
+  const loopPages = React.useMemo(() => {
+    if (pages.length <= 1) return pages;
+    // [LastPageClone, ...Pages, FirstPageClone]
+    return [pages[pages.length - 1], ...pages, pages[0]];
+  }, [pages]);
+
+  useEffect(() => {
+    // 初始滾動至真實的第一頁
+    if (pages.length > 1 && scrollContainerRef.current) {
+      const container = scrollContainerRef.current;
+      container.scrollLeft = container.clientWidth;
+    }
+  }, [pages.length]);
+
+  const handleScroll = () => {
+    if (pages.length <= 1 || !scrollContainerRef.current) return;
+    const container = scrollContainerRef.current;
+    const { scrollLeft, clientWidth } = container;
+
+    // 滑到最前面的 Clone 時，無痕跳回最後一頁
+    if (scrollLeft <= 5) {
+      container.scrollLeft = clientWidth * pages.length;
+    }
+    // 滑到最後面的 Clone 時，無痕跳回第一頁
+    else if (scrollLeft >= clientWidth * (pages.length + 1) - 5) {
+      container.scrollLeft = clientWidth;
+    }
   };
 
-  const handleNextPhoto = (e) => {
-    e.stopPropagation();
-    if (!selectedAlbum?.images?.length) return;
-    setViewingPhotoIndex((prev) =>
-      prev === selectedAlbum.images.length - 1 ? 0 : prev + 1
-    );
-  };
+  const activeAlbumDetail = selectedAlbumName
+    ? sortedAlbumList.find((a) => a.title === selectedAlbumName) || null
+    : null;
 
   return (
-    <div className="absolute inset-0 bg-[#0B1120] z-50 flex flex-col text-slate-100 backdrop-blur-md animate-fade-in select-none">
-      {/* 頂部導航列 */}
-      <div className="pt-12 pb-5 px-5 bg-[#4E727A] flex items-center justify-between border-b border-[#3D5C63] shadow-md shrink-0">
-        <div className="flex items-center space-x-2">
-          {selectedAlbum && (
-            <button
-              onClick={() => {
-                setSelectedAlbum(null);
-                setViewingPhotoIndex(null);
-              }}
-              className="mr-1 text-white/80 hover:text-white p-1"
-            >
-              <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24">
-                <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z" />
-              </svg>
-            </button>
-          )}
-          <span className="font-bold text-xl tracking-wider text-white">
-            {selectedAlbum ? selectedAlbum.title : 'ALBUMS'}
-          </span>
-        </div>
-        <span className="text-xs text-teal-200/80 font-mono">
-          {selectedAlbum ? `${selectedAlbum.count} P` : `${albumList.length} ALBUMS`}
-        </span>
-      </div>
-
-      {/* 單張照片大圖瀏覽模式（支援左右翻頁） */}
-      {viewingPhotoIndex !== null && selectedAlbum && (
-        <div
-          onClick={() => setViewingPhotoIndex(null)}
-          className="fixed inset-0 bg-black/95 z-[60] flex flex-col justify-between items-center py-10 px-4 animate-fade-in"
-        >
-          <div className="w-full flex justify-between items-center text-xs font-mono text-slate-400 px-2">
-            <span>
-              {viewingPhotoIndex + 1} / {selectedAlbum.images.length}
+    <div className="absolute inset-0 bg-[#0B1120] z-50 flex flex-col text-white backdrop-blur-md animate-fade-in select-none">
+      {selectedAlbumName && activeAlbumDetail ? (
+        /* 三宮格內頁 */
+        <div className="flex-1 flex flex-col overflow-hidden">
+          <div className="pt-12 pb-5 px-5 bg-[#4E727A] flex items-center justify-start border-b border-[#3D5C63] shadow-md shrink-0">
+            <span className="font-bold text-xl text-white truncate max-w-[320px]">
+              {activeAlbumDetail.title}
             </span>
-            <span className="text-white">點擊背景關閉</span>
           </div>
 
-          <div className="relative w-full flex-1 flex items-center justify-center my-4 overflow-hidden">
-            <img
-              src={selectedAlbum.images[viewingPhotoIndex]}
-              alt="Viewing"
-              className="max-w-full max-h-[75vh] object-contain rounded-lg shadow-2xl select-none"
-            />
-
-            {/* 左切換按鈕 */}
-            <button
-              onClick={handlePrevPhoto}
-              className="absolute left-2 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/50 hover:bg-black/80 text-white flex items-center justify-center border border-white/10 active:scale-95 transition"
-            >
-              <svg className="w-6 h-6 fill-current" viewBox="0 0 24 24">
-                <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z" />
-              </svg>
-            </button>
-
-            {/* 右切換按鈕 */}
-            <button
-              onClick={handleNextPhoto}
-              className="absolute right-2 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/50 hover:bg-black/80 text-white flex items-center justify-center border border-white/10 active:scale-95 transition"
-            >
-              <svg className="w-6 h-6 fill-current" viewBox="0 0 24 24">
-                <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z" />
-              </svg>
-            </button>
+          <div className="flex-1 overflow-y-auto p-2">
+            <div className="grid grid-cols-3 gap-1.5 rounded-xl overflow-hidden">
+              {activeAlbumDetail.images.map((img, i) => (
+                <a
+                  key={i}
+                  href={img}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="block aspect-[3/4] bg-slate-800 overflow-hidden rounded-md group"
+                >
+                  <img
+                    src={img}
+                    alt={`Shot ${i + 1}`}
+                    loading="lazy"
+                    className="w-full h-full object-cover group-hover:scale-105 transition duration-200"
+                  />
+                </a>
+              ))}
+            </div>
+          </div>
+        </div>
+      ) : (
+        /* 四宮格循環書架總覽 */
+        <div className="flex-1 flex flex-col overflow-hidden">
+          <div className="pt-12 pb-5 px-5 bg-[#4E727A] flex items-center justify-start border-b border-[#3D5C63] shadow-md shrink-0">
+            <span className="font-bold text-xl tracking-wider text-white">ALBUM</span>
           </div>
 
-          <div className="text-[11px] text-slate-400 font-mono tracking-wider line-clamp-1">
-            {selectedAlbum.title}
+          <div
+            ref={scrollContainerRef}
+            onScroll={handleScroll}
+            className="flex-1 flex overflow-x-auto snap-x snap-mandatory scrollbar-none items-start pt-6"
+            style={{ scrollBehavior: 'smooth' }}
+          >
+            {loopPages.map((pageGroup, pIdx) => (
+              <div
+                key={pIdx}
+                className="w-full shrink-0 snap-center px-4 self-start"
+              >
+                {/* 2x2 基準格位：嚴格垂直靠頂對齊 */}
+                <div className="grid grid-cols-2 gap-x-4 gap-y-5 items-start">
+                  {pageGroup.map((alb) => (
+                    <div
+                      key={alb.title}
+                      onClick={() => setSelectedAlbumName(alb.title)}
+                      className="flex flex-col cursor-pointer group active:scale-[0.98] transition"
+                    >
+                      {/* 封面相框 (固定 4:5 比例與對齊基準線) */}
+                      <div className="aspect-[4/5] rounded-2xl overflow-hidden bg-slate-800 shadow-md border border-white/10 relative group-hover:border-[#81D4D2]/60 transition">
+                        {alb.cover ? (
+                          <img
+                            src={alb.cover}
+                            alt={alb.title}
+                            loading="lazy"
+                            className="w-full h-full object-cover object-[center_20%]"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-slate-600 text-xs font-mono">
+                            NO COVER
+                          </div>
+                        )}
+                        <span className="absolute bottom-2 right-2 bg-black/60 backdrop-blur-sm text-white text-[9px] px-2 py-0.5 rounded-md font-mono">
+                          {alb.count}P
+                        </span>
+                      </div>
+
+                      {/* 相簿名稱：固定高度 (h-10) 與頂部對齊，確保不論單行或雙行都不影響格位齊平 */}
+                      <div className="mt-2.5 px-0.5 h-10 flex items-start">
+                        <h4 className="text-[12.5px] font-medium text-slate-200 group-hover:text-[#81D4D2] leading-tight line-clamp-2 break-words">
+                          {alb.title}
+                        </h4>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       )}
-
-      {/* 主內容區：相簿九宮格 vs 相簿目錄卡片 */}
-      <div className="flex-1 overflow-y-auto p-4">
-        {selectedAlbum ? (
-          /* 點入相簿後的照片九宮格瀑布流 */
-          <div className="grid grid-cols-3 gap-1.5">
-            {selectedAlbum.images.map((imgUrl, idx) => (
-              <div
-                key={idx}
-                onClick={() => setViewingPhotoIndex(idx)}
-                className="aspect-[3/4] rounded-lg overflow-hidden bg-slate-900 border border-white/5 cursor-pointer hover:opacity-90 active:scale-[0.98] transition shadow-sm"
-              >
-                <img
-                  src={imgUrl}
-                  alt={`Photo ${idx + 1}`}
-                  loading="lazy"
-                  className="w-full h-full object-cover"
-                />
-              </div>
-            ))}
-          </div>
-        ) : (
-          /* 相簿外層目錄卡片列表（完整顯示組裝後的動態名稱） */
-          <div className="grid grid-cols-2 gap-3.5">
-            {albumList.map((album, idx) => (
-              <div
-                key={idx}
-                onClick={() => setSelectedAlbum(album)}
-                className="bg-[#1E293B]/80 rounded-2xl border border-slate-700/60 p-2.5 flex flex-col justify-between space-y-2.5 shadow-sm hover:border-[#81D4D2]/60 hover:bg-[#1E293B] cursor-pointer transition active:scale-[0.97]"
-              >
-                {/* 封面照片 (比例齊平為 3:4) */}
-                <div className="rounded-xl overflow-hidden aspect-[3/4] w-full bg-slate-800 shadow-inner relative">
-                  {album.cover ? (
-                    <img
-                      src={album.cover}
-                      alt={album.title}
-                      loading="lazy"
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center text-slate-600 text-xs font-mono">
-                      NO COVER
-                    </div>
-                  )}
-                  {/* 照片數量浮水印標籤 */}
-                  <span className="absolute bottom-1.5 right-1.5 bg-black/75 backdrop-blur-sm text-[#81D4D2] text-[9px] font-mono px-1.5 py-0.5 rounded-full border border-white/10">
-                    {album.count} P
-                  </span>
-                </div>
-
-                {/* 🌟 相簿完整組裝名稱（兩行自然截斷） */}
-                <div className="px-0.5">
-                  <h3 className="text-[12.5px] font-bold text-white leading-snug line-clamp-2">
-                    {album.title}
-                  </h3>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
     </div>
   );
 }
