@@ -1,49 +1,6 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
-import AlbumModal from './components/AlbumModal';
-import CalendarModal from './components/CalendarModal';
-import FeedModal from './components/FeedModal';
-import FileModal from './components/FileModal';
-import WorksModal from './components/WorksModal';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 
-const SPREADSHEET_ID = '11P8tG-MhZiwrBcGf9TyFirQNwPxKC2YPVbv4XHMEV-A';
-
-const fetchSheetData = async (sheetName) => {
-  try {
-    const url = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:json&headers=1&sheet=${encodeURIComponent(sheetName)}&t=${Date.now()}`;
-    const res = await fetch(url);
-    if (!res.ok) return [];
-    const text = await res.text();
-
-    const jsonStart = text.indexOf('{');
-    const jsonEnd = text.lastIndexOf('}');
-    if (jsonStart === -1 || jsonEnd === -1) return [];
-
-    const json = JSON.parse(text.substring(jsonStart, jsonEnd + 1));
-    const table = json.table;
-    if (!table?.rows?.length) return [];
-
-    const colKeys = table.cols.map((col, idx) => {
-      const raw = (col.label || '').trim();
-      const clean = raw.toLowerCase().replace(/[^a-z0-9_]/g, '');
-      return { raw, clean: clean || `col_${idx}`, idx };
-    });
-
-    return table.rows.map(r => {
-      const entry = {};
-      colKeys.forEach(({ raw, clean, idx }) => {
-        const cell = r.c?.[idx];
-        const val = cell?.v != null ? String(cell.v).trim() : (cell?.f != null ? String(cell.f).trim() : '');
-        entry[clean] = val;
-        if (raw) entry[raw] = val;
-        entry[`col_${idx}`] = val;
-      });
-      return entry;
-    });
-  } catch (err) {
-    console.error(`讀取試算表 [${sheetName}] 失敗:`, err);
-    return [];
-  }
-};
+const MONTH_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 const getField = (obj, ...keys) => {
   if (!obj) return '';
@@ -55,751 +12,366 @@ const getField = (obj, ...keys) => {
   return '';
 };
 
-const formatAudioUrl = (raw) => {
-  if (!raw?.trim()) return '';
-  let clean = raw.trim().replace(/^["']|["']$/g, '');
-  if (!clean.endsWith('.mp3') && !clean.endsWith('.wav') && !clean.endsWith('.m4a')) {
-    clean += '.mp3';
+// 🌟 命名格式：來源-時間-品牌-相簿名稱
+const assembleAlbumTitle = (item) => {
+  const rawAlbumName = (item.album_name || '').trim();
+  if (!rawAlbumName || rawAlbumName === '所有相片' || rawAlbumName === '未分類歸檔') {
+    return '其他相片';
   }
-  if (clean.startsWith('http')) return clean;
-  clean = clean.replace(/^\/+/, '');
-  return clean.startsWith('audio/') ? `/${clean}` : `/audio/${clean}`;
-};
 
-export const AudioBubble = ({ audioSrc }) => {
-  const [isPlaying, setIsPlaying] = useState(false);
-  const audioRef = useRef(null);
+  const parts = [];
 
-  const togglePlay = () => {
-    if (!audioRef.current) return;
-    if (isPlaying) {
-      audioRef.current.pause();
-      setIsPlaying(false);
-    } else {
-      audioRef.current.play().catch(e => console.error("Audio error:", e));
-      setIsPlaying(true);
-    }
-  };
+  const source = getField(item, 'news_source', 'source');
+  if (source) parts.push(source);
 
-  return (
-    <div 
-      onClick={togglePlay}
-      className="flex items-center space-x-3 bg-white px-4 py-2.5 rounded-2xl rounded-tl-none shadow-sm cursor-pointer hover:bg-slate-50 transition w-full max-w-[200px] border border-slate-200/60"
-    >
-      <audio ref={audioRef} src={audioSrc} onEnded={() => setIsPlaying(false)} preload="auto" />
-      <button type="button" className="w-7 h-7 rounded-full bg-[#5FBDB9] text-white flex items-center justify-center shrink-0 shadow-sm">
-        {isPlaying ? (
-          <svg className="w-3 h-3 fill-current" viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16" rx="1.5" /><rect x="14" y="4" width="4" height="16" rx="1.5" /></svg>
-        ) : (
-          <svg className="w-3 h-3 fill-current ml-0.5" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
-        )}
-      </button>
-      <div className="flex-1 flex items-center justify-between space-x-1 h-3 pr-1">
-        {[40, 70, 100, 60, 85, 45, 90, 65, 80, 50, 95, 30].map((h, i) => (
-          <span key={i} className={`w-[2.5px] rounded-full transition-all duration-200 ${isPlaying ? 'bg-[#5FBDB9] animate-pulse' : 'bg-slate-300'}`} style={{ height: `${h}%` }} />
-        ))}
-      </div>
-    </div>
-  );
-};
-
-export default function App() {
-  const getCurrentTime = () => {
-    const now = new Date();
-    return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-  };
-
-  const getTodayDateStr = () => {
-    const now = new Date();
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-  };
-
-  const [appSettings, setAppSettings] = useState({
-    name: 'Soo',
-    avatar: 'https://images.plurk.com/6PooPJr1YbOhrMp5CCFdbl.jpg',
-    typeEmojiMap: {}
-  });
-
-  const sendNotification = (title, body) => {
-    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
-      try {
-        new Notification(title, { body, icon: appSettings.avatar });
-      } catch (e) {
-        console.log('通知失敗:', e);
+  const issue = getField(item, 'issue', 'period');
+  if (issue) {
+    parts.push(issue);
+  } else {
+    const rawDate = getField(item, 'date');
+    if (rawDate) {
+      const dParts = rawDate.split(',');
+      if (dParts.length >= 2) {
+        const y = dParts[0].trim();
+        const mIdx = parseInt(dParts[1].trim(), 10) - 1;
+        if (!isNaN(mIdx) && mIdx >= 0 && mIdx < 12) {
+          parts.push(`${MONTH_SHORT[mIdx]} ${y}`);
+        }
       }
     }
-  };
+  }
 
-  const [messages, setMessages] = useState(() => {
-    try {
-      const saved = localStorage.getItem('soo_chat_messages');
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
-    }
-  });
+  const brand = getField(item, 'brand');
+  if (brand) parts.push(brand);
 
-  const [inputText, setInputText] = useState('');
-  const [isTyping, setIsTyping] = useState(false);
+  parts.push(rawAlbumName);
+  return parts.join('-');
+};
 
-  // 原始表單資料庫儲存
-  const [masterMedia, setMasterMedia] = useState([]);
-  const [dialogueList, setDialogueList] = useState([]);
-  const [foodWeights, setFoodWeights] = useState([]);
-  const [interviewData, setInterviewData] = useState([]);
-  const [worksData, setWorksData] = useState([]);
+export default function AlbumModal({ mediaData = [] }) {
+  const [selectedAlbum, setSelectedAlbum] = useState(null);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [isViewerOpen, setIsViewerOpen] = useState(false);
 
-  const [followUpQueue, setFollowUpQueue] = useState(() => {
-    try {
-      const saved = localStorage.getItem('soo_follow_up_queue_v2');
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
-    }
-  });
+  // 🌟 相簿自給自足資料處理：只認 album_name，滿 3 張獨立成冊，不重複進入其他相片
+  const albumList = useMemo(() => {
+    const rawGroups = {};
 
-  const [awokenDate, setAwokenDate] = useState(() => localStorage.getItem('soo_awoken_date') || '');
+    mediaData.forEach((m) => {
+      const imgs = (m.images || '')
+        .trim()
+        .split(/[\s,]+/)
+        .filter((u) => u.startsWith('http'));
 
-  const [callStatus, setCallStatus] = useState('idle');
-  const [callType, setCallType] = useState('audio');
-  const [callDuration, setCallDuration] = useState(0);
-  const [isVideoCalling, setIsVideoCalling] = useState(false);
-  const [videoDuration, setVideoDuration] = useState(0);
+      if (!imgs.length) return;
 
-  const [isPlusMenuOpen, setIsPlusMenuOpen] = useState(false);
-  const [activeModal, setActiveModal] = useState(null);
+      const rawName = (m.album_name || '').trim();
+      const key = rawName ? rawName : '__unclassified__';
 
-  const touchStartX = useRef(0);
-  const touchStartY = useRef(0);
+      if (!rawGroups[key]) {
+        rawGroups[key] = {
+          title: rawName ? assembleAlbumTitle(m) : '其他相片',
+          images: [],
+          latestDate: ''
+        };
+      }
 
-  const ringAudioRef = useRef(null);
-  const phoneCallAudioRef = useRef(null);
-  const videoPlayerRef = useRef(null);
-  const ringingTimeoutRef = useRef(null);
-  const messagesEndRef = useRef(null);
+      rawGroups[key].images.push(...imgs);
 
-  useEffect(() => {
-    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default') {
-      Notification.requestPermission().catch(() => {});
-    }
-  }, []);
-
-  useEffect(() => {
-    localStorage.setItem('soo_chat_messages', JSON.stringify(messages));
-  }, [messages]);
-
-  useEffect(() => {
-    localStorage.setItem('soo_follow_up_queue_v2', JSON.stringify(followUpQueue));
-  }, [followUpQueue]);
-
-  useEffect(() => {
-    Promise.all([
-      fetchSheetData('media'),
-      fetchSheetData('dialogues'),
-      fetchSheetData('food_weights'),
-      fetchSheetData('interviews'),
-      fetchSheetData('settings'),
-      fetchSheetData('works')
-    ]).then(([mediaRows, diagRows, foodRows, interviewRows, settingRows, worksRows]) => {
-      if (mediaRows.length) setMasterMedia(mediaRows);
-      if (diagRows.length) setDialogueList(diagRows);
-      if (foodRows.length) setFoodWeights(foodRows);
-      if (interviewRows.length) setInterviewData(interviewRows);
-      if (worksRows.length) setWorksData(worksRows);
-
-      if (settingRows.length) {
-        const conf = {};
-        const emojiMap = {};
-
-        settingRows.forEach(r => {
-          const k = getField(r, 'key', 'setting_key');
-          const v = getField(r, 'value', 'setting_value');
-          if (k) conf[k.toLowerCase()] = v;
-
-          const code = getField(r, 'type_code', 'typecode', 'type', 'col_0').toLowerCase();
-          const emoStr = getField(r, 'emojis', 'emoji', 'col_2');
-
-          if (code && emoStr) {
-            const parsedEmojis = emoStr.split(/[,，\s]+/).map(e => e.trim()).filter(Boolean);
-            if (parsedEmojis.length > 0) emojiMap[code] = parsedEmojis;
-          }
-        });
-
-        const newAvatar = conf.avatar_url || 'https://images.plurk.com/6PooPJr1YbOhrMp5CCFdbl.jpg';
-        const newName = conf.app_name || 'Soo';
-
-        setAppSettings({
-          name: newName,
-          avatar: newAvatar,
-          typeEmojiMap: emojiMap
-        });
-        document.title = newName;
+      const d = (m.date || '').trim();
+      if (d && d > rawGroups[key].latestDate) {
+        rawGroups[key].latestDate = d;
       }
     });
-  }, []);
+
+    const independentAlbums = [];
+    const usedImagesInIndependent = new Set();
+    const leftoverImages = [];
+
+    // 滿 3 張獨立成冊
+    Object.entries(rawGroups).forEach(([key, g]) => {
+      const uniqueImgs = Array.from(new Set(g.images));
+      if (key !== '__unclassified__' && uniqueImgs.length >= 3) {
+        uniqueImgs.forEach(u => usedImagesInIndependent.add(u));
+        independentAlbums.push({
+          title: g.title,
+          cover: uniqueImgs[0] || null,
+          images: uniqueImgs,
+          count: uniqueImgs.length,
+          latestDate: g.latestDate
+        });
+      } else {
+        leftoverImages.push(...uniqueImgs);
+      }
+    });
+
+    independentAlbums.sort((a, b) => b.latestDate.localeCompare(a.latestDate));
+
+    // 未滿 3 張或無名稱者歸入「其他相片」
+    const trueLeftovers = Array.from(new Set(leftoverImages)).filter(
+      imgUrl => !usedImagesInIndependent.has(imgUrl)
+    );
+
+    if (trueLeftovers.length > 0) {
+      independentAlbums.push({
+        title: '其他相片',
+        cover: trueLeftovers[0],
+        images: trueLeftovers,
+        count: trueLeftovers.length,
+        latestDate: '0000,00,00'
+      });
+    }
+
+    return independentAlbums;
+  }, [mediaData]);
+
+  // 大圖手勢位移狀態
+  const [dragX, setDragX] = useState(0);
+  const [dragY, setDragY] = useState(0);
+  const touchStartX = useRef(0);
+  const touchStartY = useRef(0);
+  const isDragging = useRef(false);
+  const thumbnailScrollRef = useRef(null);
+
+  const images = selectedAlbum?.images || [];
+  const total = images.length;
+
+  const openViewer = (idx) => {
+    setCurrentIndex(idx);
+    setIsViewerOpen(true);
+    setDragX(0);
+    setDragY(0);
+  };
+
+  const closeViewer = () => {
+    setIsViewerOpen(false);
+    setDragX(0);
+    setDragY(0);
+  };
+
+  const goNext = useCallback(() => {
+    if (total <= 1) return;
+    setCurrentIndex((prev) => (prev + 1) % total);
+  }, [total]);
+
+  const goPrev = useCallback(() => {
+    if (total <= 1) return;
+    setCurrentIndex((prev) => (prev - 1 + total) % total);
+  }, [total]);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, isTyping]);
+    if (thumbnailScrollRef.current && isViewerOpen) {
+      const activeThumb = thumbnailScrollRef.current.children[currentIndex];
+      if (activeThumb) {
+        activeThumb.scrollIntoView({
+          behavior: 'smooth',
+          inline: 'center',
+          block: 'nearest',
+        });
+      }
+    }
+  }, [currentIndex, isViewerOpen]);
 
-  const handleTouchStart = (e) => {
+  // 大圖手勢滑動
+  const onViewerTouchStart = (e) => {
     touchStartX.current = e.touches[0].clientX;
     touchStartY.current = e.touches[0].clientY;
+    isDragging.current = true;
   };
 
-  const handleTouchEnd = (e) => {
-    const deltaX = e.changedTouches[0].clientX - touchStartX.current;
-    const deltaY = e.changedTouches[0].clientY - touchStartY.current;
-    if (touchStartX.current < 45 && deltaX > 75 && Math.abs(deltaY) < 40) {
-      if (activeModal) setActiveModal(null);
+  const onViewerTouchMove = (e) => {
+    if (!isDragging.current) return;
+    const diffX = e.touches[0].clientX - touchStartX.current;
+    const diffY = e.touches[0].clientY - touchStartY.current;
+
+    if (Math.abs(diffY) > Math.abs(diffX) && diffY > 0) {
+      e.preventDefault();
+      setDragY(diffY);
+    } else if (Math.abs(diffX) > Math.abs(diffY)) {
+      e.preventDefault();
+      setDragX(diffX);
     }
   };
 
-  const formatSeconds = (sec) => {
-    const m = Math.floor(sec / 60);
-    const s = sec % 60;
-    return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-  };
+  const onViewerTouchEnd = (e) => {
+    if (!isDragging.current) return;
+    isDragging.current = false;
+    const diffX = e.changedTouches[0].clientX - touchStartX.current;
+    const diffY = e.changedTouches[0].clientY - touchStartY.current;
 
-  const sendStaggeredMessages = async (textBlock, options = {}) => {
-    if (!textBlock) return;
-    const bubbles = textBlock.split(/;|\n/).map(s => s.trim()).filter(Boolean);
-    if (!bubbles.length) return;
-
-    for (let i = 0; i < bubbles.length; i++) {
-      setIsTyping(true);
-      await new Promise(r => setTimeout(r, Math.floor(Math.random() * 350) + 450));
-      setIsTyping(false);
-
-      setMessages(prev => [
-        ...prev,
-        {
-          id: `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-          role: 'assistant',
-          type: 'text',
-          content: bubbles[i],
-          replyTo: (i === 0 && options.replyTo) ? options.replyTo : null,
-          time: getCurrentTime()
-        }
-      ]);
-
-      if (i === 0 && document.hidden) {
-        sendNotification(`${appSettings.name} 傳來了新訊息`, bubbles[i]);
-      }
-      if (i < bubbles.length - 1) await new Promise(r => setTimeout(r, 300));
-    }
-
-    if (options.audioAfter) {
-      setTimeout(() => sendVoiceMessage({ src: formatAudioUrl(options.audioAfter) }), 600);
-    }
-  };
-
-  const sendVoiceMessage = (voiceData) => {
-    setMessages(prev => [
-      ...prev,
-      {
-        id: `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        role: 'assistant',
-        type: 'audio',
-        audioSrc: voiceData.src,
-        time: getCurrentTime()
-      }
-    ]);
-    if (document.hidden) sendNotification(`${appSettings.name} 傳送了一則語音訊息`, '點擊開啟查看');
-  };
-
-  const addCallRecord = (statusText = '未接來電', role = 'assistant', durationText = null) => {
-    setMessages(prev => [
-      ...prev,
-      {
-        id: `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        role,
-        type: 'call_record',
-        durationText,
-        statusText,
-        time: getCurrentTime()
-      }
-    ]);
-  };
-
-  const pickDialogue = (typeKey) => {
-    const pool = dialogueList.filter(d => (d.type || '').trim().toLowerCase() === typeKey.toLowerCase());
-    return pool.length ? pool[Math.floor(Math.random() * pool.length)] : null;
-  };
-
-  const triggerFoodRoulette = () => {
-    if (!foodWeights.length) {
-      sendStaggeredMessages('今天吃什麼都好;只要跟你一起吃');
-      return;
-    }
-    const totalWeight = foodWeights.reduce((sum, item) => sum + (parseInt(item.weight, 10) || 1), 0);
-    let rand = Math.random() * totalWeight;
-    let selected = foodWeights[0];
-
-    for (const item of foodWeights) {
-      const w = parseInt(item.weight, 10) || 1;
-      if (rand < w) {
-        selected = item;
-        break;
-      }
-      rand -= w;
-    }
-    sendStaggeredMessages(selected.soo_comment || `去吃${selected.food_name}如何？;我來訂位`);
-  };
-
-  const extractAllFollowUps = (item, baseTitle = '') => {
-    const list = [];
-    if (item.follow_ups) list.push(...item.follow_ups.split(/;|\n/).map(s => s.trim()).filter(Boolean));
-    if (item.follow_up_1?.trim()) list.push(item.follow_up_1.trim());
-    if (item.follow_up_2?.trim()) list.push(item.follow_up_2.trim());
-    if (item.follow_up_3?.trim()) list.push(item.follow_up_3.trim());
-
-    return list.map(text => ({
-      replyText: text,
-      replyTo: baseTitle || item.caption || item.trigger_content || ''
-    }));
-  };
-
-  const triggerIncomingCall = (type = 'audio') => {
-    setCallType(type);
-    setCallStatus('ringing');
-    if (document.hidden) sendNotification(`${appSettings.name} 正在來電...`, '請開啟畫面接聽');
-
-    clearTimeout(ringingTimeoutRef.current);
-    ringingTimeoutRef.current = setTimeout(() => {
-      setCallStatus(current => {
-        if (current === 'ringing') {
-          addCallRecord(type === 'video' ? '未接視訊' : '未接來電', 'assistant');
-          sendNotification('未接來電', `${appSettings.name} 剛剛嘗試撥打電話給您`);
-          setTimeout(() => {
-            const diag = pickDialogue('missed_call');
-            if (diag) {
-              sendStaggeredMessages(diag.trigger_content, { audioAfter: diag.audio_after });
-              const newQueue = extractAllFollowUps(diag, diag.trigger_content);
-              if (newQueue.length) setFollowUpQueue(prev => [...prev, ...newQueue]);
-            } else {
-              sendStaggeredMessages('看到打回來。');
-            }
-          }, 800);
-          return 'idle';
-        }
-        return current;
-      });
-    }, 8000);
-  };
-
-  const handleAcceptCall = () => {
-    clearTimeout(ringingTimeoutRef.current);
-    ringAudioRef.current?.pause();
-    if (callType === 'video') {
-      setCallStatus('idle');
-      setIsVideoCalling(true);
-    } else {
-      setCallStatus('connected');
-    }
-  };
-
-  const handleEndCall = () => {
-    clearTimeout(ringingTimeoutRef.current);
-    const wasRinging = (callStatus === 'ringing');
-    const isConnected = (callStatus === 'connected');
-    const finalDurationText = formatSeconds(callDuration);
-    setCallStatus('idle');
-
-    if (wasRinging) {
-      addCallRecord(callType === 'video' ? '未接視訊' : '未接來電', 'assistant');
-    } else if (isConnected) {
-      addCallRecord(`通話時間 ${finalDurationText}`, 'user', finalDurationText);
-    }
-  };
-
-  const triggerManualText = () => {
-    const textDiags = dialogueList.filter(d => (d.type || '').trim().toLowerCase() === 'text');
-    const picked = textDiags.length ? textDiags[Math.floor(Math.random() * textDiags.length)] : null;
-    if (picked) {
-      sendStaggeredMessages(picked.trigger_content, { audioAfter: picked.audio_after });
-      const newQueue = extractAllFollowUps(picked, picked.trigger_content);
-      if (newQueue.length) setFollowUpQueue(newQueue);
-    }
-  };
-
-  const triggerManualVoice = () => {
-    const audioDiags = dialogueList.filter(d => (d.type || '').trim().toLowerCase() === 'audio');
-    if (!audioDiags.length) return;
-    const picked = audioDiags[Math.floor(Math.random() * audioDiags.length)];
-    sendVoiceMessage({ src: formatAudioUrl(picked.audio_after || picked.trigger_content) });
-  };
-
-  const triggerCategoryRandom = (catKey) => {
-    const pool = masterMedia.filter(m => (m.category || m.type || '').toLowerCase().trim() === catKey && (m.images || '').trim());
-    if (!pool.length) return;
-    const item = pool[Math.floor(Math.random() * pool.length)];
-    const imgList = (item.images || '').trim().split(/[\s,]+/).filter(url => url.startsWith('http'));
-
-    if (imgList.length === 1) {
-      setMessages(prev => [...prev, { id: `${Date.now()}_photo`, role: 'assistant', type: 'photo', imageUrl: imgList[0], time: getCurrentTime() }]);
-    } else if (imgList.length > 1) {
-      setMessages(prev => [...prev, { id: `${Date.now()}_grid`, role: 'assistant', type: 'album_grid', images: imgList, time: getCurrentTime() }]);
-    }
-
-    if (item.caption) {
-      setTimeout(() => sendStaggeredMessages(item.caption, { audioAfter: item.audio_after }), 700);
-    }
-  };
-
-  useEffect(() => {
-    const checkWakeup = () => {
-      const todayStr = getTodayDateStr();
-      if (awokenDate === todayStr) return;
-
-      const now = new Date();
-      const val = now.getHours() * 60 + now.getMinutes();
-      if (val < 420 || val > 780) return;
-
-      const storageKey = `soo_wakeup_done_${todayStr}`;
-      const doneSteps = JSON.parse(localStorage.getItem(storageKey) || '[]');
-      let step = null;
-      let audio = null;
-
-      if (val >= 420 && val < 480 && !doneSteps.includes('s1')) {
-        step = 's1'; audio = '/audio/1_get up_cozy.mp3';
-      } else if (val >= 480 && val < 570 && !doneSteps.includes('s2')) {
-        step = 's2'; audio = '/audio/2_plz_get_up.mp3';
-      } else if (val >= 570 && val < 690 && !doneSteps.includes('s3')) {
-        step = 's3'; audio = '/audio/3_can_u_get_up.mp3';
-      } else if (val >= 690 && val < 720 && !doneSteps.includes('s4')) {
-        step = 's4'; audio = '/audio/4_time_to_get_up_now.mp3';
-      } else if (val >= 720 && val <= 780 && !doneSteps.includes('s5')) {
-        step = 's5'; audio = '/audio/5_get_up_yell.mp3';
-      }
-
-      if (step && audio) {
-        doneSteps.push(step);
-        localStorage.setItem(storageKey, JSON.stringify(doneSteps));
-        addCallRecord('未接來電', 'assistant');
-        sendNotification(`未接來電 (${appSettings.name})`, '快起床囉！');
-        setTimeout(() => sendVoiceMessage({ src: audio }), 1000);
-      }
-    };
-
-    checkWakeup();
-    const timer = setInterval(checkWakeup, 60000);
-    return () => clearInterval(timer);
-  }, [awokenDate, appSettings.name]);
-
-  const handleSend = () => {
-    if (!inputText.trim() || isTyping) return;
-    const currentInput = inputText.trim();
-
-    setMessages(prev => [...prev, { id: `${Date.now()}_user`, role: 'user', type: 'text', content: currentInput, time: getCurrentTime() }]);
-    setInputText('');
-
-    if (currentInput.includes('起床')) {
-      const todayStr = getTodayDateStr();
-      setAwokenDate(todayStr);
-      localStorage.setItem('soo_awoken_date', todayStr);
-      setCallStatus('idle');
-      const awakeDiag = pickDialogue('system_awake');
-      sendStaggeredMessages(awakeDiag?.trigger_content || '終於醒了？;水喝了嗎？');
+    if (diffY > 80 && Math.abs(diffX) < 100) {
+      closeViewer();
       return;
     }
 
-    if (/吃什麼|想吃|晚餐|午餐|宵夜|吃啥/.test(currentInput)) {
-      triggerFoodRoulette();
-      return;
-    }
-
-    if (followUpQueue.length > 0) {
-      const [nextItem, ...remaining] = followUpQueue;
-      setFollowUpQueue(remaining);
-      setTimeout(() => sendStaggeredMessages(nextItem.replyText, { replyTo: nextItem.replyTo }), 700);
-      return;
-    }
-
-    const textDiags = dialogueList.filter(d => (d.type || '').trim().toLowerCase() === 'text');
-    const picked = textDiags.length ? textDiags[Math.floor(Math.random() * textDiags.length)] : null;
-    setTimeout(() => {
-      if (picked) {
-        sendStaggeredMessages(picked.trigger_content, { audioAfter: picked.audio_after });
-        const newQueue = extractAllFollowUps(picked, picked.trigger_content);
-        if (newQueue.length) setFollowUpQueue(newQueue);
+    if (Math.abs(diffX) > 40 && Math.abs(diffY) < 70) {
+      if (diffX < 0) {
+        goNext();
+      } else {
+        goPrev();
       }
-    }, 800);
+    }
+
+    setDragX(0);
+    setDragY(0);
   };
-
-  useEffect(() => {
-    if (callStatus === 'ringing') {
-      if (ringAudioRef.current) {
-        ringAudioRef.current.currentTime = 73;
-        ringAudioRef.current.play().catch(() => {});
-      }
-    } else {
-      ringAudioRef.current?.pause();
-    }
-  }, [callStatus]);
-
-  useEffect(() => {
-    let t = null;
-    if (callStatus === 'connected') {
-      setCallDuration(0);
-      t = setInterval(() => setCallDuration(p => p + 1), 1000);
-      phoneCallAudioRef.current?.play().catch(() => {});
-    } else {
-      clearInterval(t);
-      phoneCallAudioRef.current?.pause();
-    }
-    return () => clearInterval(t);
-  }, [callStatus]);
-
-  useEffect(() => {
-    let t = null;
-    if (isVideoCalling) {
-      setVideoDuration(0);
-      t = setInterval(() => setVideoDuration(p => p + 1), 1000);
-      videoPlayerRef.current?.play().catch(() => {});
-    } else {
-      clearInterval(t);
-      videoPlayerRef.current?.pause();
-    }
-    return () => clearInterval(t);
-  }, [isVideoCalling]);
 
   return (
-    <div 
-      className="flex h-[100dvh] w-screen bg-slate-900 justify-center items-center select-none overflow-hidden sm:p-3"
-      onTouchStart={handleTouchStart}
-      onTouchEnd={handleTouchEnd}
-    >
-      <audio ref={ringAudioRef} src="/audio/telepathy 2025.mp3" loop preload="auto" />
-      <audio ref={phoneCallAudioRef} src="/audio/phone_call.mp3" onEnded={handleEndCall} preload="auto" />
-
-      <div className="w-full sm:max-w-[420px] h-[100dvh] sm:h-[92vh] sm:max-h-[880px] bg-[#ECEEF1] sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden relative border-0 sm:border sm:border-slate-700">
-        
-        {/* 全螢幕來電介面 */}
-        {callStatus !== 'idle' && (
-          <div className="absolute inset-0 bg-slate-950/95 z-50 flex flex-col justify-between items-center py-16 px-6 text-white backdrop-blur-md animate-fade-in">
-            <div className="flex flex-col items-center mt-10 space-y-4">
-              <div className="w-40 h-40 rounded-full overflow-hidden ring-4 ring-[#81D4D2]/40 shadow-2xl animate-pulse">
-                <img src={appSettings.avatar} alt="avatar" className="w-full h-full object-cover" />
-              </div>
-              <span className="text-2xl font-semibold tracking-wider">{appSettings.name}</span>
-              <span className="text-xs text-slate-400 font-light tracking-wide">
-                {callStatus === 'ringing' ? (callType === 'video' ? '視訊來電...' : '語音來電...') : formatSeconds(callDuration)}
-              </span>
-            </div>
-            {callStatus === 'ringing' ? (
-              <div className="w-full flex justify-around items-center px-6 mb-8">
-                <button onClick={handleEndCall} className="w-16 h-16 rounded-full bg-rose-600 active:scale-95 transition flex items-center justify-center">
-                  <svg className="w-7 h-7 fill-white rotate-[135deg]" viewBox="0 0 24 24"><path d="M6.62 10.79a15.05 15.05 0 006.59 6.59l2.2-2.2a1 1 0 011.02-.24 11.72 11.72 0 003.68.59 1 1 0 011 1v3.5a1 1 0 01-1 1A17 17 0 013 4a1 1 0 011-1h3.5a1 1 0 011 1c0 1.25.2 2.48.59 3.68a1 1 0 01-.24 1.02l-2.23 2.09z" /></svg>
-                </button>
-                <button onClick={handleAcceptCall} className="w-16 h-16 rounded-full bg-[#5FBDB9] active:scale-95 transition flex items-center justify-center animate-bounce">
-                  <svg className="w-7 h-7 fill-white" viewBox="0 0 24 24"><path d="M6.62 10.79a15.05 15.05 0 006.59 6.59l2.2-2.2a1 1 0 011.02-.24 11.72 11.72 0 003.68.59 1 1 0 011 1v3.5a1 1 0 01-1 1A17 17 0 013 4a1 1 0 011-1h3.5a1 1 0 011 1c0 1.25.2 2.48.59 3.68a1 1 0 01-.24 1.02l-2.23 2.09z" /></svg>
-                </button>
-              </div>
-            ) : (
-              <button onClick={handleEndCall} className="w-16 h-16 rounded-full bg-rose-600 active:scale-95 transition flex items-center justify-center mb-8">
-                <svg className="w-7 h-7 fill-white rotate-[135deg]" viewBox="0 0 24 24"><path d="M6.62 10.79a15.05 15.05 0 006.59 6.59l2.2-2.2a1 1 0 011.02-.24 11.72 11.72 0 003.68.59 1 1 0 011 1v3.5a1 1 0 01-1 1A17 17 0 013 4a1 1 0 011-1h3.5a1 1 0 011 1c0 1.25.2 2.48.59 3.68a1 1 0 01-.24 1.02l-2.23 2.09z" /></svg>
-              </button>
-            )}
-          </div>
-        )}
-
-        {/* 全螢幕視訊通話 */}
-        {isVideoCalling && (
-          <div className="absolute inset-0 bg-black z-50 flex flex-col justify-between items-center py-12 px-6 text-white animate-fade-in">
-            <video
-              ref={videoPlayerRef}
-              src="/video/video_call.mp4"
-              playsInline
-              autoPlay
-              onEnded={() => {
-                setIsVideoCalling(false);
-                addCallRecord(`視訊通話 ${formatSeconds(videoDuration)}`, 'user', formatSeconds(videoDuration));
-              }}
-              className="absolute inset-0 w-full h-full object-cover scale-105"
-            />
-            <div className="z-10 flex flex-col items-center mt-4 space-y-1">
-              <span className="text-xl font-medium tracking-wide">{appSettings.name}</span>
-              <span className="text-xs text-[#81D4D2] font-mono tracking-widest">{formatSeconds(videoDuration)}</span>
-            </div>
+    <div className="absolute inset-0 bg-[#0B1120] z-50 flex flex-col text-slate-100 backdrop-blur-md animate-fade-in select-none">
+      {/* 🌟 頂部導航列：pt-14 pb-2.5 items-end，文字完全下沉靠近 bar 底部 */}
+      <div className="pt-14 pb-2.5 px-5 bg-[#4E727A] flex items-end justify-between border-b border-[#3D5C63] shadow-md shrink-0 h-[88px]">
+        <div className="flex items-center space-x-2 min-w-0 pr-2">
+          {selectedAlbum && (
             <button
               onClick={() => {
-                setIsVideoCalling(false);
-                addCallRecord(`視訊通話 ${formatSeconds(videoDuration)}`, 'user', formatSeconds(videoDuration));
+                setSelectedAlbum(null);
+                closeViewer();
               }}
-              className="z-10 w-16 h-16 rounded-full bg-rose-600 active:scale-95 transition flex items-center justify-center mb-6"
+              className="mr-1 text-white/80 hover:text-white p-0.5 active:scale-90 transition shrink-0"
             >
-              <svg className="w-7 h-7 fill-white rotate-[135deg]" viewBox="0 0 24 24"><path d="M6.62 10.79a15.05 15.05 0 006.59 6.59l2.2-2.2a1 1 0 011.02-.24 11.72 11.72 0 003.68.59 1 1 0 011 1v3.5a1 1 0 01-1 1A17 17 0 013 4a1 1 0 011-1h3.5a1 1 0 011 1c0 1.25.2 2.48.59 3.68a1 1 0 01-.24 1.02l-2.23 2.09z" /></svg>
-            </button>
-          </div>
-        )}
-
-        {/* 主頂部導航列 */}
-        <div className="pt-12 pb-5 bg-[#4E727A] text-white flex items-center justify-between px-5 z-20 shrink-0 shadow-md border-b border-[#3D5C63]">
-          <div className="flex items-center space-x-3.5">
-            <div className="w-14 h-14 rounded-full bg-slate-800/30 overflow-hidden ring-2 ring-white/30 shadow-md shrink-0">
-              <img src={appSettings.avatar} alt="avatar" className="w-full h-full object-cover" />
-            </div>
-            <span className="font-bold text-lg text-white tracking-wide">{appSettings.name}</span>
-          </div>
-
-          <div className="flex items-center space-x-2.5">
-            <button onClick={() => setMessages([])} className="bg-black/25 active:scale-95 text-white/95 text-[11.5px] px-3 py-1.5 rounded-full border border-white/15">
-              <span>清空</span>
-              <span className="bg-[#81D4D2] text-[#0F3332] font-bold text-[10.5px] px-1.5 py-0.2 rounded-full font-mono ml-1.5">{messages.length}</span>
-            </button>
-            <button onClick={() => triggerIncomingCall('audio')} className="w-9 h-9 rounded-full bg-white/15 active:scale-95 flex items-center justify-center">
-              <svg className="w-4.5 h-4.5 fill-white" viewBox="0 0 24 24"><path d="M6.62 10.79a15.05 15.05 0 006.59 6.59l2.2-2.2a1 1 0 011.02-.24 11.72 11.72 0 003.68.59 1 1 0 011 1v3.5a1 1 0 01-1 1A17 17 0 013 4a1 1 0 011-1h3.5a1 1 0 011 1c0 1.25.2 2.48.59 3.68a1 1 0 01-.24 1.02l-2.23 2.09z" /></svg>
-            </button>
-            <button onClick={() => setIsVideoCalling(true)} className="w-9 h-9 rounded-full bg-white/15 active:scale-95 flex items-center justify-center">
-              <svg className="w-5 h-5 fill-white" viewBox="0 0 24 24"><path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z" /></svg>
-            </button>
-          </div>
-        </div>
-
-        {/* 聊天區 */}
-        <div className="flex-1 overflow-y-auto px-3.5 py-4 space-y-3.5 scroll-smooth">
-          {messages.length > 0 && (
-            <div className="text-center my-1">
-              <span className="bg-slate-300/60 text-slate-600 text-[10px] px-2.5 py-0.5 rounded-full font-medium">今天</span>
-            </div>
-          )}
-          {messages.map((msg) => {
-            const isUser = msg.role === 'user';
-            return (
-              <div key={msg.id} className={`flex items-end ${isUser ? 'justify-end' : 'justify-start'} space-x-1.5`}>
-                {!isUser && (
-                  <div className="w-8 h-8 rounded-full overflow-hidden shrink-0 mb-1 ring-1 ring-slate-300">
-                    <img src={appSettings.avatar} alt="avatar" className="w-full h-full object-cover" />
-                  </div>
-                )}
-                {isUser && <span className="text-[9px] text-teal-800/80 pr-1 leading-tight font-light"><strong className="block text-teal-700">已讀</strong>{msg.time}</span>}
-
-                {msg.type === 'call_record' ? (
-                  <div className="flex items-center space-x-2.5 bg-white px-3.5 py-2.5 rounded-2xl shadow-sm border border-slate-200">
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${msg.durationText ? 'bg-teal-50 text-[#4E727A]' : 'bg-rose-50 text-rose-500'}`}>
-                      <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M6.62 10.79a15.05 15.05 0 006.59 6.59l2.2-2.2a1 1 0 011.02-.24 11.72 11.72 0 003.68.59 1 1 0 011 1v3.5a1 1 0 01-1 1A17 17 0 013 4a1 1 0 011-1h3.5a1 1 0 011 1c0 1.25.2 2.48.59 3.68a1 1 0 01-.24 1.02l-2.23 2.09z" /></svg>
-                    </div>
-                    <span className={`text-xs font-medium ${msg.durationText ? 'text-slate-800' : 'text-rose-600'}`}>{msg.statusText}</span>
-                  </div>
-                ) : msg.type === 'audio' ? (
-                  <AudioBubble audioSrc={msg.audioSrc} />
-                ) : msg.type === 'album_grid' ? (
-                  <div className="grid grid-cols-3 gap-1 rounded-xl overflow-hidden bg-white p-1.5 border border-slate-200">
-                    {msg.images.map((img, i) => (
-                      <a key={i} href={img} target="_blank" rel="noreferrer" className="block aspect-[3/4] overflow-hidden bg-slate-100">
-                        <img src={img} alt="Cut" loading="lazy" className="w-full h-full object-cover" />
-                      </a>
-                    ))}
-                  </div>
-                ) : msg.type === 'photo' ? (
-                  <img src={msg.imageUrl} alt="selfie" className="max-w-[70%] max-h-72 object-cover rounded-2xl shadow-md border border-slate-200" />
-                ) : (
-                  <div className={`max-w-[72%] rounded-2xl px-3.5 py-2 text-[13.5px] leading-relaxed shadow-sm ${isUser ? 'bg-[#81D4D2] text-[#0F3332] rounded-tr-none' : 'bg-white text-slate-900 rounded-tl-none border border-slate-200/60'}`}>
-                    {msg.replyTo && <div className="mb-1.5 px-2 py-1 bg-slate-100/90 rounded border-l-2 border-[#5FBDB9] text-[11px] text-slate-500 line-clamp-1">回覆: {msg.replyTo}</div>}
-                    <p className="whitespace-pre-wrap">{msg.content}</p>
-                  </div>
-                )}
-                {!isUser && <span className="text-[9px] text-slate-400 pl-1 leading-tight font-light">{msg.time}</span>}
-              </div>
-            );
-          })}
-          {isTyping && (
-            <div className="flex items-center space-x-1.5">
-              <div className="w-8 h-8 rounded-full overflow-hidden shrink-0 ring-1 ring-slate-300">
-                <img src={appSettings.avatar} alt="avatar" className="w-full h-full object-cover" />
-              </div>
-              <div className="bg-white px-3 py-2.5 rounded-2xl rounded-tl-none shadow-sm border border-slate-200 flex space-x-1">
-                <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce"></span>
-                <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce [animation-delay:0.2s]"></span>
-                <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce [animation-delay:0.4s]"></span>
-              </div>
-            </div>
-          )}
-          <div ref={messagesEndRef} />
-        </div>
-
-        {/* 測試控制板 */}
-        <div className="bg-slate-900/10 px-2.5 py-2 flex space-x-2 overflow-x-auto border-t border-slate-200/80 z-10 scrollbar-none shrink-0">
-          <button onClick={() => triggerIncomingCall('audio')} className="text-[12px] bg-teal-50 text-teal-800 font-semibold px-3 py-1.5 rounded-full border border-teal-300/80 shrink-0">📞</button>
-          <button onClick={triggerManualText} className="text-[12px] bg-teal-50 text-teal-800 font-semibold px-3 py-1.5 rounded-full border border-teal-300/80 shrink-0">💬</button>
-          <button onClick={triggerManualVoice} className="text-[12px] bg-teal-50 text-teal-800 font-semibold px-3 py-1.5 rounded-full border border-teal-300/80 shrink-0">📼</button>
-          <div className="w-[1px] h-6 bg-slate-300/80 my-auto shrink-0" />
-          <button onClick={() => triggerCategoryRandom('gym')} className="text-[12px] bg-white text-slate-800 font-medium px-3 py-1.5 rounded-full border border-slate-200 shrink-0">🏋️</button>
-          <button onClick={() => triggerCategoryRandom('car')} className="text-[12px] bg-white text-slate-800 font-medium px-3 py-1.5 rounded-full border border-slate-200 shrink-0">🚘</button>
-          <button onClick={() => triggerCategoryRandom('selfie')} className="text-[12px] bg-white text-slate-800 font-medium px-3 py-1.5 rounded-full border border-slate-200 shrink-0">📷</button>
-          <button onClick={() => triggerCategoryRandom('gd')} className="text-[12px] bg-white text-slate-800 font-medium px-3 py-1.5 rounded-full border border-slate-200 shrink-0">🐲</button>
-          <button onClick={() => triggerCategoryRandom('outing')} className="text-[12px] bg-white text-slate-800 font-medium px-3 py-1.5 rounded-full border border-slate-200 shrink-0">🎡</button>
-          <button onClick={() => triggerCategoryRandom('magazine')} className="text-[12px] bg-white text-slate-800 font-medium px-3 py-1.5 rounded-full border border-slate-200 shrink-0">🐈‍⬛</button>
-          <button onClick={() => triggerCategoryRandom('official')} className="text-[12px] bg-white text-slate-800 font-medium px-3 py-1.5 rounded-full border border-slate-200 shrink-0">✨</button>
-        </div>
-
-        {/* ＋號選單（作品列表置中：相簿 ➔ 檔案 ➔ 作品 ➔ 日曆 ➔ FEED） */}
-        {isPlusMenuOpen && (
-          <div className="bg-[#4E727A]/95 backdrop-blur-md px-4 py-4 flex justify-around items-center border-t border-[#3D5C63] z-20 animate-fade-in shadow-xl">
-            <button onClick={() => { setActiveModal('album'); setIsPlusMenuOpen(false); }} className="p-2 active:scale-75 transition">
-              <svg className="w-6 h-6 fill-white" viewBox="0 0 24 24"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>
-            </button>
-            <button onClick={() => { setActiveModal('voices'); setIsPlusMenuOpen(false); }} className="p-2 active:scale-75 transition">
-              <svg className="w-6 h-6 fill-white" viewBox="0 0 24 24"><path d="M19 4H5c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm-1 12H6c-.55 0-1-.45-1-1V9c0-.55.45-1 1-1h12c.55 0 1 .45 1 1v6c0 .55-.45 1-1 1zM7.5 11c-.83 0-1.5.67-1.5 1.5S6.67 14 7.5 14s1.5-.67 1.5-1.5S8.33 11 7.5 11zm9 0c-.83 0-1.5.67-1.5 1.5s.67 1.5 1.5 1.5 1.5-.67 1.5-1.5-.67-1.5-1.5-1.5z"/></svg>
-            </button>
-            <button onClick={() => { setActiveModal('works'); setIsPlusMenuOpen(false); }} className="p-2 active:scale-75 transition relative group">
-              <svg className="w-6 h-6 fill-white" viewBox="0 0 24 24">
-                <path d="M18 4l2 4h-3l-2-4h-2l2 4h-3l-2-4H8l2 4H7L5 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V4h-4z"/>
+              <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24">
+                <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z" />
               </svg>
             </button>
-            <button onClick={() => { setActiveModal('calendar'); setIsPlusMenuOpen(false); }} className="p-2 active:scale-75 transition">
-              <svg className="w-6 h-6 fill-white" viewBox="0 0 24 24"><path d="M19 4h-1V2h-2v2H8V2H6v2H5c-1.11 0-1.99.9-1.99 2L3 20c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V10h14v10zm0-12H5V6h14v2zm-7 5h5v5h-5z"/></svg>
-            </button>
-            <button onClick={() => { setActiveModal('feed'); setIsPlusMenuOpen(false); }} className="p-2 active:scale-75 transition">
-              <svg className="w-6 h-6 fill-white" viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg>
+          )}
+          {/* 🌟 單一相簿名稱或 ALBUMS 字眼，自然沉貼底線 */}
+          <span className="font-bold text-lg tracking-wider text-white truncate leading-none">
+            {selectedAlbum ? selectedAlbum.title : 'ALBUM'}
+          </span>
+        </div>
+      </div>
+
+      {/* 全螢幕大圖瀏覽器 */}
+      {isViewerOpen && selectedAlbum && (
+        <div
+          onTouchStart={onViewerTouchStart}
+          onTouchMove={onViewerTouchMove}
+          onTouchEnd={onViewerTouchEnd}
+          style={{ touchAction: 'none', overscrollBehavior: 'contain' }}
+          className="fixed inset-0 bg-black/95 z-[60] flex flex-col justify-between items-center py-6 px-3 animate-fade-in"
+        >
+          <div className="w-full flex justify-between items-center text-xs font-mono text-slate-400 px-3 pt-2">
+            <span className="text-slate-500 text-[11px]">下滑關閉</span>
+            <button
+              onClick={closeViewer}
+              className="w-7 h-7 rounded-full bg-white/10 active:scale-90 flex items-center justify-center text-slate-300"
+            >
+              ✕
             </button>
           </div>
-        )}
 
-        {/* 底部輸入列 */}
-        <div className="bg-[#4E727A] p-2.5 flex items-center space-x-2 border-t border-[#3D5C63] z-20 shrink-0 pb-6">
-          <button onClick={() => setIsPlusMenuOpen(!isPlusMenuOpen)} className={`w-9 h-9 rounded-full flex items-center justify-center transition shrink-0 ${isPlusMenuOpen ? 'bg-white text-[#4E727A] rotate-45' : 'bg-white/15 text-white'}`}>
-            <span className="text-xl font-light leading-none">＋</span>
-          </button>
-          <input
-            type="text"
-            className="flex-1 bg-white/95 rounded-full px-4 py-2 text-sm text-slate-900 focus:outline-none"
-            value={inputText}
-            onChange={(e) => setInputText(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && !e.nativeEvent.isComposing && handleSend()}
-          />
-          <button onClick={handleSend} className="bg-[#37545B] active:scale-95 text-white text-xs font-medium px-4 py-2 rounded-full shadow-sm">傳送</button>
+          <div
+            onClick={closeViewer}
+            className="relative w-full flex-1 flex items-center justify-center overflow-hidden my-auto"
+          >
+            <div
+              className="flex items-center justify-center w-full h-full transition-transform ease-out"
+              style={{
+                transform: `translate(${dragX}px, ${dragY}px)`,
+                transitionDuration: isDragging.current ? '0ms' : '180ms',
+                opacity: dragY > 0 ? Math.max(0.3, 1 - dragY / 250) : 1,
+              }}
+            >
+              <img
+                key={`photo-${currentIndex}`}
+                src={images[currentIndex]}
+                alt="Current"
+                className="max-w-[94vw] max-h-[70vh] object-contain rounded-lg shadow-2xl select-none"
+              />
+            </div>
+          </div>
+
+          {/* iPhone 風格縮圖列 */}
+          {total > 1 && (
+            <div
+              ref={thumbnailScrollRef}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-[380px] h-12 flex items-center space-x-1.5 overflow-x-auto scrollbar-none px-4 py-1 bg-black/40 rounded-xl backdrop-blur-md border border-white/10 shrink-0 mb-2"
+            >
+              {images.map((imgUrl, thumbIdx) => {
+                const isActive = thumbIdx === currentIndex;
+                return (
+                  <button
+                    key={thumbIdx}
+                    onClick={() => setCurrentIndex(thumbIdx)}
+                    className={`h-9 aspect-[3/4] rounded-md overflow-hidden shrink-0 transition-all ${
+                      isActive
+                        ? 'ring-2 ring-[#81D4D2] scale-105 opacity-100'
+                        : 'opacity-40 hover:opacity-75'
+                    }`}
+                  >
+                    <img
+                      src={imgUrl}
+                      alt={`Thumb ${thumbIdx}`}
+                      className="w-full h-full object-cover"
+                    />
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
+      )}
 
-        {/* 🌟 抽屜呼叫：資料直接原樣傳遞，各自自治 */}
-        {activeModal === 'album' && (
-          <AlbumModal mediaData={masterMedia} />
-        )}
+      {/* 主內容區 */}
+      {selectedAlbum ? (
+        /* 點入後的相簿照片瀑布流 */
+        <div className="flex-1 overflow-y-auto p-3.5">
+          <div className="grid grid-cols-3 gap-1.5">
+            {selectedAlbum.images.map((imgUrl, idx) => (
+              <div
+                key={idx}
+                onClick={() => openViewer(idx)}
+                className="aspect-[3/4] rounded-lg overflow-hidden bg-slate-900 border border-white/5 cursor-pointer hover:opacity-90 active:scale-[0.98] transition shadow-sm"
+              >
+                <img
+                  src={imgUrl}
+                  alt={`Photo ${idx + 1}`}
+                  loading="lazy"
+                  className="w-full h-full object-cover"
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : (
+        /* 🌟 兩排、橫向滑動軌道（grid-rows-2 + grid-flow-col）、對齊橫向中線、直式封面 */
+        <div className="flex-1 flex items-center overflow-x-auto overflow-y-hidden px-4 py-3 scrollbar-none snap-x snap-mandatory">
+          <div className="grid grid-rows-2 grid-flow-col gap-3 my-auto auto-cols-[145px] sm:auto-cols-[160px]">
+            {albumList.map((album, idx) => (
+              <div
+                key={idx}
+                onClick={() => setSelectedAlbum(album)}
+                className="snap-start flex flex-col bg-[#1E293B]/85 rounded-xl border border-slate-700/60 p-2 shadow-md hover:border-[#81D4D2]/60 hover:bg-[#1E293B] cursor-pointer transition-all active:scale-[0.96]"
+              >
+                <div className="rounded-lg overflow-hidden aspect-[3/4] w-full bg-slate-800 shadow-inner relative shrink-0">
+                  {album.cover ? (
+                    <img
+                      src={album.cover}
+                      alt={album.title}
+                      loading="lazy"
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-slate-600 text-[10px] font-mono">
+                      NO COVER
+                    </div>
+                  )}
+                  <span className="absolute bottom-1 right-1 bg-black/75 backdrop-blur-sm text-[#81D4D2] text-[8.5px] font-mono px-1.5 py-0.2 rounded-full border border-white/10">
+                    {album.count} P
+                  </span>
+                </div>
 
-        {activeModal === 'voices' && (
-          <FileModal dialogueList={dialogueList} AudioBubble={AudioBubble} />
-        )}
-
-        {activeModal === 'works' && (
-          <WorksModal worksData={worksData} />
-        )}
-
-        {activeModal === 'calendar' && (
-          <CalendarModal 
-            mediaData={masterMedia} 
-            typeEmojiMap={appSettings.typeEmojiMap}
-          />
-        )}
-
-        {activeModal === 'feed' && (
-          <FeedModal
-            mediaData={masterMedia}
-            interviewData={interviewData}
-          />
-        )}
-
-      </div>
+                <div className="pt-1.5 px-0.5 min-h-[30px] flex items-center">
+                  <h3 className="text-[10.5px] font-medium text-slate-100 leading-snug line-clamp-2">
+                    {album.title}
+                  </h3>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
