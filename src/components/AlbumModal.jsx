@@ -66,7 +66,7 @@ export default function AlbumModal({ albumList = [] }) {
     const diffX = e.touches[0].clientX - touchStartX.current;
     const diffY = e.touches[0].clientY - touchStartY.current;
 
-    // 若垂直位移較大且往下拖，阻斷原生滾動以支援下拉關閉
+    // 垂直位移較大且往下拖，阻斷原生滾動以支援下拉關閉
     if (Math.abs(diffY) > Math.abs(diffX) && diffY > 0) {
       e.preventDefault();
       setDragY(diffY);
@@ -145,7 +145,7 @@ export default function AlbumModal({ albumList = [] }) {
             </button>
           </div>
 
-          {/* 照片主體（手勢位移回饋，純滑動無箭頭遮擋） */}
+          {/* 照片主體（純滑動，無箭頭遮擋） */}
           <div
             onClick={closeViewer}
             className="relative w-full flex-1 flex items-center justify-center overflow-hidden my-auto"
@@ -200,9 +200,9 @@ export default function AlbumModal({ albumList = [] }) {
       )}
 
       {/* 主內容區 */}
-      {selectedAlbum ? (
-        /* 點入後的照片列表：九宮格直向滾動瀑布流 */
-        <div className="flex-1 overflow-y-auto p-3.5">
+      <div className="flex-1 overflow-y-auto p-3.5">
+        {selectedAlbum ? (
+          /* 點入後的相簿內頁：九宮格照片列表 */
           <div className="grid grid-cols-3 gap-1.5">
             {selectedAlbum.images.map((imgUrl, idx) => (
               <div
@@ -219,18 +219,16 @@ export default function AlbumModal({ albumList = [] }) {
               </div>
             ))}
           </div>
-        </div>
-      ) : (
-        /* 🌟 外層相簿卡片目錄：橫向滑動軌道 ＋ 對齊橫向中線 ＋ 直式封面 (aspect-[3/4]) */
-        <div className="flex-1 flex items-center overflow-x-auto overflow-y-hidden px-5 py-4 scrollbar-none snap-x snap-mandatory">
-          <div className="flex space-x-4 items-center m-auto">
+        ) : (
+          /* 🌟 外層相簿目錄：重寫為雙排網格（grid-cols-2），直式封面 (aspect-[3/4]) 齊平排列 */
+          <div className="grid grid-cols-2 gap-3.5">
             {albumList.map((album, idx) => (
               <div
                 key={idx}
                 onClick={() => setSelectedAlbum(album)}
-                className="snap-center shrink-0 w-[240px] sm:w-[260px] bg-[#1E293B]/85 rounded-2xl border border-slate-700/60 p-3 flex flex-col space-y-2.5 shadow-xl hover:border-[#81D4D2]/60 hover:bg-[#1E293B] cursor-pointer transition-all active:scale-[0.97]"
+                className="bg-[#1E293B]/85 rounded-2xl border border-slate-700/60 p-2.5 flex flex-col justify-between space-y-2.5 shadow-md hover:border-[#81D4D2]/60 hover:bg-[#1E293B] cursor-pointer transition-all active:scale-[0.97]"
               >
-                {/* 🌟 封面：直式海報比例 (aspect-[3/4]) */}
+                {/* 🌟 封面：直式海報比例 (aspect-[3/4]) 高度統一齊平 */}
                 <div className="rounded-xl overflow-hidden aspect-[3/4] w-full bg-slate-800 shadow-inner relative">
                   {album.cover ? (
                     <img
@@ -245,22 +243,22 @@ export default function AlbumModal({ albumList = [] }) {
                     </div>
                   )}
                   {/* 照片張數標籤 */}
-                  <span className="absolute bottom-2 right-2 bg-black/75 backdrop-blur-sm text-[#81D4D2] text-[10px] font-mono px-2 py-0.5 rounded-full border border-white/10">
+                  <span className="absolute bottom-1.5 right-1.5 bg-black/75 backdrop-blur-sm text-[#81D4D2] text-[9px] font-mono px-1.5 py-0.5 rounded-full border border-white/10">
                     {album.count} P
                   </span>
                 </div>
 
-                {/* 相簿完整組裝名稱 */}
-                <div className="px-1 min-h-[40px] flex items-center">
-                  <h3 className="text-[13px] font-bold text-white leading-snug line-clamp-2">
+                {/* 相簿名稱 */}
+                <div className="px-0.5 min-h-[36px] flex items-center">
+                  <h3 className="text-[12.5px] font-bold text-white leading-snug line-clamp-2">
                     {album.title}
                   </h3>
                 </div>
               </div>
             ))}
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }
