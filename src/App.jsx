@@ -3,6 +3,7 @@ import AlbumModal from './components/AlbumModal';
 import CalendarModal from './components/CalendarModal';
 import FeedModal from './components/FeedModal';
 import FileModal from './components/FileModal';
+import WorksModal from './components/WorksModal';
 
 const SPREADSHEET_ID = '11P8tG-MhZiwrBcGf9TyFirQNwPxKC2YPVbv4XHMEV-A';
 
@@ -138,7 +139,6 @@ export default function App() {
     return `now.getFullYear()-{String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   };
 
-  // 🌟 動態設定檔 State
   const [appSettings, setAppSettings] = useState({
     name: 'Soo',
     avatar: 'https://images.plurk.com/6PooPJr1YbOhrMp5CCFdbl.jpg',
@@ -174,6 +174,7 @@ export default function App() {
   const [dialogueList, setDialogueList] = useState([]);
   const [foodWeights, setFoodWeights] = useState([]);
   const [interviewData, setInterviewData] = useState([]);
+  const [worksData, setWorksData] = useState([]); // 🌟 新增作品列表資料 State
 
   const [followUpQueue, setFollowUpQueue] = useState(() => {
     try {
@@ -220,31 +221,43 @@ export default function App() {
     localStorage.setItem('soo_follow_up_queue_v2', JSON.stringify(followUpQueue));
   }, [followUpQueue]);
 
-  // 🌟 資料載入（包含 settings 表）
+  // 🌟 資料載入（包含 works 與 settings 表）
   useEffect(() => {
     Promise.all([
       fetchSheetData('media'),
       fetchSheetData('dialogues'),
       fetchSheetData('food_weights'),
       fetchSheetData('interviews'),
-      fetchSheetData('settings')
-    ]).then(([mediaRows, diagRows, foodRows, interviewRows, settingRows]) => {
+      fetchSheetData('settings'),
+      fetchSheetData('works') // 🌟 新增抓取 works
+    ]).then(([mediaRows, diagRows, foodRows, interviewRows, settingRows, worksRows]) => {
       if (mediaRows.length) setMasterMedia(mediaRows);
       if (diagRows.length) setDialogueList(diagRows);
       if (foodRows.length) setFoodWeights(foodRows);
       if (interviewRows.length) setInterviewData(interviewRows);
+      if (worksRows.length) setWorksData(worksRows);
 
       if (settingRows.length) {
         const conf = {};
         const emojiMap = {};
 
         settingRows.forEach(r => {
-          if (r.key) conf[r.key.toLowerCase().trim()] = r.value;
-          if (r.type_code && r.emojis) {
-            emojiMap[r.type_code.trim().toLowerCase()] = r.emojis
-              .split(/[,，]/)
+          const k = getField(r, 'key', 'setting_key');
+          const v = getField(r, 'value', 'setting_value');
+          if (k) conf[k.toLowerCase()] = v;
+
+          const code = getField(r, 'type_code', 'typecode', 'type', 'col_0').toLowerCase();
+          const emoStr = getField(r, 'emojis', 'emoji', 'col_2');
+
+          if (code && emoStr) {
+            const parsedEmojis = emoStr
+              .split(/[,，\s]+/)
               .map(e => e.trim())
               .filter(Boolean);
+
+            if (parsedEmojis.length > 0) {
+              emojiMap[code] = parsedEmojis;
+            }
           }
         });
 
@@ -623,7 +636,7 @@ export default function App() {
     return () => clearInterval(t);
   }, [isVideoCalling]);
 
-  // 相簿分組（擷取每本相簿最新日期，供時間倒序排列使用）
+  // 相簿分組（依最新日期倒序）
   const albumList = useMemo(() => {
     const groups = {};
     masterMedia.forEach((m) => {
@@ -664,11 +677,11 @@ export default function App() {
       .filter((g) => g.count > 0);
   }, [masterMedia]);
 
-  // 🌟 針對 YYYY,MM,DD 格式的精準逗號切割解析
+  // 日曆事件解析
   const allMediaEvents = useMemo(() => {
     return masterMedia
       .map(m => {
-        const rawDate = (m.date || '').trim();
+        const rawDate = getField(m, 'date');
         if (!rawDate) return null;
 
         const parts = rawDate.split(',');
@@ -680,14 +693,16 @@ export default function App() {
 
         if (isNaN(year) || isNaN(month) || isNaN(day)) return null;
 
+        const typeValue = getField(m, 'type', 'sub_type', 'subtype', 'category');
+
         return {
           rawDate,
           year,
           month,
           day,
           title: m.album_name || m.news_title || m.caption || '行程',
-          status: m.sub_type || m.status || '',
-          type: m.type || m.category || ''
+          status: m.status || m.sub_type || '',
+          type: typeValue
         };
       })
       .filter(Boolean);
@@ -947,20 +962,30 @@ export default function App() {
           <button onClick={() => triggerCategoryRandom('official')} className="text-[12px] bg-white text-slate-800 font-medium px-3 py-1.5 rounded-full border border-slate-200 shrink-0">✨</button>
         </div>
 
-        {/* ＋號選單 */}
+        {/* ＋號選單（作品列表置中：相簿 ➔ 檔案 ➔ 作品 ➔ 日曆 ➔ FEED） */}
         {isPlusMenuOpen && (
-          <div className="bg-[#4E727A]/95 backdrop-blur-md px-6 py-4 flex justify-around items-center border-t border-[#3D5C63] z-20 animate-fade-in shadow-xl">
+          <div className="bg-[#4E727A]/95 backdrop-blur-md px-4 py-4 flex justify-around items-center border-t border-[#3D5C63] z-20 animate-fade-in shadow-xl">
+            {/* 1. 相簿 */}
             <button onClick={() => { setActiveModal('album'); setIsPlusMenuOpen(false); }} className="p-2 active:scale-75 transition">
-              <svg className="w-7 h-7 fill-white" viewBox="0 0 24 24"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>
+              <svg className="w-6 h-6 fill-white" viewBox="0 0 24 24"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>
             </button>
+            {/* 2. 檔案 */}
             <button onClick={() => { setActiveModal('voices'); setIsPlusMenuOpen(false); }} className="p-2 active:scale-75 transition">
-              <svg className="w-7 h-7 fill-white" viewBox="0 0 24 24"><path d="M19 4H5c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm-1 12H6c-.55 0-1-.45-1-1V9c0-.55.45-1 1-1h12c.55 0 1 .45 1 1v6c0 .55-.45 1-1 1zM7.5 11c-.83 0-1.5.67-1.5 1.5S6.67 14 7.5 14s1.5-.67 1.5-1.5S8.33 11 7.5 11zm9 0c-.83 0-1.5.67-1.5 1.5s.67 1.5 1.5 1.5 1.5-.67 1.5-1.5-.67-1.5-1.5-1.5z"/></svg>
+              <svg className="w-6 h-6 fill-white" viewBox="0 0 24 24"><path d="M19 4H5c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm-1 12H6c-.55 0-1-.45-1-1V9c0-.55.45-1 1-1h12c.55 0 1 .45 1 1v6c0 .55-.45 1-1 1zM7.5 11c-.83 0-1.5.67-1.5 1.5S6.67 14 7.5 14s1.5-.67 1.5-1.5S8.33 11 7.5 11zm9 0c-.83 0-1.5.67-1.5 1.5s.67 1.5 1.5 1.5 1.5-.67 1.5-1.5-.67-1.5-1.5-1.5z"/></svg>
             </button>
+            {/* 🌟 3. 作品列表 (WORKS，最中間) */}
+            <button onClick={() => { setActiveModal('works'); setIsPlusMenuOpen(false); }} className="p-2 active:scale-75 transition relative group">
+              <svg className="w-6 h-6 fill-white" viewBox="0 0 24 24">
+                <path d="M18 4l2 4h-3l-2-4h-2l2 4h-3l-2-4H8l2 4H7L5 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V4h-4z"/>
+              </svg>
+            </button>
+            {/* 4. 日曆 */}
             <button onClick={() => { setActiveModal('calendar'); setIsPlusMenuOpen(false); }} className="p-2 active:scale-75 transition">
-              <svg className="w-7 h-7 fill-white" viewBox="0 0 24 24"><path d="M19 4h-1V2h-2v2H8V2H6v2H5c-1.11 0-1.99.9-1.99 2L3 20c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V10h14v10zm0-12H5V6h14v2zm-7 5h5v5h-5z"/></svg>
+              <svg className="w-6 h-6 fill-white" viewBox="0 0 24 24"><path d="M19 4h-1V2h-2v2H8V2H6v2H5c-1.11 0-1.99.9-1.99 2L3 20c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V10h14v10zm0-12H5V6h14v2zm-7 5h5v5h-5z"/></svg>
             </button>
+            {/* 5. FEED */}
             <button onClick={() => { setActiveModal('feed'); setIsPlusMenuOpen(false); }} className="p-2 active:scale-75 transition">
-              <svg className="w-7 h-7 fill-white" viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg>
+              <svg className="w-6 h-6 fill-white" viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg>
             </button>
           </div>
         )}
@@ -985,7 +1010,15 @@ export default function App() {
           <AlbumModal albumList={albumList} />
         )}
 
-        {/* 🌟 Calendar 傳入完整的 allMediaEvents 與 typeEmojiMap */}
+        {activeModal === 'voices' && (
+          <FileModal dynamicVoiceList={dynamicVoiceList} AudioBubble={AudioBubble} />
+        )}
+
+        {/* 🌟 抽屜 3：作品列表 */}
+        {activeModal === 'works' && (
+          <WorksModal worksData={worksData} />
+        )}
+
         {activeModal === 'calendar' && (
           <CalendarModal 
             allMediaEvents={allMediaEvents} 
@@ -1003,10 +1036,6 @@ export default function App() {
             feedScrollPosition={feedScrollPosition}
             setFeedScrollPosition={setFeedScrollPosition}
           />
-        )}
-
-        {activeModal === 'voices' && (
-          <FileModal dynamicVoiceList={dynamicVoiceList} AudioBubble={AudioBubble} />
         )}
 
       </div>
