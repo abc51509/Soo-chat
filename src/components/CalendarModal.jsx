@@ -10,6 +10,29 @@ const getField = (obj, ...keys) => {
   return '';
 };
 
+// 🌟 日曆專屬標題組裝：去除重複日期，格式為「來源-品牌-相簿名稱」
+const assembleCalendarTitle = (item) => {
+  const parts = [];
+
+  const source = getField(item, 'news_source', 'source');
+  if (source) parts.push(source);
+
+  const brand = getField(item, 'brand');
+  if (brand) parts.push(brand);
+
+  const albumName = (item.album_name || '').trim();
+  if (albumName && albumName !== '所有相片' && albumName !== '未分類歸檔') {
+    parts.push(albumName);
+  }
+
+  if (parts.length > 0) {
+    return parts.join('-');
+  }
+
+  // 備用退路：若都沒有，讀取新聞標題或副標/說明
+  return (item.news_title || item.caption || '日程').trim();
+};
+
 export default function CalendarModal({ mediaData = [], typeEmojiMap = {} }) {
   const currentYear = 2026;
   const currentMonth = 11;
@@ -17,10 +40,10 @@ export default function CalendarModal({ mediaData = [], typeEmojiMap = {} }) {
   const [viewYear, setViewYear] = useState(currentYear);
   const [viewMonth, setViewMonth] = useState(currentMonth);
 
-  // 🌟 日曆自給自足資料處理
+  // 🌟 日曆自給自足資料處理（標題不再重複帶入日期）
   const allMediaEvents = useMemo(() => {
     return mediaData
-      .map(m => {
+      .map((m) => {
         const rawDate = getField(m, 'date');
         if (!rawDate) return null;
         const parts = rawDate.split(',');
@@ -35,7 +58,7 @@ export default function CalendarModal({ mediaData = [], typeEmojiMap = {} }) {
           year,
           month,
           day,
-          title: m.album_name || m.news_title || m.caption || '日程',
+          title: assembleCalendarTitle(m),
           type: getField(m, 'type', 'sub_type', 'subtype', 'category')
         };
       })
@@ -47,30 +70,32 @@ export default function CalendarModal({ mediaData = [], typeEmojiMap = {} }) {
 
   const prevMonth = () => {
     if (viewMonth === 1) {
-      setViewYear(y => y - 1);
+      setViewYear((y) => y - 1);
       setViewMonth(12);
     } else {
-      setViewMonth(m => m - 1);
+      setViewMonth((m) => m - 1);
     }
   };
 
   const nextMonth = () => {
     if (viewMonth === 12) {
-      setViewYear(y => y + 1);
+      setViewYear((y) => y + 1);
       setViewMonth(1);
     } else {
-      setViewMonth(m => m + 1);
+      setViewMonth((m) => m + 1);
     }
   };
 
   return (
     <div className="absolute inset-0 bg-[#0B1120] z-50 flex flex-col text-slate-100 backdrop-blur-md animate-fade-in select-none">
-      {/* 🌟 頂部導航列：pt-14 pb-2.5 items-end，文字完全靠近 bar 底部 */}
+      {/* 頂部導航列：pt-14 pb-2.5 items-end，文字靠近 bar 底部 */}
       <div className="pt-14 pb-2.5 px-5 bg-[#4E727A] flex items-end justify-between border-b border-[#3D5C63] shadow-md shrink-0 h-[88px]">
         <span className="font-bold text-xl tracking-wider text-white leading-none">CALENDAR</span>
         <div className="flex items-center space-x-2 text-xs font-mono">
           <button onClick={prevMonth} className="p-1 active:scale-90">◀</button>
-          <span className="text-[#81D4D2] font-bold">{viewYear}.{String(viewMonth).padStart(2, '0')}</span>
+          <span className="text-[#81D4D2] font-bold">
+            {viewYear}.{String(viewMonth).padStart(2, '0')}
+          </span>
           <button onClick={nextMonth} className="p-1 active:scale-90">▶</button>
         </div>
       </div>
@@ -89,7 +114,7 @@ export default function CalendarModal({ mediaData = [], typeEmojiMap = {} }) {
           {Array.from({ length: daysInMonth }).map((_, i) => {
             const dayNum = i + 1;
             const events = allMediaEvents.filter(
-              e => e.year === viewYear && e.month === viewMonth && e.day === dayNum
+              (e) => e.year === viewYear && e.month === viewMonth && e.day === dayNum
             );
             return (
               <div
@@ -100,7 +125,11 @@ export default function CalendarModal({ mediaData = [], typeEmojiMap = {} }) {
                 <div className="flex flex-wrap gap-0.5 justify-end">
                   {events.map((ev, evIdx) => {
                     const ems = typeEmojiMap[ev.type?.toLowerCase()] || ['📅'];
-                    return <span key={evIdx} className="text-[10px]">{ems[0]}</span>;
+                    return (
+                      <span key={evIdx} className="text-[10px]" title={ev.title}>
+                        {ems[0]}
+                      </span>
+                    );
                   })}
                 </div>
               </div>
