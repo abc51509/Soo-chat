@@ -3,13 +3,13 @@ import AlbumModal from './components/AlbumModal';
 import CalendarModal from './components/CalendarModal';
 import FeedModal from './components/FeedModal';
 import FileModal from './components/FileModal';
-import WorksModal from './components/WorksModal';
 
 const SPREADSHEET_ID = '11P8tG-MhZiwrBcGf9TyFirQNwPxKC2YPVbv4XHMEV-A';
 
+// 通用 GViz 資料讀取器
 const fetchSheetData = async (sheetName) => {
   try {
-    const url = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:json&headers=1&sheet=${encodeURIComponent(sheetName)}&t=${Date.now()}`;
+    const url = `https://docs.google.com/spreadsheets/d/SPREADSHEETID/gviz/tq?tqx=out:json&headers=1&sheet={encodeURIComponent(sheetName)}&t=${Date.now()}`;
     const res = await fetch(url);
     if (!res.ok) return [];
     const text = await res.text();
@@ -25,7 +25,11 @@ const fetchSheetData = async (sheetName) => {
     const colKeys = table.cols.map((col, idx) => {
       const raw = (col.label || '').trim();
       const clean = raw.toLowerCase().replace(/[^a-z0-9_]/g, '');
-      return { raw, clean: clean || `col_${idx}`, idx };
+      return {
+        raw,
+        clean: clean || `col_${idx}`,
+        idx
+      };
     });
 
     return table.rows.map(r => {
@@ -69,7 +73,7 @@ const formatVideoSource = (raw) => {
 
   let finalPath = clean;
   if (!finalPath.startsWith('http') && !finalPath.startsWith('/')) {
-    finalPath = finalPath.startsWith('video/') ? `/${finalPath}` : `/video/${finalPath}`;
+    finalPath = finalPath.startsWith('video/') ? `/finalPath`:`/video/{finalPath}`;
   }
   return { type: 'direct', url: finalPath };
 };
@@ -82,64 +86,11 @@ const formatAudioUrl = (raw) => {
   }
   if (clean.startsWith('http')) return clean;
   clean = clean.replace(/^\/+/, '');
-  return clean.startsWith('audio/') ? `/${clean}` : `/audio/${clean}`;
+  return clean.startsWith('audio/') ? `/clean`:`/audio/{clean}`;
 };
 
-const MONTH_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
-// 相簿命名：來源-時間-品牌-相簿名稱
-const assembleAlbumTitle = (item) => {
-  const rawAlbumName = (item.album_name || '').trim();
-  if (!rawAlbumName || rawAlbumName === '所有相片' || rawAlbumName === '未分類歸檔') {
-    return '其他相片';
-  }
-
-  const parts = [];
-  const source = getField(item, 'news_source', 'source');
-  if (source) parts.push(source);
-
-  const issue = getField(item, 'issue', 'period');
-  if (issue) {
-    parts.push(issue);
-  } else {
-    const rawDate = getField(item, 'date');
-    if (rawDate) {
-      const dParts = rawDate.split(',');
-      if (dParts.length >= 2) {
-        const y = dParts[0].trim();
-        const mIdx = parseInt(dParts[1].trim(), 10) - 1;
-        if (!isNaN(mIdx) && mIdx >= 0 && mIdx < 12) {
-          parts.push(`${MONTH_SHORT[mIdx]} ${y}`);
-        }
-      }
-    }
-  }
-
-  const brand = getField(item, 'brand');
-  if (brand) parts.push(brand);
-  parts.push(rawAlbumName);
-  return parts.join('-');
-};
-
-// 行程命名：來源-品牌-相簿名稱（不帶日期）
-const assembleCalendarScheduleTitle = (item) => {
-  const parts = [];
-  const source = getField(item, 'news_source', 'source');
-  if (source) parts.push(source);
-
-  const brand = getField(item, 'brand');
-  if (brand) parts.push(brand);
-
-  const albumName = (item.album_name || '').trim();
-  if (albumName && albumName !== '所有相片' && albumName !== '未分類歸檔') {
-    parts.push(albumName);
-  }
-
-  if (parts.length > 0) return parts.join('-');
-  return (item.news_title || item.caption || '日程行程').trim();
-};
-
-export const AudioBubble = ({ audioSrc }) => {
+// 語音氣泡組件
+const AudioBubble = ({ audioSrc }) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const audioRef = useRef(null);
 
@@ -179,14 +130,15 @@ export const AudioBubble = ({ audioSrc }) => {
 export default function App() {
   const getCurrentTime = () => {
     const now = new Date();
-    return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    return `String(now.getHours()).padStart(2,'0'):{String(now.getMinutes()).padStart(2, '0')}`;
   };
 
   const getTodayDateStr = () => {
     const now = new Date();
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    return `now.getFullYear()-{String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   };
 
+  // 🌟 動態設定檔 State
   const [appSettings, setAppSettings] = useState({
     name: 'Soo',
     avatar: 'https://images.plurk.com/6PooPJr1YbOhrMp5CCFdbl.jpg',
@@ -196,7 +148,10 @@ export default function App() {
   const sendNotification = (title, body) => {
     if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
       try {
-        new Notification(title, { body, icon: appSettings.avatar });
+        new Notification(title, {
+          body,
+          icon: appSettings.avatar
+        });
       } catch (e) {
         console.log('通知失敗:', e);
       }
@@ -219,7 +174,6 @@ export default function App() {
   const [dialogueList, setDialogueList] = useState([]);
   const [foodWeights, setFoodWeights] = useState([]);
   const [interviewData, setInterviewData] = useState([]);
-  const [worksData, setWorksData] = useState([]);
 
   const [followUpQueue, setFollowUpQueue] = useState(() => {
     try {
@@ -240,6 +194,8 @@ export default function App() {
 
   const [isPlusMenuOpen, setIsPlusMenuOpen] = useState(false);
   const [activeModal, setActiveModal] = useState(null);
+  const [selectedFeedItem, setSelectedFeedItem] = useState(null);
+  const [feedScrollPosition, setFeedScrollPosition] = useState(0);
 
   const touchStartX = useRef(0);
   const touchStartY = useRef(0);
@@ -264,36 +220,31 @@ export default function App() {
     localStorage.setItem('soo_follow_up_queue_v2', JSON.stringify(followUpQueue));
   }, [followUpQueue]);
 
+  // 🌟 資料載入（包含 settings 表）
   useEffect(() => {
     Promise.all([
       fetchSheetData('media'),
       fetchSheetData('dialogues'),
       fetchSheetData('food_weights'),
       fetchSheetData('interviews'),
-      fetchSheetData('settings'),
-      fetchSheetData('works')
-    ]).then(([mediaRows, diagRows, foodRows, interviewRows, settingRows, worksRows]) => {
+      fetchSheetData('settings')
+    ]).then(([mediaRows, diagRows, foodRows, interviewRows, settingRows]) => {
       if (mediaRows.length) setMasterMedia(mediaRows);
       if (diagRows.length) setDialogueList(diagRows);
       if (foodRows.length) setFoodWeights(foodRows);
       if (interviewRows.length) setInterviewData(interviewRows);
-      if (worksRows.length) setWorksData(worksRows);
 
       if (settingRows.length) {
         const conf = {};
         const emojiMap = {};
 
         settingRows.forEach(r => {
-          const k = getField(r, 'key', 'setting_key');
-          const v = getField(r, 'value', 'setting_value');
-          if (k) conf[k.toLowerCase()] = v;
-
-          const code = getField(r, 'type_code', 'typecode', 'type', 'col_0').toLowerCase();
-          const emoStr = getField(r, 'emojis', 'emoji', 'col_2');
-
-          if (code && emoStr) {
-            const parsedEmojis = emoStr.split(/[,，\s]+/).map(e => e.trim()).filter(Boolean);
-            if (parsedEmojis.length > 0) emojiMap[code] = parsedEmojis;
+          if (r.key) conf[r.key.toLowerCase().trim()] = r.value;
+          if (r.type_code && r.emojis) {
+            emojiMap[r.type_code.trim().toLowerCase()] = r.emojis
+              .split(/[,，]/)
+              .map(e => e.trim())
+              .filter(Boolean);
           }
         });
 
@@ -305,7 +256,25 @@ export default function App() {
           avatar: newAvatar,
           typeEmojiMap: emojiMap
         });
+
         document.title = newName;
+
+        const faviconUrl = conf.favicon_url || newAvatar;
+        let link = document.querySelector("link[rel*='icon']");
+        if (!link) {
+          link = document.createElement('link');
+          link.rel = 'icon';
+          document.head.appendChild(link);
+        }
+        link.href = faviconUrl;
+
+        let appleIcon = document.querySelector("link[rel='apple-touch-icon']");
+        if (!appleIcon) {
+          appleIcon = document.createElement('link');
+          appleIcon.rel = 'apple-touch-icon';
+          document.head.appendChild(appleIcon);
+        }
+        appleIcon.href = conf.pwa_icon_url || newAvatar;
       }
     });
   }, []);
@@ -324,146 +293,7 @@ export default function App() {
       }));
   }, [dialogueList]);
 
-  // 相簿核心聚合：只認 album_name，滿 3 張成相簿
-  const albumList = useMemo(() => {
-    const rawGroups = {};
-    masterMedia.forEach((m) => {
-      const imgs = (m.images || '').trim().split(/[\s,]+/).filter(u => u.startsWith('http'));
-      if (!imgs.length) return;
-
-      const rawName = (m.album_name || '').trim();
-      const key = rawName ? rawName : '__unclassified__';
-
-      if (!rawGroups[key]) {
-        rawGroups[key] = {
-          title: rawName ? assembleAlbumTitle(m) : '其他相片',
-          images: [],
-          latestDate: ''
-        };
-      }
-      rawGroups[key].images.push(...imgs);
-      const d = (m.date || '').trim();
-      if (d && d > rawGroups[key].latestDate) rawGroups[key].latestDate = d;
-    });
-
-    const independentAlbums = [];
-    const usedImagesInIndependent = new Set();
-    const leftoverImages = [];
-
-    Object.entries(rawGroups).forEach(([key, g]) => {
-      const uniqueImgs = Array.from(new Set(g.images));
-      if (key !== '__unclassified__' && uniqueImgs.length >= 3) {
-        uniqueImgs.forEach(u => usedImagesInIndependent.add(u));
-        independentAlbums.push({
-          title: g.title,
-          cover: uniqueImgs[0] || null,
-          images: uniqueImgs,
-          count: uniqueImgs.length,
-          latestDate: g.latestDate
-        });
-      } else {
-        leftoverImages.push(...uniqueImgs);
-      }
-    });
-
-    independentAlbums.sort((a, b) => b.latestDate.localeCompare(a.latestDate));
-    const trueLeftovers = Array.from(new Set(leftoverImages)).filter(u => !usedImagesInIndependent.has(u));
-    if (trueLeftovers.length > 0) {
-      independentAlbums.push({
-        title: '其他相片',
-        cover: trueLeftovers[0],
-        images: trueLeftovers,
-        count: trueLeftovers.length,
-        latestDate: '0000,00,00'
-      });
-    }
-    return independentAlbums;
-  }, [masterMedia]);
-
-  // FEED 核心聚合：只認 news_title
-  const feedItems = useMemo(() => {
-    const grouped = {};
-    masterMedia.forEach(m => {
-      const title = (m.news_title || '').trim();
-      if (!title) return;
-
-      const videoUrl = getField(m, 'video_url', 'videourl', 'video');
-      const eventId = getField(m, 'event_id', 'interview_id', 'id');
-
-      if (!grouped[title]) {
-        grouped[title] = {
-          main_title: title,
-          sub_title: getField(m, 'news_subtitle', 'subtitle'),
-          source: getField(m, 'news_source', 'source'),
-          time_text: getField(m, 'date'),
-          summary: getField(m, 'news_summary', 'summary'),
-          interview_id: eventId,
-          videos: [],
-          credits: getField(m, 'credits', 'credit'),
-          main_images: [],
-          layout_images: []
-        };
-      }
-
-      if (eventId && !grouped[title].interview_id) grouped[title].interview_id = eventId;
-
-      if (videoUrl) {
-        const urls = videoUrl.split(/;|\n{2,}/).map(s => s.trim()).filter(Boolean);
-        const rawCaption = getField(m, 'video_caption', 'videocaption', 'video_desc');
-        let caps = urls.length <= 1 ? [rawCaption] : rawCaption.split(';').map(s => s.trim());
-        urls.forEach((u, i) => {
-          if (!grouped[title].videos.some(v => v.url === u)) {
-            grouped[title].videos.push({ url: u, caption: caps[i] !== undefined ? caps[i] : (caps[0] || '') });
-          }
-        });
-      }
-
-      const rawImgs = getField(m, 'images', 'image');
-      const imgs = rawImgs.split(/[\s,]+/).map(u => u.trim()).filter(u => u.startsWith('http'));
-      const subType = getField(m, 'sub_type', 'subtype').toLowerCase();
-      if (subType === 'layout') {
-        grouped[title].layout_images.push(...imgs);
-      } else {
-        grouped[title].main_images.push(...imgs);
-      }
-    });
-
-    return Object.values(grouped).map(item => ({
-      ...item,
-      hero_image: item.main_images[0] || item.layout_images[0] || null,
-      remaining_images: item.main_images.slice(1)
-    }));
-  }, [masterMedia]);
-
-  // 日曆事件：標題不重複帶入日期
-  const allMediaEvents = useMemo(() => {
-    return masterMedia
-      .map(m => {
-        const rawDate = getField(m, 'date');
-        if (!rawDate) return null;
-        const parts = rawDate.split(',');
-        if (parts.length < 3) return null;
-
-        const year = parseInt(parts[0].trim(), 10);
-        const month = parseInt(parts[1].trim(), 10);
-        const day = parseInt(parts[2].trim(), 10);
-        if (isNaN(year) || isNaN(month) || isNaN(day)) return null;
-
-        return {
-          rawDate,
-          year,
-          month,
-          day,
-          title: assembleCalendarScheduleTitle(m),
-          status: m.status || m.sub_type || '',
-          type: getField(m, 'type', 'sub_type', 'subtype', 'category'),
-          caption: m.caption || '',
-          images: (m.images || '').trim().split(/[\s,]+/).filter(u => u.startsWith('http'))
-        };
-      })
-      .filter(Boolean);
-  }, [masterMedia]);
-
+  // 左側邊緣滑動返回防誤觸
   const handleTouchStart = (e) => {
     touchStartX.current = e.touches[0].clientX;
     touchStartY.current = e.touches[0].clientY;
@@ -472,15 +302,23 @@ export default function App() {
   const handleTouchEnd = (e) => {
     const deltaX = e.changedTouches[0].clientX - touchStartX.current;
     const deltaY = e.changedTouches[0].clientY - touchStartY.current;
-    if (touchStartX.current < 45 && deltaX > 75 && Math.abs(deltaY) < 40) {
-      if (activeModal) setActiveModal(null);
+
+    const isEdgeSwipe = touchStartX.current < 45;
+    const isHorizontalSwipe = deltaX > 75 && Math.abs(deltaY) < 40;
+
+    if (isEdgeSwipe && isHorizontalSwipe) {
+      if (selectedFeedItem) {
+        setSelectedFeedItem(null);
+      } else if (activeModal) {
+        setActiveModal(null);
+      }
     }
   };
 
   const formatSeconds = (sec) => {
     const m = Math.floor(sec / 60);
     const s = sec % 60;
-    return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+    return `String(m).padStart(2,'0'):{String(s).padStart(2, '0')}`;
   };
 
   const sendStaggeredMessages = async (textBlock, options = {}) => {
@@ -505,7 +343,9 @@ export default function App() {
         }
       ]);
 
-      if (i === 0 && document.hidden) sendNotification(`${appSettings.name} 傳來了新訊息`, bubbles[i]);
+      if (i === 0 && document.hidden) {
+        sendNotification(`${appSettings.name} 傳來了新訊息`, bubbles[i]);
+      }
       if (i < bubbles.length - 1) await new Promise(r => setTimeout(r, 300));
     }
 
@@ -783,6 +623,160 @@ export default function App() {
     return () => clearInterval(t);
   }, [isVideoCalling]);
 
+  // 相簿分組（擷取每本相簿最新日期，供時間倒序排列使用）
+  const albumList = useMemo(() => {
+    const groups = {};
+    masterMedia.forEach((m) => {
+      let albumKey = m.album_name?.trim() || '所有相片';
+      if (albumKey === '未分類歸檔') albumKey = '所有相片';
+
+      if (!groups[albumKey]) {
+        groups[albumKey] = {
+          title: albumKey,
+          images: [],
+          latestDate: ''
+        };
+      }
+
+      const imgs = (m.images || '')
+        .trim()
+        .split(/[\s,]+/)
+        .filter((u) => u.startsWith('http'));
+      groups[albumKey].images.push(...imgs);
+
+      const d = (m.date || '').trim();
+      if (d && d > groups[albumKey].latestDate) {
+        groups[albumKey].latestDate = d;
+      }
+    });
+
+    return Object.values(groups)
+      .map((g) => {
+        const unique = Array.from(new Set(g.images));
+        return {
+          title: g.title,
+          cover: unique[0] || null,
+          images: unique,
+          count: unique.length,
+          latestDate: g.latestDate
+        };
+      })
+      .filter((g) => g.count > 0);
+  }, [masterMedia]);
+
+  // 🌟 針對 YYYY,MM,DD 格式的精準逗號切割解析
+  const allMediaEvents = useMemo(() => {
+    return masterMedia
+      .map(m => {
+        const rawDate = (m.date || '').trim();
+        if (!rawDate) return null;
+
+        const parts = rawDate.split(',');
+        if (parts.length < 3) return null;
+
+        const year = parseInt(parts[0].trim(), 10);
+        const month = parseInt(parts[1].trim(), 10);
+        const day = parseInt(parts[2].trim(), 10);
+
+        if (isNaN(year) || isNaN(month) || isNaN(day)) return null;
+
+        return {
+          rawDate,
+          year,
+          month,
+          day,
+          title: m.album_name || m.news_title || m.caption || '行程',
+          status: m.sub_type || m.status || '',
+          type: m.type || m.category || ''
+        };
+      })
+      .filter(Boolean);
+  }, [masterMedia]);
+
+  // FEED 聚合解析
+  const feedItems = useMemo(() => {
+    const grouped = {};
+    masterMedia.forEach(m => {
+      const mainTitle = getField(m, 'news_title', 'album_name', 'title');
+      const eventId = getField(m, 'event_id', 'interview_id', 'id');
+      const videoUrl = getField(m, 'video_url', 'videourl', 'video');
+
+      if (!mainTitle && !videoUrl && !eventId && !m.images) return;
+      const key = mainTitle || m.album_name || m.id || 'feed_item';
+
+      if (!grouped[key]) {
+        grouped[key] = {
+          main_title: mainTitle || m.album_name,
+          sub_title: getField(m, 'news_subtitle', 'subtitle'),
+          source: getField(m, 'news_source', 'source'),
+          time_text: getField(m, 'date'),
+          summary: getField(m, 'news_summary', 'summary'),
+          interview_id: eventId,
+          videos: [],
+          credits: getField(m, 'credits', 'credit'),
+          main_images: [],
+          layout_images: []
+        };
+      }
+
+      if (eventId && !grouped[key].interview_id) {
+        grouped[key].interview_id = eventId;
+      }
+
+      if (videoUrl) {
+        const urls = videoUrl.split(/;|\n{2,}/).map(s => s.trim()).filter(Boolean);
+        const rawCaption = getField(m, 'video_caption', 'videocaption', 'video_desc');
+        let caps = [];
+        if (urls.length <= 1) {
+          caps = [rawCaption];
+        } else {
+          caps = rawCaption.split(';').map(s => s.trim());
+        }
+
+        urls.forEach((u, i) => {
+          if (!grouped[key].videos.some(v => v.url === u)) {
+            grouped[key].videos.push({
+              url: u,
+              caption: caps[i] !== undefined ? caps[i] : (caps[0] || '')
+            });
+          }
+        });
+      }
+
+      const rawImgs = getField(m, 'images', 'image');
+      const imgs = rawImgs.split(/[\s,]+/).map(u => u.trim()).filter(u => u.startsWith('http'));
+      const subType = getField(m, 'sub_type', 'subtype').toLowerCase();
+      if (subType === 'layout') {
+        grouped[key].layout_images.push(...imgs);
+      } else {
+        grouped[key].main_images.push(...imgs);
+      }
+    });
+
+    return Object.values(grouped).map(item => ({
+      ...item,
+      hero_image: item.main_images[0] || item.layout_images[0] || null,
+      remaining_images: item.main_images.slice(1)
+    }));
+  }, [masterMedia]);
+
+  // 訪談資料關聯比對
+  const currentInterviewDialogue = useMemo(() => {
+    if (!selectedFeedItem?.interview_id) return [];
+    const targetId = selectedFeedItem.interview_id.trim().toLowerCase();
+
+    return interviewData
+      .filter(row => {
+        const rowId = getField(row, 'event_id', 'interview_id', 'interviewid', 'id', 'col_0').trim().toLowerCase();
+        return rowId && rowId === targetId;
+      })
+      .map(row => ({
+        speaker: getField(row, 'speaker', 'role', 'name', 'col_1') || 'Q',
+        content: getField(row, 'content', 'text', 'dialogue', 'answer', 'col_2') || ''
+      }))
+      .filter(item => item.content.length > 0);
+  }, [selectedFeedItem, interviewData]);
+
   return (
     <div 
       className="flex h-[100dvh] w-screen bg-slate-900 justify-center items-center select-none overflow-hidden sm:p-3"
@@ -955,23 +949,18 @@ export default function App() {
 
         {/* ＋號選單 */}
         {isPlusMenuOpen && (
-          <div className="bg-[#4E727A]/95 backdrop-blur-md px-4 py-4 flex justify-around items-center border-t border-[#3D5C63] z-20 animate-fade-in shadow-xl">
+          <div className="bg-[#4E727A]/95 backdrop-blur-md px-6 py-4 flex justify-around items-center border-t border-[#3D5C63] z-20 animate-fade-in shadow-xl">
             <button onClick={() => { setActiveModal('album'); setIsPlusMenuOpen(false); }} className="p-2 active:scale-75 transition">
-              <svg className="w-6 h-6 fill-white" viewBox="0 0 24 24"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>
+              <svg className="w-7 h-7 fill-white" viewBox="0 0 24 24"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>
             </button>
             <button onClick={() => { setActiveModal('voices'); setIsPlusMenuOpen(false); }} className="p-2 active:scale-75 transition">
-              <svg className="w-6 h-6 fill-white" viewBox="0 0 24 24"><path d="M19 4H5c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm-1 12H6c-.55 0-1-.45-1-1V9c0-.55.45-1 1-1h12c.55 0 1 .45 1 1v6c0 .55-.45 1-1 1zM7.5 11c-.83 0-1.5.67-1.5 1.5S6.67 14 7.5 14s1.5-.67 1.5-1.5S8.33 11 7.5 11zm9 0c-.83 0-1.5.67-1.5 1.5s.67 1.5 1.5 1.5 1.5-.67 1.5-1.5-.67-1.5-1.5-1.5z"/></svg>
-            </button>
-            <button onClick={() => { setActiveModal('works'); setIsPlusMenuOpen(false); }} className="p-2 active:scale-75 transition relative group">
-              <svg className="w-6 h-6 fill-white" viewBox="0 0 24 24">
-                <path d="M18 4l2 4h-3l-2-4h-2l2 4h-3l-2-4H8l2 4H7L5 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V4h-4z"/>
-              </svg>
+              <svg className="w-7 h-7 fill-white" viewBox="0 0 24 24"><path d="M19 4H5c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm-1 12H6c-.55 0-1-.45-1-1V9c0-.55.45-1 1-1h12c.55 0 1 .45 1 1v6c0 .55-.45 1-1 1zM7.5 11c-.83 0-1.5.67-1.5 1.5S6.67 14 7.5 14s1.5-.67 1.5-1.5S8.33 11 7.5 11zm9 0c-.83 0-1.5.67-1.5 1.5s.67 1.5 1.5 1.5 1.5-.67 1.5-1.5-.67-1.5-1.5-1.5z"/></svg>
             </button>
             <button onClick={() => { setActiveModal('calendar'); setIsPlusMenuOpen(false); }} className="p-2 active:scale-75 transition">
-              <svg className="w-6 h-6 fill-white" viewBox="0 0 24 24"><path d="M19 4h-1V2h-2v2H8V2H6v2H5c-1.11 0-1.99.9-1.99 2L3 20c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V10h14v10zm0-12H5V6h14v2zm-7 5h5v5h-5z"/></svg>
+              <svg className="w-7 h-7 fill-white" viewBox="0 0 24 24"><path d="M19 4h-1V2h-2v2H8V2H6v2H5c-1.11 0-1.99.9-1.99 2L3 20c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V10h14v10zm0-12H5V6h14v2zm-7 5h5v5h-5z"/></svg>
             </button>
             <button onClick={() => { setActiveModal('feed'); setIsPlusMenuOpen(false); }} className="p-2 active:scale-75 transition">
-              <svg className="w-6 h-6 fill-white" viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg>
+              <svg className="w-7 h-7 fill-white" viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg>
             </button>
           </div>
         )}
@@ -991,19 +980,12 @@ export default function App() {
           <button onClick={handleSend} className="bg-[#37545B] active:scale-95 text-white text-xs font-medium px-4 py-2 rounded-full shadow-sm">傳送</button>
         </div>
 
-        {/* 🌟 抽屜叫用：Props 恢復完全對接 */}
+        {/* 抽屜模組調用 */}
         {activeModal === 'album' && (
           <AlbumModal albumList={albumList} />
         )}
 
-        {activeModal === 'voices' && (
-          <FileModal dynamicVoiceList={dynamicVoiceList} AudioBubble={AudioBubble} />
-        )}
-
-        {activeModal === 'works' && (
-          <WorksModal worksData={worksData} />
-        )}
-
+        {/* 🌟 Calendar 傳入完整的 allMediaEvents 與 typeEmojiMap */}
         {activeModal === 'calendar' && (
           <CalendarModal 
             allMediaEvents={allMediaEvents} 
@@ -1014,12 +996,21 @@ export default function App() {
         {activeModal === 'feed' && (
           <FeedModal
             feedItems={feedItems}
-            interviewData={interviewData}
+            selectedFeedItem={selectedFeedItem}
+            setSelectedFeedItem={setSelectedFeedItem}
+            currentInterviewDialogue={currentInterviewDialogue}
             formatVideoSource={formatVideoSource}
+            feedScrollPosition={feedScrollPosition}
+            setFeedScrollPosition={setFeedScrollPosition}
           />
+        )}
+
+        {activeModal === 'voices' && (
+          <FileModal dynamicVoiceList={dynamicVoiceList} AudioBubble={AudioBubble} />
         )}
 
       </div>
     </div>
   );
 }
+
