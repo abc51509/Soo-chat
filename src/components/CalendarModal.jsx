@@ -1,39 +1,6 @@
 import React, { useState, useMemo } from 'react';
 
-const getField = (obj, ...keys) => {
-  if (!obj) return '';
-  for (const k of keys) {
-    const cleanKey = k.toLowerCase().replace(/[^a-z0-9_]/g, '');
-    if (obj[k]?.trim()) return obj[k].trim();
-    if (obj[cleanKey]?.trim()) return obj[cleanKey].trim();
-  }
-  return '';
-};
-
-// 🌟 行程專屬名稱：去除重複日期，改為「來源-品牌-相簿名稱」
-const formatEventScheduleTitle = (item) => {
-  const parts = [];
-
-  const source = getField(item, 'news_source', 'source');
-  if (source) parts.push(source);
-
-  const brand = getField(item, 'brand');
-  if (brand) parts.push(brand);
-
-  const albumName = (item.album_name || '').trim();
-  if (albumName && albumName !== '所有相片' && albumName !== '未分類歸檔') {
-    parts.push(albumName);
-  }
-
-  if (parts.length > 0) {
-    return parts.join('-');
-  }
-
-  // 備用退路
-  return (item.news_title || item.caption || '日程行程').trim();
-};
-
-export default function CalendarModal({ mediaData = [], typeEmojiMap = {} }) {
+export default function CalendarModal({ allMediaEvents = [], typeEmojiMap = {} }) {
   const currentYear = 2026;
   const currentMonth = 11;
   const currentDay = 7;
@@ -41,38 +8,6 @@ export default function CalendarModal({ mediaData = [], typeEmojiMap = {} }) {
   const [viewYear, setViewYear] = useState(currentYear);
   const [viewMonth, setViewMonth] = useState(currentMonth);
   const [selectedDay, setSelectedDay] = useState(currentDay);
-
-  // 解析所有行程資料（僅修改 title 組裝）
-  const allMediaEvents = useMemo(() => {
-    return mediaData
-      .map((m) => {
-        const rawDate = getField(m, 'date');
-        if (!rawDate) return null;
-        const parts = rawDate.split(',');
-        if (parts.length < 3) return null;
-
-        const year = parseInt(parts[0].trim(), 10);
-        const month = parseInt(parts[1].trim(), 10);
-        const day = parseInt(parts[2].trim(), 10);
-        if (isNaN(year) || isNaN(month) || isNaN(day)) return null;
-
-        const typeValue = getField(m, 'type', 'sub_type', 'subtype', 'category');
-
-        return {
-          rawDate,
-          year,
-          month,
-          day,
-          // 🌟 這裡只顯示行程名稱，不重複寫日期
-          title: formatEventScheduleTitle(m),
-          status: m.status || m.sub_type || '',
-          type: typeValue,
-          caption: m.caption || '',
-          images: (m.images || '').trim().split(/[\s,]+/).filter(u => u.startsWith('http'))
-        };
-      })
-      .filter(Boolean);
-  }, [mediaData]);
 
   const daysInMonth = new Date(viewYear, viewMonth, 0).getDate();
   const firstDayWeek = new Date(viewYear, viewMonth - 1, 1).getDay();
@@ -97,7 +32,6 @@ export default function CalendarModal({ mediaData = [], typeEmojiMap = {} }) {
     setSelectedDay(null);
   };
 
-  // 當前選取日期的行程清單
   const selectedDayEvents = useMemo(() => {
     if (!selectedDay) return [];
     return allMediaEvents.filter(
@@ -107,16 +41,34 @@ export default function CalendarModal({ mediaData = [], typeEmojiMap = {} }) {
 
   return (
     <div className="absolute inset-0 bg-[#0B1120] z-50 flex flex-col text-slate-100 backdrop-blur-md animate-fade-in select-none">
-      {/* 頂部導航列：h-[88px] pt-14 pb-2.5 items-end 貼齊底部 */}
-      <div className="pt-14 pb-2.5 px-5 bg-[#4E727A] flex items-end justify-between border-b border-[#3D5C63] shadow-md shrink-0 h-[88px]">
-        <span className="font-bold text-xl tracking-wider text-white leading-none">CALENDAR</span>
-        <div className="flex items-center space-x-2 text-xs font-mono leading-none">
-          <button onClick={prevMonth} className="p-1 active:scale-90 text-white/80 hover:text-white">◀</button>
-          <span className="text-[#81D4D2] font-bold">
+      {/* 🌟 頂部導航列：h-[88px] pt-14 pb-2.5 items-end，月份在 bar 正中間下面 */}
+      <div className="relative pt-14 pb-2.5 px-5 bg-[#4E727A] flex items-end justify-between border-b border-[#3D5C63] shadow-md shrink-0 h-[88px]">
+        {/* 左側標題 */}
+        <span className="font-bold text-xl tracking-wider text-white leading-none z-10">
+          CALENDAR
+        </span>
+
+        {/* 🌟 顯示月份在 bar 正中間下面 */}
+        <div className="absolute inset-x-0 bottom-2.5 flex items-center justify-center space-x-3 text-xs font-mono leading-none pointer-events-none">
+          <button 
+            onClick={prevMonth} 
+            className="p-1 pointer-events-auto active:scale-90 text-white/80 hover:text-white"
+          >
+            ◀
+          </button>
+          <span className="text-[#81D4D2] font-bold text-sm tracking-wider">
             {viewYear}.{String(viewMonth).padStart(2, '0')}
           </span>
-          <button onClick={nextMonth} className="p-1 active:scale-90 text-white/80 hover:text-white">▶</button>
+          <button 
+            onClick={nextMonth} 
+            className="p-1 pointer-events-auto active:scale-90 text-white/80 hover:text-white"
+          >
+            ▶
+          </button>
         </div>
+
+        {/* 右側占位平衡 */}
+        <div className="w-8 z-10" />
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
@@ -171,7 +123,7 @@ export default function CalendarModal({ mediaData = [], typeEmojiMap = {} }) {
           </div>
         </div>
 
-        {/* 🌟 下方選取日期的行程顯示區（只顯示來源-品牌-相簿名稱，不再有重複年月日） */}
+        {/* 下方選取日期的行程顯示區（來源-品牌-相簿名稱，不重複日期） */}
         <div className="space-y-2.5 pb-6">
           <div className="flex items-center justify-between px-1">
             <span className="text-xs font-mono text-teal-200 tracking-wider">
@@ -194,7 +146,6 @@ export default function CalendarModal({ mediaData = [], typeEmojiMap = {} }) {
                     {ems[0]}
                   </span>
                   <div className="flex-1 min-w-0 space-y-1">
-                    {/* 這裡乾淨顯示組裝名稱 */}
                     <h4 className="text-[13px] font-bold text-white leading-snug line-clamp-2">
                       {ev.title}
                     </h4>
