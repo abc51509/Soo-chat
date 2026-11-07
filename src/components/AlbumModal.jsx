@@ -82,13 +82,13 @@ export default function AlbumModal({ albumList = [] }) {
     const diffX = e.changedTouches[0].clientX - touchStartX.current;
     const diffY = e.changedTouches[0].clientY - touchStartY.current;
 
-    // 🌟 判定大幅度下滑關閉（下拉超過 80px）
+    // 判定大幅度下滑關閉（下拉超過 80px）
     if (diffY > 80 && Math.abs(diffX) < 100) {
       closeViewer();
       return;
     }
 
-    // 🌟 判定左右滑動換頁（橫向超過 40px）
+    // 判定左右滑動換頁（橫向超過 40px）
     if (Math.abs(diffX) > 40 && Math.abs(diffY) < 70) {
       if (diffX < 0) {
         goNext();
@@ -125,7 +125,7 @@ export default function AlbumModal({ albumList = [] }) {
         </div>
       </div>
 
-      {/* 🌟 全螢幕大圖瀏覽器：純滑動手勢＋下拉關閉＋iPhone 風格縮圖列 */}
+      {/* 全螢幕大圖瀏覽器：純滑動手勢＋下拉關閉＋iPhone 風格縮圖列 */}
       {isViewerOpen && selectedAlbum && (
         <div
           onTouchStart={onViewerTouchStart}
@@ -145,7 +145,7 @@ export default function AlbumModal({ albumList = [] }) {
             </button>
           </div>
 
-          {/* 照片主體（支援手勢即時位移反饋，無任何箭頭按鈕） */}
+          {/* 照片主體（手勢位移回饋，純滑動無箭頭遮擋） */}
           <div
             onClick={closeViewer}
             className="relative w-full flex-1 flex items-center justify-center overflow-hidden my-auto"
@@ -167,7 +167,7 @@ export default function AlbumModal({ albumList = [] }) {
             </div>
           </div>
 
-          {/* 🌟 iPhone 風格下方微型縮圖列（點擊跳轉＋當前高亮） */}
+          {/* iPhone 風格下方微型縮圖列 */}
           {total > 1 && (
             <div
               ref={thumbnailScrollRef}
@@ -200,9 +200,9 @@ export default function AlbumModal({ albumList = [] }) {
       )}
 
       {/* 主內容區 */}
-      <div className="flex-1 overflow-y-auto p-3.5">
-        {selectedAlbum ? (
-          /* 點入後的照片九宮格瀑布流 */
+      {selectedAlbum ? (
+        /* 點入後的照片列表：九宮格直向滾動瀑布流 */
+        <div className="flex-1 overflow-y-auto p-3.5">
           <div className="grid grid-cols-3 gap-1.5">
             {selectedAlbum.images.map((imgUrl, idx) => (
               <div
@@ -219,17 +219,19 @@ export default function AlbumModal({ albumList = [] }) {
               </div>
             ))}
           </div>
-        ) : (
-          /* 🌟 外層相簿卡片目錄：改回雙排網格（grid-cols-2），封面為橫向 4:3 齊平 */
-          <div className="grid grid-cols-2 gap-3">
+        </div>
+      ) : (
+        /* 🌟 外層相簿卡片目錄：橫向滑動軌道 ＋ 對齊橫向中線 ＋ 直式封面 (aspect-[3/4]) */
+        <div className="flex-1 flex items-center overflow-x-auto overflow-y-hidden px-5 py-4 scrollbar-none snap-x snap-mandatory">
+          <div className="flex space-x-4 items-center m-auto">
             {albumList.map((album, idx) => (
               <div
                 key={idx}
                 onClick={() => setSelectedAlbum(album)}
-                className="bg-[#1E293B]/80 rounded-2xl border border-slate-700/60 p-2.5 flex flex-col justify-between space-y-2 shadow-sm hover:border-[#81D4D2]/60 hover:bg-[#1E293B] cursor-pointer transition active:scale-[0.97]"
+                className="snap-center shrink-0 w-[240px] sm:w-[260px] bg-[#1E293B]/85 rounded-2xl border border-slate-700/60 p-3 flex flex-col space-y-2.5 shadow-xl hover:border-[#81D4D2]/60 hover:bg-[#1E293B] cursor-pointer transition-all active:scale-[0.97]"
               >
-                {/* 封面照片：橫向比例 aspect-[4/3]，高度齊平 */}
-                <div className="rounded-xl overflow-hidden aspect-[4/3] w-full bg-slate-800 shadow-inner relative">
+                {/* 🌟 封面：直式海報比例 (aspect-[3/4]) */}
+                <div className="rounded-xl overflow-hidden aspect-[3/4] w-full bg-slate-800 shadow-inner relative">
                   {album.cover ? (
                     <img
                       src={album.cover}
@@ -243,22 +245,22 @@ export default function AlbumModal({ albumList = [] }) {
                     </div>
                   )}
                   {/* 照片張數標籤 */}
-                  <span className="absolute bottom-1.5 right-1.5 bg-black/75 backdrop-blur-sm text-[#81D4D2] text-[9px] font-mono px-1.5 py-0.5 rounded-full border border-white/10">
+                  <span className="absolute bottom-2 right-2 bg-black/75 backdrop-blur-sm text-[#81D4D2] text-[10px] font-mono px-2 py-0.5 rounded-full border border-white/10">
                     {album.count} P
                   </span>
                 </div>
 
                 {/* 相簿完整組裝名稱 */}
-                <div className="px-0.5">
-                  <h3 className="text-[12px] font-bold text-white leading-snug line-clamp-2">
+                <div className="px-1 min-h-[40px] flex items-center">
+                  <h3 className="text-[13px] font-bold text-white leading-snug line-clamp-2">
                     {album.title}
                   </h3>
                 </div>
               </div>
             ))}
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
