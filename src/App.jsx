@@ -90,7 +90,7 @@ const formatAudioUrl = (raw) => {
   return clean.startsWith('audio/') ? `/${clean}` : `/audio/${clean}`;
 };
 
-// 🌟 智慧相簿名稱組裝：優先讀取 issue 刊號，沒填則回退至 date 自動轉換
+// 🌟 通用相簿名稱組裝公式：[《來源》] [Mon Year] [品牌] [主旨] [in 地點]
 const MONTH_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 const formatAlbumTitle = (item) => {
@@ -107,20 +107,15 @@ const formatAlbumTitle = (item) => {
     parts.push(source.startsWith('《') ? source : `《${source}》`);
   }
 
-  // 2. 刊號/期數：優先讀取 issue！若無 issue 則以 date 的 YYYY,MM,DD 換算
-  const issue = getField(item, 'issue', 'period');
-  if (issue) {
-    parts.push(issue);
-  } else {
-    const rawDate = getField(item, 'date');
-    if (rawDate) {
-      const dParts = rawDate.split(',');
-      if (dParts.length >= 2) {
-        const y = dParts[0].trim();
-        const mIdx = parseInt(dParts[1].trim(), 10) - 1;
-        if (!isNaN(mIdx) && mIdx >= 0 && mIdx < 12) {
-          parts.push(`${MONTH_SHORT[mIdx]} ${y}`);
-        }
+  // 2. 年月：Mon Year
+  const rawDate = getField(item, 'date');
+  if (rawDate) {
+    const dParts = rawDate.split(',');
+    if (dParts.length >= 2) {
+      const y = dParts[0].trim();
+      const mIdx = parseInt(dParts[1].trim(), 10) - 1;
+      if (!isNaN(mIdx) && mIdx >= 0 && mIdx < 12) {
+        parts.push(`${MONTH_SHORT[mIdx]} ${y}`);
       }
     }
   }
@@ -139,7 +134,7 @@ const formatAlbumTitle = (item) => {
   }
   if (body) parts.push(body);
 
-  // 4. 地點：in {location}（有值才接上）
+  // 4. 地點：in {location}（有偵測到才加）
   const loc = getField(item, 'location', 'place', 'city');
   if (loc) {
     parts.push(`in ${loc}`);
@@ -692,7 +687,7 @@ export default function App() {
     return () => clearInterval(t);
   }, [isVideoCalling]);
 
-  // 🌟 相簿分組（使用 event_id 聚合，並自動套用優先吃 issue 的組裝名稱）
+  // 🌟 相簿分組（使用 event_id 聚合，並自動執行名稱組裝公式）
   const albumList = useMemo(() => {
     const groups = {};
 
@@ -704,6 +699,7 @@ export default function App() {
 
       if (!imgs.length) return;
 
+      // 聚合 key 優先採用 event_id，次之為原始 album_name
       const eventKey = getField(m, 'event_id', 'album_name') || 'default_album';
       const dynamicTitle = formatAlbumTitle(m);
 
@@ -1023,7 +1019,7 @@ export default function App() {
           <button onClick={() => triggerCategoryRandom('official')} className="text-[12px] bg-white text-slate-800 font-medium px-3 py-1.5 rounded-full border border-slate-200 shrink-0">✨</button>
         </div>
 
-        {/* ＋號選單（作品列表置中：相簿 ➔ 檔案 ➔ 作品 ➔ 日曆 ➔ FEED） */}
+        {/* ＋號選單 */}
         {isPlusMenuOpen && (
           <div className="bg-[#4E727A]/95 backdrop-blur-md px-4 py-4 flex justify-around items-center border-t border-[#3D5C63] z-20 animate-fade-in shadow-xl">
             <button onClick={() => { setActiveModal('album'); setIsPlusMenuOpen(false); }} className="p-2 active:scale-75 transition">
