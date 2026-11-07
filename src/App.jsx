@@ -7,6 +7,7 @@ import WorksModal from './components/WorksModal';
 
 const SPREADSHEET_ID = '11P8tG-MhZiwrBcGf9TyFirQNwPxKC2YPVbv4XHMEV-A';
 
+// 通用 GViz 資料讀取器
 const fetchSheetData = async (sheetName) => {
   try {
     const url = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:json&headers=1&sheet=${encodeURIComponent(sheetName)}&t=${Date.now()}`;
@@ -89,59 +90,7 @@ const formatAudioUrl = (raw) => {
   return clean.startsWith('audio/') ? `/${clean}` : `/audio/${clean}`;
 };
 
-const MONTH_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
-const formatAlbumTitle = (item) => {
-  const rawAlbumName = getField(item, 'album_name', 'album', 'title');
-  if (rawAlbumName === '所有相片' || rawAlbumName === '未分類歸檔') {
-    return '其他相片';
-  }
-
-  const parts = [];
-
-  const source = getField(item, 'news_source', 'source');
-  if (source) {
-    parts.push(source.startsWith('《') ? source : `《${source}》`);
-  }
-
-  const issue = getField(item, 'issue', 'period');
-  if (issue) {
-    parts.push(issue);
-  } else {
-    const rawDate = getField(item, 'date');
-    if (rawDate) {
-      const dParts = rawDate.split(',');
-      if (dParts.length >= 2) {
-        const y = dParts[0].trim();
-        const mIdx = parseInt(dParts[1].trim(), 10) - 1;
-        if (!isNaN(mIdx) && mIdx >= 0 && mIdx < 12) {
-          parts.push(`${MONTH_SHORT[mIdx]} ${y}`);
-        }
-      }
-    }
-  }
-
-  const brand = getField(item, 'brand');
-  const name = rawAlbumName;
-
-  let body = '';
-  if (brand && name) {
-    body = source ? `- ${brand} ${name}` : `${brand} ${name}`;
-  } else if (brand) {
-    body = source ? `- ${brand}` : brand;
-  } else if (name) {
-    body = source ? `- ${name}` : name;
-  }
-  if (body) parts.push(body);
-
-  const loc = getField(item, 'location', 'place', 'city');
-  if (loc) {
-    parts.push(`in ${loc}`);
-  }
-
-  return parts.length > 0 ? parts.join(' ').replace(/\s+/g, ' ').trim() : (rawAlbumName || '其他相片');
-};
-
+// 語音氣泡組件
 const AudioBubble = ({ audioSrc }) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const audioRef = useRef(null);
@@ -685,7 +634,7 @@ export default function App() {
     return () => clearInterval(t);
   }, [isVideoCalling]);
 
-  // 🌟 相簿核心：獨立相簿（>=3張）形成獨立本，已成相簿者不再進入所有/其他相簿
+  // 🌟 ALBUM 唯一聚合與命名依據：只認 album_name！
   const albumList = useMemo(() => {
     const rawGroups = {};
 
@@ -697,13 +646,13 @@ export default function App() {
 
       if (!imgs.length) return;
 
-      const eventKey = getField(m, 'event_id', 'album_name');
-      const key = eventKey || '__misc_unclassified__';
-      const dynamicTitle = formatAlbumTitle(m);
+      // 唯一依據：只認 album_name
+      const rawName = (m.album_name || '').trim();
+      const key = rawName ? rawName : '__unclassified__';
 
       if (!rawGroups[key]) {
         rawGroups[key] = {
-          title: dynamicTitle,
+          title: rawName || '其他相片',
           images: [],
           latestDate: ''
         };
@@ -721,10 +670,10 @@ export default function App() {
     const usedImagesInIndependent = new Set();
     const leftoverImages = [];
 
-    // 第一輪：挑選滿 3 張的獨立相簿，並記錄已收錄的照片 URL
+    // 第一輪：滿 3 張照片獨立成冊
     Object.entries(rawGroups).forEach(([key, g]) => {
       const uniqueImgs = Array.from(new Set(g.images));
-      if (key !== '__misc_unclassified__' && uniqueImgs.length >= 3) {
+      if (key !== '__unclassified__' && uniqueImgs.length >= 3) {
         uniqueImgs.forEach(u => usedImagesInIndependent.add(u));
         independentAlbums.push({
           title: g.title,
@@ -738,10 +687,9 @@ export default function App() {
       }
     });
 
-    // 依日期倒序排列獨立相簿
     independentAlbums.sort((a, b) => b.latestDate.localeCompare(a.latestDate));
 
-    // 第二輪：只有未被任何獨立相簿使用的零碎照片，才歸入「其他相片」
+    // 第二輪：未滿 3 張或沒填 album_name 的照片，統一放入「其他相片」
     const trueLeftovers = Array.from(new Set(leftoverImages)).filter(
       imgUrl => !usedImagesInIndependent.has(imgUrl)
     );
@@ -782,7 +730,7 @@ export default function App() {
           year,
           month,
           day,
-          title: formatAlbumTitle(m),
+          title: m.album_name || m.news_title || m.caption || '日程',
           status: m.status || m.sub_type || '',
           type: typeValue
         };
@@ -790,20 +738,21 @@ export default function App() {
       .filter(Boolean);
   }, [masterMedia]);
 
-  // FEED 聚合解析
+  // 🌟 FEED 唯一聚合依據：只認 news_title！沒填就直接跳過不顯示
   const feedItems = useMemo(() => {
     const grouped = {};
+
     masterMedia.forEach(m => {
-      const mainTitle = getField(m, 'news_title', 'album_name', 'title');
-      const eventId = getField(m, 'event_id', 'interview_id', 'id');
+      // 唯一依據：只認 news_title
+      const title = (m.news_title || '').trim();
+      if (!title) return; // 沒填 news_title 絕對不生成新聞文章！
+
       const videoUrl = getField(m, 'video_url', 'videourl', 'video');
+      const eventId = getField(m, 'event_id', 'interview_id', 'id');
 
-      if (!mainTitle && !videoUrl && !eventId && !m.images) return;
-      const key = mainTitle || m.album_name || m.id || 'feed_item';
-
-      if (!grouped[key]) {
-        grouped[key] = {
-          main_title: mainTitle || m.album_name,
+      if (!grouped[title]) {
+        grouped[title] = {
+          main_title: title,
           sub_title: getField(m, 'news_subtitle', 'subtitle'),
           source: getField(m, 'news_source', 'source'),
           time_text: getField(m, 'date'),
@@ -816,10 +765,11 @@ export default function App() {
         };
       }
 
-      if (eventId && !grouped[key].interview_id) {
-        grouped[key].interview_id = eventId;
+      if (eventId && !grouped[title].interview_id) {
+        grouped[title].interview_id = eventId;
       }
 
+      // 多行相同新聞標題時，合併影片
       if (videoUrl) {
         const urls = videoUrl.split(/;|\n{2,}/).map(s => s.trim()).filter(Boolean);
         const rawCaption = getField(m, 'video_caption', 'videocaption', 'video_desc');
@@ -831,8 +781,8 @@ export default function App() {
         }
 
         urls.forEach((u, i) => {
-          if (!grouped[key].videos.some(v => v.url === u)) {
-            grouped[key].videos.push({
+          if (!grouped[title].videos.some(v => v.url === u)) {
+            grouped[title].videos.push({
               url: u,
               caption: caps[i] !== undefined ? caps[i] : (caps[0] || '')
             });
@@ -840,13 +790,14 @@ export default function App() {
         });
       }
 
+      // 多行相同新聞標題時，合併照片
       const rawImgs = getField(m, 'images', 'image');
       const imgs = rawImgs.split(/[\s,]+/).map(u => u.trim()).filter(u => u.startsWith('http'));
       const subType = getField(m, 'sub_type', 'subtype').toLowerCase();
       if (subType === 'layout') {
-        grouped[key].layout_images.push(...imgs);
+        grouped[title].layout_images.push(...imgs);
       } else {
-        grouped[key].main_images.push(...imgs);
+        grouped[title].main_images.push(...imgs);
       }
     });
 
@@ -884,6 +835,7 @@ export default function App() {
 
       <div className="w-full sm:max-w-[420px] h-[100dvh] sm:h-[92vh] sm:max-h-[880px] bg-[#ECEEF1] sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden relative border-0 sm:border sm:border-slate-700">
         
+        {/* 全螢幕來電介面 */}
         {callStatus !== 'idle' && (
           <div className="absolute inset-0 bg-slate-950/95 z-50 flex flex-col justify-between items-center py-16 px-6 text-white backdrop-blur-md animate-fade-in">
             <div className="flex flex-col items-center mt-10 space-y-4">
@@ -912,6 +864,7 @@ export default function App() {
           </div>
         )}
 
+        {/* 全螢幕視訊通話 */}
         {isVideoCalling && (
           <div className="absolute inset-0 bg-black z-50 flex flex-col justify-between items-center py-12 px-6 text-white animate-fade-in">
             <video
@@ -941,6 +894,7 @@ export default function App() {
           </div>
         )}
 
+        {/* 主頂部導航列 */}
         <div className="pt-12 pb-5 bg-[#4E727A] text-white flex items-center justify-between px-5 z-20 shrink-0 shadow-md border-b border-[#3D5C63]">
           <div className="flex items-center space-x-3.5">
             <div className="w-14 h-14 rounded-full bg-slate-800/30 overflow-hidden ring-2 ring-white/30 shadow-md shrink-0">
@@ -963,6 +917,7 @@ export default function App() {
           </div>
         </div>
 
+        {/* 聊天區 */}
         <div className="flex-1 overflow-y-auto px-3.5 py-4 space-y-3.5 scroll-smooth">
           {messages.length > 0 && (
             <div className="text-center my-1">
@@ -1024,6 +979,7 @@ export default function App() {
           <div ref={messagesEndRef} />
         </div>
 
+        {/* 測試控制板 */}
         <div className="bg-slate-900/10 px-2.5 py-2 flex space-x-2 overflow-x-auto border-t border-slate-200/80 z-10 scrollbar-none shrink-0">
           <button onClick={() => triggerIncomingCall('audio')} className="text-[12px] bg-teal-50 text-teal-800 font-semibold px-3 py-1.5 rounded-full border border-teal-300/80 shrink-0">📞</button>
           <button onClick={triggerManualText} className="text-[12px] bg-teal-50 text-teal-800 font-semibold px-3 py-1.5 rounded-full border border-teal-300/80 shrink-0">💬</button>
@@ -1038,6 +994,7 @@ export default function App() {
           <button onClick={() => triggerCategoryRandom('official')} className="text-[12px] bg-white text-slate-800 font-medium px-3 py-1.5 rounded-full border border-slate-200 shrink-0">✨</button>
         </div>
 
+        {/* ＋號選單（作品列表置中：相簿 ➔ 檔案 ➔ 作品 ➔ 日曆 ➔ FEED） */}
         {isPlusMenuOpen && (
           <div className="bg-[#4E727A]/95 backdrop-blur-md px-4 py-4 flex justify-around items-center border-t border-[#3D5C63] z-20 animate-fade-in shadow-xl">
             <button onClick={() => { setActiveModal('album'); setIsPlusMenuOpen(false); }} className="p-2 active:scale-75 transition">
@@ -1060,6 +1017,7 @@ export default function App() {
           </div>
         )}
 
+        {/* 底部輸入列 */}
         <div className="bg-[#4E727A] p-2.5 flex items-center space-x-2 border-t border-[#3D5C63] z-20 shrink-0 pb-6">
           <button onClick={() => setIsPlusMenuOpen(!isPlusMenuOpen)} className={`w-9 h-9 rounded-full flex items-center justify-center transition shrink-0 ${isPlusMenuOpen ? 'bg-white text-[#4E727A] rotate-45' : 'bg-white/15 text-white'}`}>
             <span className="text-xl font-light leading-none">＋</span>
@@ -1074,6 +1032,7 @@ export default function App() {
           <button onClick={handleSend} className="bg-[#37545B] active:scale-95 text-white text-xs font-medium px-4 py-2 rounded-full shadow-sm">傳送</button>
         </div>
 
+        {/* 抽屜模組調用 */}
         {activeModal === 'album' && (
           <AlbumModal albumList={albumList} />
         )}
