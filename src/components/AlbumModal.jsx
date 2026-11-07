@@ -66,7 +66,7 @@ export default function AlbumModal({ albumList = [] }) {
     const diffX = e.touches[0].clientX - touchStartX.current;
     const diffY = e.touches[0].clientY - touchStartY.current;
 
-    // 垂直位移較大且往下拖，阻斷原生滾動以支援下拉關閉
+    // 若垂直位移較大且往下拖，阻斷原生滾動以支援下拉關閉
     if (Math.abs(diffY) > Math.abs(diffX) && diffY > 0) {
       e.preventDefault();
       setDragY(diffY);
@@ -145,7 +145,7 @@ export default function AlbumModal({ albumList = [] }) {
             </button>
           </div>
 
-          {/* 照片主體（純滑動，無箭頭遮擋） */}
+          {/* 照片主體（支援手勢位移回饋，純滑動無箭頭遮擋） */}
           <div
             onClick={closeViewer}
             className="relative w-full flex-1 flex items-center justify-center overflow-hidden my-auto"
@@ -202,7 +202,7 @@ export default function AlbumModal({ albumList = [] }) {
       {/* 主內容區 */}
       <div className="flex-1 overflow-y-auto p-3.5">
         {selectedAlbum ? (
-          /* 點入後的相簿內頁：九宮格照片列表 */
+          /* 點入後的照片九宮格瀑布流 */
           <div className="grid grid-cols-3 gap-1.5">
             {selectedAlbum.images.map((imgUrl, idx) => (
               <div
@@ -220,15 +220,15 @@ export default function AlbumModal({ albumList = [] }) {
             ))}
           </div>
         ) : (
-          /* 🌟 外層相簿目錄：重寫為雙排網格（grid-cols-2），直式封面 (aspect-[3/4]) 齊平排列 */
-          <div className="grid grid-cols-2 gap-3.5">
+          /* 🌟 外層相簿卡片目錄：經典雙排網格（grid-cols-2），直向滑動，封面直式（aspect-[3/4]）齊平 */
+          <div className="grid grid-cols-2 gap-3.5 pb-6">
             {albumList.map((album, idx) => (
               <div
                 key={idx}
                 onClick={() => setSelectedAlbum(album)}
-                className="bg-[#1E293B]/85 rounded-2xl border border-slate-700/60 p-2.5 flex flex-col justify-between space-y-2.5 shadow-md hover:border-[#81D4D2]/60 hover:bg-[#1E293B] cursor-pointer transition-all active:scale-[0.97]"
+                className="bg-[#1E293B]/80 rounded-2xl border border-slate-700/60 p-2.5 flex flex-col justify-between space-y-2.5 shadow-sm hover:border-[#81D4D2]/60 hover:bg-[#1E293B] cursor-pointer transition active:scale-[0.97]"
               >
-                {/* 🌟 封面：直式海報比例 (aspect-[3/4]) 高度統一齊平 */}
+                {/* 封面照片：直式比例 aspect-[3/4]，高度齊平 */}
                 <div className="rounded-xl overflow-hidden aspect-[3/4] w-full bg-slate-800 shadow-inner relative">
                   {album.cover ? (
                     <img
@@ -248,8 +248,8 @@ export default function AlbumModal({ albumList = [] }) {
                   </span>
                 </div>
 
-                {/* 相簿名稱 */}
-                <div className="px-0.5 min-h-[36px] flex items-center">
+                {/* 相簿名稱：直接讀取 album_name，自然折行 */}
+                <div className="px-0.5">
                   <h3 className="text-[12.5px] font-bold text-white leading-snug line-clamp-2">
                     {album.title}
                   </h3>
