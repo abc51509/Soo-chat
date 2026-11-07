@@ -129,15 +129,17 @@ const AudioBubble = ({ audioSrc }) => {
 };
 
 export default function App() {
-  const getCurrentTime = () => {
-    const now = new Date();
-    return `String(now.getHours()).padStart(2,'0'):{String(now.getMinutes()).padStart(2, '0')}`;
-  };
+const getCurrentTime = () => {
+  const now = new Date();
+  return `String(now.getHours()).padStart(2,'0'):{String(now.getMinutes()).padStart(2, '0')}`;
+};
 
-  const getTodayDateStr = () => {
-    const now = new Date();
-    return `now.getFullYear()-{String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-  };
+const formatSeconds = (sec) => {
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  return `String(m).padStart(2,'0'):{String(s).padStart(2, '0')}`;
+};
+
 
   const [appSettings, setAppSettings] = useState({
     name: 'Soo',
