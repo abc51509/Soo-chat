@@ -1,5 +1,33 @@
 import React, { useState, useMemo } from 'react';
 
+const getField = (obj, ...keys) => {
+  if (!obj) return '';
+  for (const k of keys) {
+    const cleanKey = k.toLowerCase().replace(/[^a-z0-9_]/g, '');
+    if (obj[k]?.trim()) return obj[k].trim();
+    if (obj[cleanKey]?.trim()) return obj[cleanKey].trim();
+  }
+  return '';
+};
+
+// 🌟 行程標題：來源-品牌-相簿名稱（不重複帶入日期）
+const assembleScheduleTitle = (item) => {
+  const parts = [];
+  const source = getField(item, 'news_source', 'source');
+  if (source) parts.push(source);
+
+  const brand = getField(item, 'brand');
+  if (brand) parts.push(brand);
+
+  const albumName = (item.album_name || '').trim();
+  if (albumName && albumName !== '所有相片' && albumName !== '未分類歸檔') {
+    parts.push(albumName);
+  }
+
+  if (parts.length > 0) return parts.join('-');
+  return (item.news_title || item.caption || '日程行程').trim();
+};
+
 export default function CalendarModal({ allMediaEvents = [], typeEmojiMap = {} }) {
   const currentYear = 2026;
   const currentMonth = 11;
@@ -41,14 +69,13 @@ export default function CalendarModal({ allMediaEvents = [], typeEmojiMap = {} }
 
   return (
     <div className="absolute inset-0 bg-[#0B1120] z-50 flex flex-col text-slate-100 backdrop-blur-md animate-fade-in select-none">
-      {/* 🌟 頂部導航列：h-[88px] pt-14 pb-2.5 items-end，月份在 bar 正中間下面 */}
+      {/* 頂部導航列：月份置中在 Bar 正中間下面 */}
       <div className="relative pt-14 pb-2.5 px-5 bg-[#4E727A] flex items-end justify-between border-b border-[#3D5C63] shadow-md shrink-0 h-[88px]">
-        {/* 左側標題 */}
         <span className="font-bold text-xl tracking-wider text-white leading-none z-10">
           CALENDAR
         </span>
 
-        {/* 🌟 顯示月份在 bar 正中間下面 */}
+        {/* 🌟 月份置中 */}
         <div className="absolute inset-x-0 bottom-2.5 flex items-center justify-center space-x-3 text-xs font-mono leading-none pointer-events-none">
           <button 
             onClick={prevMonth} 
@@ -67,19 +94,16 @@ export default function CalendarModal({ allMediaEvents = [], typeEmojiMap = {} }
           </button>
         </div>
 
-        {/* 右側占位平衡 */}
         <div className="w-8 z-10" />
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {/* 月曆卡片本體 */}
         <div className="bg-[#1E293B]/80 rounded-2xl border border-slate-700/60 p-3.5 shadow-md">
-          {/* 星期抬頭 */}
           <div className="grid grid-cols-7 gap-1 text-center text-[10.5px] font-mono text-slate-400 mb-2">
             <span>SUN</span><span>MON</span><span>TUE</span><span>WED</span><span>THU</span><span>FRI</span><span>SAT</span>
           </div>
 
-          {/* 月曆網格 */}
           <div className="grid grid-cols-7 gap-1.5">
             {Array.from({ length: firstDayWeek }).map((_, i) => (
               <div key={`empty-${i}`} className="aspect-square" />
@@ -107,6 +131,7 @@ export default function CalendarModal({ allMediaEvents = [], typeEmojiMap = {} }
                   <span className={`text-[10.5px] font-mono font-medium ${isToday ? 'text-[#81D4D2] font-bold' : ''}`}>
                     {dayNum}
                   </span>
+                  {/* 🌟 Emoji 標記 */}
                   <div className="flex flex-wrap gap-0.5 justify-end">
                     {dayEvents.slice(0, 3).map((ev, evIdx) => {
                       const ems = typeEmojiMap[ev.type?.toLowerCase()] || ['📅'];
@@ -123,7 +148,7 @@ export default function CalendarModal({ allMediaEvents = [], typeEmojiMap = {} }
           </div>
         </div>
 
-        {/* 下方選取日期的行程顯示區（來源-品牌-相簿名稱，不重複日期） */}
+        {/* 下方選取日期的行程顯示區 */}
         <div className="space-y-2.5 pb-6">
           <div className="flex items-center justify-between px-1">
             <span className="text-xs font-mono text-teal-200 tracking-wider">
