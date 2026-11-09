@@ -1,36 +1,98 @@
 import React, { useState, useRef, useEffect } from 'react';
 
-export default function AlbumModal({ albumList }) {
+export default function AlbumModal({ mediaList = [] }) {
   const [selectedAlbumName, setSelectedAlbumName] = useState(null);
   const scrollContainerRef = useRef(null);
 
-  // 1. 相簿排序：固定「所有相片」在第一本，其餘依最新 date 倒序排列
+  // 1. 相簿分組與命名規則：
+  // - 格式：《來源》 品牌 期數 - 名稱
+  // - 若名稱為空或總張數小於 3 張，併入「所有相片」
   const sortedAlbumList = React.useMemo(() => {
-    if (!albumList || albumList.length === 0) return [];
+    if (!mediaList || mediaList.length === 0) return [];
 
-    const allPhotosAlbum = albumList.find(
-      (a) => a.title === '所有相片' || a.title === '未分類歸檔'
-    ) || {
+    const groups = {};
+    const unclassifiedImages = [];
+
+    mediaList.forEach((m) => {
+      const rawName = (m.album_name || '').trim();
+      const imgs = (m.images || '')
+        .trim()
+        .split(/[\s,]+/)
+        .filter((u) => u.startsWith('http'));
+
+      if (!imgs.length) return;
+
+      // 無相簿名稱直接進未分類
+      if (!rawName) {
+        unclassifiedImages.push(...imgs);
+        return;
+      }
+
+      // 組合命名：《來源》 品牌 期數 - 名稱
+      const source = (m.news_source || '').trim();
+      const brand = (m.brand || '').trim();
+      const issue = (m.issue || '').trim();
+
+      const prefixParts = [];
+      if (source) prefixParts.push(`《${source}》`);
+      if (brand) prefixParts.push(brand);
+      if (issue) prefixParts.push(issue);
+
+      const prefixStr = prefixParts.join(' ');
+      const fullTitle = prefixStr ? `${prefixStr} - ${rawName}` : rawName;
+
+      if (!groups[fullTitle]) {
+        groups[fullTitle] = {
+          title: fullTitle,
+          images: [],
+          latestDate: ''
+        };
+      }
+
+      groups[fullTitle].images.push(...imgs);
+
+      const d = (m.date || '').trim();
+      if (d && d > groups[fullTitle].latestDate) {
+        groups[fullTitle].latestDate = d;
+      }
+    });
+
+    const validAlbums = [];
+
+    // 檢查張數門檻（< 3 併入未分類）
+    Object.values(groups).forEach((g) => {
+      const uniqueImages = Array.from(new Set(g.images));
+      if (uniqueImages.length < 3) {
+        unclassifiedImages.push(...uniqueImages);
+      } else {
+        validAlbums.push({
+          title: g.title,
+          cover: uniqueImages[0] || null,
+          images: uniqueImages,
+          count: uniqueImages.length,
+          latestDate: g.latestDate
+        });
+      }
+    });
+
+    // 依最新日期倒序排列
+    validAlbums.sort((a, b) => (b.latestDate || '').localeCompare(a.latestDate || ''));
+
+    // 彙總所有相片（置於第一本）
+    const allUniqueImages = Array.from(
+      new Set([...unclassifiedImages, ...validAlbums.flatMap((a) => a.images)])
+    );
+
+    const allPhotosAlbum = {
       title: '所有相片',
-      cover: albumList[0]?.cover || null,
-      images: Array.from(new Set(albumList.flatMap((a) => a.images || []))),
-      count: 0,
+      cover: allUniqueImages[0] || null,
+      images: allUniqueImages,
+      count: allUniqueImages.length,
       latestDate: '9999-99-99'
     };
 
-    allPhotosAlbum.title = '所有相片';
-    allPhotosAlbum.count = allPhotosAlbum.images.length;
-
-    const restAlbums = albumList
-      .filter((a) => a.title !== '所有相片' && a.title !== '未分類歸檔')
-      .sort((a, b) => {
-        const dateA = a.latestDate || a.date || '';
-        const dateB = b.latestDate || b.date || '';
-        return dateB.localeCompare(dateA);
-      });
-
-    return [allPhotosAlbum, ...restAlbums];
-  }, [albumList]);
+    return [allPhotosAlbum, ...validAlbums];
+  }, [mediaList]);
 
   // 2. 四宮格分頁（每頁 4 本，不足 4 本亦保證 top-aligned 垂直對齊）
   const pages = React.useMemo(() => {
