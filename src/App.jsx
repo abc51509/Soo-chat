@@ -967,8 +967,8 @@ export default function App() {
         </div>
 
         {/* 抽屜模組調用 */}
-        {activeModal === 'album' && (
-          <AlbumModal albumList={albumList} />
+       {activeModal === 'album' && (
+          <AlbumModal mediaList={masterMedia} />
         )}
 
         {activeModal === 'voices' && (
