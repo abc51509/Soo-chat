@@ -636,46 +636,7 @@ export default function App() {
     return () => clearInterval(t);
   }, [isVideoCalling]);
 
-  // 相簿分組（依最新日期倒序）
-  const albumList = useMemo(() => {
-    const groups = {};
-    masterMedia.forEach((m) => {
-      let albumKey = m.album_name?.trim() || '所有相片';
-      if (albumKey === '未分類歸檔') albumKey = '所有相片';
 
-      if (!groups[albumKey]) {
-        groups[albumKey] = {
-          title: albumKey,
-          images: [],
-          latestDate: ''
-        };
-      }
-
-      const imgs = (m.images || '')
-        .trim()
-        .split(/[\s,]+/)
-        .filter((u) => u.startsWith('http'));
-      groups[albumKey].images.push(...imgs);
-
-      const d = (m.date || '').trim();
-      if (d && d > groups[albumKey].latestDate) {
-        groups[albumKey].latestDate = d;
-      }
-    });
-
-    return Object.values(groups)
-      .map((g) => {
-        const unique = Array.from(new Set(g.images));
-        return {
-          title: g.title,
-          cover: unique[0] || null,
-          images: unique,
-          count: unique.length,
-          latestDate: g.latestDate
-        };
-      })
-      .filter((g) => g.count > 0);
-  }, [masterMedia]);
 
   // 日曆事件解析
   const allMediaEvents = useMemo(() => {
