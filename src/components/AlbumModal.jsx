@@ -1,4 +1,15 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
+
+// 安全欄位取值函式（相容 cleanKey 與原始標頭）
+const getField = (obj, ...keys) => {
+  if (!obj) return '';
+  for (const k of keys) {
+    const cleanKey = k.toLowerCase().replace(/[^a-z0-9_]/g, '');
+    if (obj[k]?.trim()) return obj[k].trim();
+    if (obj[cleanKey]?.trim()) return obj[cleanKey].trim();
+  }
+  return '';
+};
 
 export default function AlbumModal({ mediaList = [] }) {
   const [selectedAlbumName, setSelectedAlbumName] = useState(null);
@@ -7,17 +18,18 @@ export default function AlbumModal({ mediaList = [] }) {
   // 1. 相簿分組與命名規則：
   // - 格式：《來源》 品牌 期數 - 名稱
   // - 若名稱為空或總張數小於 3 張，併入「所有相片」
-  const sortedAlbumList = React.useMemo(() => {
+  const sortedAlbumList = useMemo(() => {
     if (!mediaList || mediaList.length === 0) return [];
 
     const groups = {};
     const unclassifiedImages = [];
 
     mediaList.forEach((m) => {
-      const rawName = (m.album_name || '').trim();
-      const imgs = (m.images || '')
-        .trim()
+      const rawName = getField(m, 'album_name', 'albumname', 'album');
+      const rawImgs = getField(m, 'images', 'image');
+      const imgs = rawImgs
         .split(/[\s,]+/)
+        .map((u) => u.trim())
         .filter((u) => u.startsWith('http'));
 
       if (!imgs.length) return;
@@ -29,9 +41,9 @@ export default function AlbumModal({ mediaList = [] }) {
       }
 
       // 組合命名：《來源》 品牌 期數 - 名稱
-      const source = (m.news_source || '').trim();
-      const brand = (m.brand || '').trim();
-      const issue = (m.issue || '').trim();
+      const source = getField(m, 'news_source', 'source');
+      const brand = getField(m, 'brand');
+      const issue = getField(m, 'issue');
 
       const prefixParts = [];
       if (source) prefixParts.push(`《${source}》`);
@@ -51,7 +63,7 @@ export default function AlbumModal({ mediaList = [] }) {
 
       groups[fullTitle].images.push(...imgs);
 
-      const d = (m.date || '').trim();
+      const d = getField(m, 'date');
       if (d && d > groups[fullTitle].latestDate) {
         groups[fullTitle].latestDate = d;
       }
