@@ -124,13 +124,13 @@ export default function CalendarModal({
   const firstDayOfWeek = new Date(viewYear, viewMonth, 1).getDay();
 
   // 從 settings 取得對應 type 的 emoji（固定穩定選取，避免重新渲染跳動）
-  const resolveTypeEmoji = (typeKey, seed = 0) => {
+  const resolveTypeEmoji = (typeKey, seed = 0, fallback = '✨') => {
     const cleanKey = (typeKey || '').toLowerCase().trim();
     const pool = typeEmojiMap[cleanKey];
     if (pool && pool.length > 0) {
       return pool[seed % pool.length];
     }
-    return '✨';
+    return fallback;
   };
 
   // 🌟 整合處理：排除 selfie/gym/car、班機起降、mag/int 雙軌（發行＋往前3個月拍攝）、一般行程、以及每年固定重複紀念日
@@ -139,7 +139,7 @@ export default function CalendarModal({
     const events = [];
     const seenKeys = new Set();
 
-    // 1. 處理 settings 每年固定重複紀念日
+    // 1. 處理 settings 每年固定重複紀念日（優先用 D 欄 anniversary_emoji，未填則退回 typeEmojiMap['anniversary']，不設預設 icon）
     (anniversaries || []).forEach((ann, idx) => {
       const parsed = parseDateParts(ann.date);
       if (!parsed) return;
@@ -154,9 +154,7 @@ export default function CalendarModal({
 
       if (!seenKeys.has(dedupeKey)) {
         seenKeys.add(dedupeKey);
-        const annEmoji = resolveTypeEmoji('anniversary', idx) !== '✨'
-          ? resolveTypeEmoji('anniversary', idx)
-          : '🎂';
+        const annEmoji = (ann.emoji || '').trim() || resolveTypeEmoji('anniversary', idx, '');
         events.push({
           year: viewYear,
           month: parsed.month,
@@ -352,6 +350,7 @@ export default function CalendarModal({
             {Array.from({ length: daysInMonth }).map((_, i) => {
               const dayNum = i + 1;
               const dayEvents = activeMonthEvents.filter(ev => ev.day === dayNum);
+              const dayEmojis = dayEvents.map(ev => ev.emoji).filter(Boolean);
 
               return (
                 <div
@@ -360,11 +359,11 @@ export default function CalendarModal({
                 >
                   <span className="text-[10px] font-mono text-slate-400 leading-none">{dayNum}</span>
                   
-                  {dayEvents.length > 0 && (
+                  {dayEmojis.length > 0 && (
                     <div className="flex flex-wrap items-center justify-end gap-0.5 self-end max-w-full">
-                      {dayEvents.map((ev, eIdx) => (
+                      {dayEmojis.map((em, eIdx) => (
                         <span key={eIdx} className="text-xs select-none leading-none filter drop-shadow">
-                          {ev.emoji}
+                          {em}
                         </span>
                       ))}
                     </div>
@@ -383,7 +382,7 @@ export default function CalendarModal({
           {activeMonthEvents.length > 0 ? (
             activeMonthEvents.map((ev, idx) => (
               <div key={idx} className="flex items-start space-x-2 text-[11.5px] text-slate-300">
-                <span className="text-xs shrink-0 select-none">{ev.emoji}</span>
+                {ev.emoji && <span className="text-xs shrink-0 select-none">{ev.emoji}</span>}
                 <span className="leading-snug">
                   <strong className="text-white font-mono mr-1.5">{ev.rawDate}</strong>
                   <span>{ev.title}</span>
@@ -391,7 +390,7 @@ export default function CalendarModal({
               </div>
             ))
           ) : (
-            <p className="text-[11px] text-slate-500 font-light">無排定行程</p>
+            <p className="text-[11px] text-slate-500 font-light">No scheduled events</p>
           )}
         </div>
       </div>
