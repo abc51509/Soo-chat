@@ -79,7 +79,7 @@ const formatVideoSource = (raw) => {
   return { type: 'direct', url: finalPath };
 };
 
-// 支援多筆音檔分隔隨機挑一首，並完整清洗前後引號與空白
+// 1️⃣ 修正音檔解析：支援 random_like 關鍵字直接對應三首自拍語音，並支援多檔隨機挑選
 const formatAudioUrl = (raw) => {
   if (!raw?.trim()) return '';
   const candidates = raw
@@ -89,6 +89,15 @@ const formatAudioUrl = (raw) => {
 
   if (!candidates.length) return '';
   let clean = candidates[Math.floor(Math.random() * candidates.length)];
+
+  if (clean.toLowerCase() === 'random_like') {
+    const likePool = [
+      '/audio/Do_u_like_it.mp3',
+      '/audio/How_is_it_Do_u_like_it.mp3',
+      '/audio/How_is_it.mp3'
+    ];
+    return likePool[Math.floor(Math.random() * likePool.length)];
+  }
 
   if (!/\.(mp3|wav|m4a|ogg)$/i.test(clean)) {
     clean += '.mp3';
@@ -172,45 +181,43 @@ export default function App() {
     return 'denied';
   });
 
+  // 2️⃣ 還原最穩的同步直發通知（左邊 avatar icon、上方 app_name、下方動作文案）
+  const sendNotification = (bodyText, customTitle = null) => {
+    if (typeof window === 'undefined' || !('Notification' in window)) return;
+    if (Notification.permission !== 'granted') return;
+
+    const title = customTitle || appSettings.name;
+    const options = {
+      body: bodyText,
+      icon: appSettings.avatar,
+      badge: appSettings.avatar
+    };
+
+    try {
+      new Notification(title, options);
+    } catch (e) {
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.ready
+          .then((reg) => {
+            if (reg && reg.showNotification) {
+              reg.showNotification(title, options);
+            }
+          })
+          .catch(() => {});
+      }
+    }
+  };
+
   const handleRequestNotification = async () => {
     if (typeof window === 'undefined' || !('Notification' in window)) return;
     try {
       const result = await Notification.requestPermission();
       setNotifPermission(result);
       if (result === 'granted') {
-        sendNotification(appSettings.name, '通知功能已開啟');
+        sendNotification('通知功能已開啟');
       }
     } catch (e) {
       console.log('請求通知權限失敗:', e);
-    }
-  };
-
-  // 升級推播發送（相容桌面 PWA Service Worker 與一般瀏覽器）
-  const sendNotification = async (title, body) => {
-    if (typeof window === 'undefined' || !('Notification' in window)) return;
-    if (Notification.permission !== 'granted') return;
-
-    const options = {
-      body,
-      icon: appSettings.avatar,
-      badge: appSettings.avatar
-    };
-
-    try {
-      if ('serviceWorker' in navigator) {
-        const reg = await navigator.serviceWorker.getRegistration();
-        if (reg && reg.showNotification) {
-          await reg.showNotification(title, options);
-          return;
-        }
-      }
-      new Notification(title, options);
-    } catch (e) {
-      try {
-        new Notification(title, options);
-      } catch (err) {
-        console.log('通知失敗:', err);
-      }
     }
   };
 
@@ -418,7 +425,7 @@ export default function App() {
       ]);
 
       if (i === 0 && document.hidden) {
-        sendNotification(`${appSettings.name} 傳來了新訊息`, bubbles[i]);
+        sendNotification(bubbles[i]);
       }
       if (i < bubbles.length - 1) await new Promise(r => setTimeout(r, 300));
     }
@@ -443,7 +450,7 @@ export default function App() {
         time: getCurrentTime()
       }
     ]);
-    if (document.hidden) sendNotification(`${appSettings.name} 傳送了一則語音訊息`, '點擊開啟查看');
+    if (document.hidden) sendNotification('已傳送語音訊息');
   };
 
   const addCallRecord = (statusText = '未接來電', role = 'assistant', durationText = null) => {
@@ -525,14 +532,17 @@ export default function App() {
   const triggerIncomingCall = (type = 'audio') => {
     setCallType(type);
     setCallStatus('ringing');
-    if (document.hidden) sendNotification(`${appSettings.name} 正在來電...`, '請開啟畫面接聽');
+    if (document.hidden) {
+      sendNotification(type === 'video' ? '視訊來電...' : '語音來電...');
+    }
 
     clearTimeout(ringingTimeoutRef.current);
     ringingTimeoutRef.current = setTimeout(() => {
       setCallStatus(current => {
         if (current === 'ringing') {
-          addCallRecord(type === 'video' ? '未接視訊' : '未接來電', 'assistant');
-          sendNotification('未接來電', `${appSettings.name} 剛剛嘗試撥打電話給您`);
+          const missedLabel = type === 'video' ? '未接視訊' : '未接來電';
+          addCallRecord(missedLabel, 'assistant');
+          sendNotification(missedLabel);
           triggerMissedCallFollowUp();
           return 'idle';
         }
@@ -585,7 +595,7 @@ export default function App() {
     sendVoiceMessage({ src: picked.src });
   };
 
-  // 1️⃣ & 3️⃣ 照片分類隨機觸發：只認 caption（絕不誤抓 news_summary），並精準讀取 audio_after 與完整 Follow-ups
+  // 照片分類隨機觸發：只認 caption，精準讀取 audio_after 與完整 Follow-ups，並在背景時推播「已傳送照片」
   const triggerCategoryRandom = (catKey) => {
     const targetAliases = catKey === 'magazine' ? ['magazine', 'mag'] : [catKey];
 
@@ -602,8 +612,10 @@ export default function App() {
 
     if (imgList.length === 1) {
       setMessages(prev => [...prev, { id: `${Date.now()}_photo`, role: 'assistant', type: 'photo', imageUrl: imgList[0], time: getCurrentTime() }]);
+      if (document.hidden) sendNotification('已傳送照片');
     } else if (imgList.length > 1) {
       setMessages(prev => [...prev, { id: `${Date.now()}_grid`, role: 'assistant', type: 'album_grid', images: imgList, time: getCurrentTime() }]);
+      if (document.hidden) sendNotification('已傳送照片');
     }
 
     const captionText = getField(item, 'caption');
@@ -621,6 +633,41 @@ export default function App() {
       }
     }
   };
+
+  // 4️⃣ 補回每 5 分鐘自動隨機發送任意訊息（涵蓋聊天室全部功能）
+  const latestTriggerRef = useRef(null);
+  useEffect(() => {
+    latestTriggerRef.current = () => {
+      if (callStatus !== 'idle' || isVideoCalling || isTyping) return;
+
+      const actions = [
+        () => triggerManualText(),
+        () => triggerManualVoice(),
+        () => triggerIncomingCall('audio'),
+        () => triggerIncomingCall('video'),
+        () => triggerCategoryRandom('gym'),
+        () => triggerCategoryRandom('car'),
+        () => triggerCategoryRandom('selfie'),
+        () => triggerCategoryRandom('gd'),
+        () => triggerCategoryRandom('outing'),
+        () => triggerCategoryRandom('magazine'),
+        () => triggerCategoryRandom('official')
+      ];
+
+      const randomAction = actions[Math.floor(Math.random() * actions.length)];
+      randomAction();
+    };
+  });
+
+  useEffect(() => {
+    const autoInterval = setInterval(() => {
+      if (latestTriggerRef.current) {
+        latestTriggerRef.current();
+      }
+    }, 5 * 60 * 1000);
+
+    return () => clearInterval(autoInterval);
+  }, []);
 
   useEffect(() => {
     const checkWakeup = () => {
@@ -652,7 +699,7 @@ export default function App() {
         doneSteps.push(step);
         localStorage.setItem(storageKey, JSON.stringify(doneSteps));
         addCallRecord('未接來電', 'assistant');
-        sendNotification(`未接來電 (${appSettings.name})`, '快起床囉！');
+        sendNotification('未接來電');
         setTimeout(() => sendVoiceMessage({ src: audio }), 1000);
       }
     };
@@ -898,7 +945,7 @@ export default function App() {
           </div>
         )}
 
-        {/* 2️⃣ 全螢幕視訊通話（獨立滿版底層包裹 video，徹底消除 iOS/手機底部黑 bar） */}
+        {/* 全螢幕視訊通話 */}
         {isVideoCalling && (
           <div className="absolute inset-0 bg-black z-50 overflow-hidden animate-fade-in">
             <div className="absolute inset-0 w-full h-full">
@@ -932,8 +979,8 @@ export default function App() {
           </div>
         )}
 
-        {/* 主頂部導航列 */}
-        <div className="pt-12 pb-5 bg-[#4E727A] text-white flex items-center justify-between px-5 z-20 shrink-0 shadow-md border-b border-[#3D5C63]">
+        {/* 3️⃣ 主頂部導航列（頭貼下方內距從 pb-5 減半為 pb-2.5，對話框往上提） */}
+        <div className="pt-12 pb-2.5 bg-[#4E727A] text-white flex items-center justify-between px-5 z-20 shrink-0 shadow-md border-b border-[#3D5C63]">
           <div className="flex items-center space-x-3.5">
             <div className="w-14 h-14 rounded-full bg-slate-800/30 overflow-hidden ring-2 ring-white/30 shadow-md shrink-0">
               <img src={appSettings.avatar} alt="avatar" className="w-full h-full object-cover" />
