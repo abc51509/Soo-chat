@@ -848,34 +848,47 @@ export default function App() {
       .filter(Boolean);
   }, [masterMedia]);
 
-  // FEED 聚合解析
+  // FEED 聚合解析：唯一評判依據只認 news_title，沒填標題直接過濾不顯示，多列同名自動合併照片與影片，全面統一 event_id
   const feedItems = useMemo(() => {
     const grouped = {};
     masterMedia.forEach(m => {
-      const mainTitle = getField(m, 'news_title', 'album_name', 'title');
-      const eventId = getField(m, 'event_id', 'interview_id', 'id');
+      const mainTitle = getField(m, 'news_title');
+      if (!mainTitle) return;
+
+      const eventId = getField(m, 'event_id');
       const videoUrl = getField(m, 'video_url', 'videourl', 'video');
+      const subTitle = getField(m, 'news_subtitle', 'subtitle');
+      const source = getField(m, 'news_source', 'source');
+      const brand = getField(m, 'brand');
+      const timeText = getField(m, 'date');
+      const summary = getField(m, 'news_summary', 'summary');
+      const credits = getField(m, 'credits', 'credit');
 
-      if (!mainTitle && !videoUrl && !eventId && !m.images) return;
-      const key = mainTitle || m.album_name || m.id || 'feed_item';
-
-      if (!grouped[key]) {
-        grouped[key] = {
-          main_title: mainTitle || m.album_name,
-          sub_title: getField(m, 'news_subtitle', 'subtitle'),
-          source: getField(m, 'news_source', 'source'),
-          time_text: getField(m, 'date'),
-          summary: getField(m, 'news_summary', 'summary'),
-          interview_id: eventId,
+      if (!grouped[mainTitle]) {
+        grouped[mainTitle] = {
+          main_title: mainTitle,
+          sub_title: subTitle,
+          source: source,
+          brand: brand,
+          time_text: timeText,
+          summary: summary,
+          event_id: eventId,
           videos: [],
-          credits: getField(m, 'credits', 'credit'),
+          credits: credits,
           main_images: [],
           layout_images: []
         };
+      } else {
+        if (!grouped[mainTitle].sub_title && subTitle) grouped[mainTitle].sub_title = subTitle;
+        if (!grouped[mainTitle].source && source) grouped[mainTitle].source = source;
+        if (!grouped[mainTitle].brand && brand) grouped[mainTitle].brand = brand;
+        if (!grouped[mainTitle].time_text && timeText) grouped[mainTitle].time_text = timeText;
+        if (!grouped[mainTitle].summary && summary) grouped[mainTitle].summary = summary;
+        if (!grouped[mainTitle].credits && credits) grouped[mainTitle].credits = credits;
       }
 
-      if (eventId && !grouped[key].interview_id) {
-        grouped[key].interview_id = eventId;
+      if (eventId && !grouped[mainTitle].event_id) {
+        grouped[mainTitle].event_id = eventId;
       }
 
       if (videoUrl) {
@@ -889,8 +902,8 @@ export default function App() {
         }
 
         urls.forEach((u, i) => {
-          if (!grouped[key].videos.some(v => v.url === u)) {
-            grouped[key].videos.push({
+          if (!grouped[mainTitle].videos.some(v => v.url === u)) {
+            grouped[mainTitle].videos.push({
               url: u,
               caption: caps[i] !== undefined ? caps[i] : (caps[0] || '')
             });
@@ -902,9 +915,17 @@ export default function App() {
       const imgs = rawImgs.split(/[\s,]+/).map(u => u.trim()).filter(u => u.startsWith('http'));
       const subType = getField(m, 'sub_type', 'subtype').toLowerCase();
       if (subType === 'layout') {
-        grouped[key].layout_images.push(...imgs);
+        imgs.forEach(img => {
+          if (!grouped[mainTitle].layout_images.includes(img)) {
+            grouped[mainTitle].layout_images.push(img);
+          }
+        });
       } else {
-        grouped[key].main_images.push(...imgs);
+        imgs.forEach(img => {
+          if (!grouped[mainTitle].main_images.includes(img)) {
+            grouped[mainTitle].main_images.push(img);
+          }
+        });
       }
     });
 
@@ -915,14 +936,14 @@ export default function App() {
     }));
   }, [masterMedia]);
 
-  // 訪談資料關聯比對
+  // 訪談資料關聯比對（全面統一只認 event_id）
   const currentInterviewDialogue = useMemo(() => {
-    if (!selectedFeedItem?.interview_id) return [];
-    const targetId = selectedFeedItem.interview_id.trim().toLowerCase();
+    if (!selectedFeedItem?.event_id) return [];
+    const targetId = selectedFeedItem.event_id.trim().toLowerCase();
 
     return interviewData
       .filter(row => {
-        const rowId = getField(row, 'event_id', 'interview_id', 'interviewid', 'id', 'col_0').trim().toLowerCase();
+        const rowId = getField(row, 'event_id', 'id', 'col_0').trim().toLowerCase();
         return rowId && rowId === targetId;
       })
       .map(row => ({
