@@ -79,7 +79,7 @@ const formatVideoSource = (raw) => {
   return { type: 'direct', url: finalPath };
 };
 
-// 1️⃣ 修正音檔解析：支援 random_like 關鍵字直接對應三首自拍語音，並支援多檔隨機挑選
+// 修正音檔解析：支援 random_like 關鍵字直接對應三首自拍語音，並支援多檔隨機挑選
 const formatAudioUrl = (raw) => {
   if (!raw?.trim()) return '';
   const candidates = raw
@@ -170,7 +170,8 @@ export default function App() {
   const [appSettings, setAppSettings] = useState({
     name: 'Soo',
     avatar: 'https://images.plurk.com/6PooPJr1YbOhrMp5CCFdbl.jpg',
-    typeEmojiMap: {}
+    typeEmojiMap: {},
+    anniversaries: []
   });
 
   // 通知權限狀態追蹤
@@ -181,7 +182,7 @@ export default function App() {
     return 'denied';
   });
 
-  // 2️⃣ 還原最穩的同步直發通知（左邊 avatar icon、上方 app_name、下方動作文案）
+  // 優先透過已註冊的 sw.js Service Worker 呼叫 showNotification（確保桌面 PWA 正常彈出通知橫幅），無 SW 時退回 new Notification
   const sendNotification = (bodyText, customTitle = null) => {
     if (typeof window === 'undefined' || !('Notification' in window)) return;
     if (Notification.permission !== 'granted') return;
@@ -193,18 +194,23 @@ export default function App() {
       badge: appSettings.avatar
     };
 
-    try {
-      new Notification(title, options);
-    } catch (e) {
-      if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.ready
-          .then((reg) => {
-            if (reg && reg.showNotification) {
-              reg.showNotification(title, options);
-            }
-          })
-          .catch(() => {});
-      }
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistration()
+        .then((reg) => {
+          if (reg && reg.showNotification) {
+            return reg.showNotification(title, options);
+          }
+          new Notification(title, options);
+        })
+        .catch(() => {
+          try {
+            new Notification(title, options);
+          } catch (e) {}
+        });
+    } else {
+      try {
+        new Notification(title, options);
+      } catch (e) {}
     }
   };
 
@@ -289,7 +295,7 @@ export default function App() {
     localStorage.setItem('soo_follow_up_queue_v2', JSON.stringify(followUpQueue));
   }, [followUpQueue]);
 
-  // 資料載入（包含 works 與 settings 表）
+  // 資料載入（包含 works 與 settings 表，並讀取 anniversary_date / anniversary_name / anniversary_display）
   useEffect(() => {
     Promise.all([
       fetchSheetData('media'),
@@ -308,6 +314,7 @@ export default function App() {
       if (settingRows.length) {
         const conf = {};
         const emojiMap = {};
+        const anniversaryList = [];
 
         settingRows.forEach(r => {
           const k = getField(r, 'key', 'setting_key');
@@ -327,6 +334,18 @@ export default function App() {
               emojiMap[code] = parsedEmojis;
             }
           }
+
+          // 解析每年固定重複紀念日（anniversary_date / anniversary_name / anniversary_display）
+          const annDateRaw = getField(r, 'anniversary_date');
+          const annName = getField(r, 'anniversary_name');
+          const annDisplay = getField(r, 'anniversary_display');
+          if (annDateRaw && (annName || annDisplay)) {
+            anniversaryList.push({
+              date: annDateRaw,
+              name: annName,
+              display: annDisplay || annName
+            });
+          }
         });
 
         const newAvatar = conf.avatar_url || 'https://images.plurk.com/6PooPJr1YbOhrMp5CCFdbl.jpg';
@@ -335,7 +354,8 @@ export default function App() {
         setAppSettings({
           name: newName,
           avatar: newAvatar,
-          typeEmojiMap: emojiMap
+          typeEmojiMap: emojiMap,
+          anniversaries: anniversaryList
         });
 
         document.title = newName;
@@ -424,7 +444,7 @@ export default function App() {
         }
       ]);
 
-      if (i === 0 && document.hidden) {
+      if (i === 0) {
         sendNotification(bubbles[i]);
       }
       if (i < bubbles.length - 1) await new Promise(r => setTimeout(r, 300));
@@ -450,7 +470,7 @@ export default function App() {
         time: getCurrentTime()
       }
     ]);
-    if (document.hidden) sendNotification('已傳送語音訊息');
+    sendNotification('已傳送語音訊息');
   };
 
   const addCallRecord = (statusText = '未接來電', role = 'assistant', durationText = null) => {
@@ -532,9 +552,7 @@ export default function App() {
   const triggerIncomingCall = (type = 'audio') => {
     setCallType(type);
     setCallStatus('ringing');
-    if (document.hidden) {
-      sendNotification(type === 'video' ? '視訊來電...' : '語音來電...');
-    }
+    sendNotification(type === 'video' ? '視訊來電...' : '語音來電...');
 
     clearTimeout(ringingTimeoutRef.current);
     ringingTimeoutRef.current = setTimeout(() => {
@@ -595,7 +613,7 @@ export default function App() {
     sendVoiceMessage({ src: picked.src });
   };
 
-  // 照片分類隨機觸發：只認 caption，精準讀取 audio_after 與完整 Follow-ups，並在背景時推播「已傳送照片」
+  // 照片分類隨機觸發：只認 caption，精準讀取 audio_after 與完整 Follow-ups，並推播「已傳送照片」
   const triggerCategoryRandom = (catKey) => {
     const targetAliases = catKey === 'magazine' ? ['magazine', 'mag'] : [catKey];
 
@@ -612,10 +630,10 @@ export default function App() {
 
     if (imgList.length === 1) {
       setMessages(prev => [...prev, { id: `${Date.now()}_photo`, role: 'assistant', type: 'photo', imageUrl: imgList[0], time: getCurrentTime() }]);
-      if (document.hidden) sendNotification('已傳送照片');
+      sendNotification('已傳送照片');
     } else if (imgList.length > 1) {
       setMessages(prev => [...prev, { id: `${Date.now()}_grid`, role: 'assistant', type: 'album_grid', images: imgList, time: getCurrentTime() }]);
-      if (document.hidden) sendNotification('已傳送照片');
+      sendNotification('已傳送照片');
     }
 
     const captionText = getField(item, 'caption');
@@ -634,7 +652,7 @@ export default function App() {
     }
   };
 
-  // 4️⃣ 補回每 5 分鐘自動隨機發送任意訊息（涵蓋聊天室全部功能）
+  // 每 5 分鐘自動隨機發送任意訊息（涵蓋聊天室全部功能）
   const latestTriggerRef = useRef(null);
   useEffect(() => {
     latestTriggerRef.current = () => {
@@ -979,7 +997,7 @@ export default function App() {
           </div>
         )}
 
-        {/* 3️⃣ 主頂部導航列（頭貼下方內距從 pb-5 減半為 pb-2.5，對話框往上提） */}
+        {/* 主頂部導航列（頭貼下方內距從 pb-5 減半為 pb-2.5，對話框往上提） */}
         <div className="pt-12 pb-2.5 bg-[#4E727A] text-white flex items-center justify-between px-5 z-20 shrink-0 shadow-md border-b border-[#3D5C63]">
           <div className="flex items-center space-x-3.5">
             <div className="w-14 h-14 rounded-full bg-slate-800/30 overflow-hidden ring-2 ring-white/30 shadow-md shrink-0">
@@ -1152,7 +1170,9 @@ export default function App() {
 
         {activeModal === 'calendar' && (
           <CalendarModal 
-            allMediaEvents={allMediaEvents} 
+            allMediaEvents={allMediaEvents}
+            masterMedia={masterMedia}
+            anniversaries={appSettings.anniversaries}
             typeEmojiMap={appSettings.typeEmojiMap}
           />
         )}
