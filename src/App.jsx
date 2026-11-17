@@ -79,7 +79,7 @@ const formatVideoSource = (raw) => {
   return { type: 'direct', url: finalPath };
 };
 
-// 1️⃣ 支援多筆音檔分隔隨機挑一首，並完整清洗前後引號與空白
+// 支援多筆音檔分隔隨機挑一首，並完整清洗前後引號與空白
 const formatAudioUrl = (raw) => {
   if (!raw?.trim()) return '';
   const candidates = raw
@@ -486,7 +486,7 @@ export default function App() {
     sendStaggeredMessages(selected.soo_comment || `去吃${selected.food_name}如何？;我來訂位`);
   };
 
-  // 4️⃣ 完整提取所有 follow_ups / follow_up_1 / follow_up_2 / follow_up_3 欄位
+  // 完整提取所有 follow_ups / follow_up_1 / follow_up_2 / follow_up_3 欄位
   const extractAllFollowUps = (item, baseTitle = '') => {
     const list = [];
     const rawCombined = getField(item, 'follow_ups', 'followups');
@@ -506,7 +506,7 @@ export default function App() {
     }));
   };
 
-  // 3️⃣ 未接來電後續自動追問邏輯（超時未接 & 手動掛斷共用）
+  // 未接來電後續自動追問邏輯（超時未接 & 手動掛斷共用）
   const triggerMissedCallFollowUp = () => {
     setTimeout(() => {
       const diag = pickDialogue('missed_call');
@@ -585,7 +585,7 @@ export default function App() {
     sendVoiceMessage({ src: picked.src });
   };
 
-  // 2️⃣ & 4️⃣ 照片分類隨機觸發：相容 mag/magazine，且完整綁定該列所有 Follow-ups 與語音
+  // 1️⃣ & 3️⃣ 照片分類隨機觸發：只認 caption（絕不誤抓 news_summary），並精準讀取 audio_after 與完整 Follow-ups
   const triggerCategoryRandom = (catKey) => {
     const targetAliases = catKey === 'magazine' ? ['magazine', 'mag'] : [catKey];
 
@@ -606,10 +606,9 @@ export default function App() {
       setMessages(prev => [...prev, { id: `${Date.now()}_grid`, role: 'assistant', type: 'album_grid', images: imgList, time: getCurrentTime() }]);
     }
 
-    const captionText = getField(item, 'caption', 'soo_comment', 'news_summary');
-    const audioAfterRaw = getField(item, 'audio_after', 'audio');
+    const captionText = getField(item, 'caption');
+    const audioAfterRaw = getField(item, 'audio_after', 'audioafter', 'audio');
 
-    // 先寫入這張照片專屬的完整 Follow-up 佇列（取代舊殘留，避免亂跳）
     const newQueue = extractAllFollowUps(item, captionText);
     setFollowUpQueue(newQueue);
 
@@ -899,33 +898,37 @@ export default function App() {
           </div>
         )}
 
-        {/* 全螢幕視訊通話（5️⃣ 移除 scale-105 並使用 inset-0 w-full h-full object-cover object-center 消除底部黑bar） */}
+        {/* 2️⃣ 全螢幕視訊通話（獨立滿版底層包裹 video，徹底消除 iOS/手機底部黑 bar） */}
         {isVideoCalling && (
-          <div className="absolute inset-0 bg-black z-50 flex flex-col justify-between items-center py-12 px-6 text-white animate-fade-in overflow-hidden">
-            <video
-              ref={videoPlayerRef}
-              src="/video/video_call.mp4"
-              playsInline
-              autoPlay
-              onEnded={() => {
-                setIsVideoCalling(false);
-                addCallRecord(`視訊通話 ${formatSeconds(videoDuration)}`, 'user', formatSeconds(videoDuration));
-              }}
-              className="absolute inset-0 w-full h-full object-cover object-center"
-            />
-            <div className="z-10 flex flex-col items-center mt-4 space-y-1">
-              <span className="text-xl font-medium tracking-wide">{appSettings.name}</span>
-              <span className="text-xs text-[#81D4D2] font-mono tracking-widest">{formatSeconds(videoDuration)}</span>
+          <div className="absolute inset-0 bg-black z-50 overflow-hidden animate-fade-in">
+            <div className="absolute inset-0 w-full h-full">
+              <video
+                ref={videoPlayerRef}
+                src="/video/video_call.mp4"
+                playsInline
+                autoPlay
+                onEnded={() => {
+                  setIsVideoCalling(false);
+                  addCallRecord(`視訊通話 ${formatSeconds(videoDuration)}`, 'user', formatSeconds(videoDuration));
+                }}
+                className="w-full h-full min-w-full min-h-full object-cover object-center block"
+              />
             </div>
-            <button
-              onClick={() => {
-                setIsVideoCalling(false);
-                addCallRecord(`視訊通話 ${formatSeconds(videoDuration)}`, 'user', formatSeconds(videoDuration));
-              }}
-              className="z-10 w-16 h-16 rounded-full bg-rose-600 active:scale-95 transition flex items-center justify-center mb-6"
-            >
-              <svg className="w-7 h-7 fill-white rotate-[135deg]" viewBox="0 0 24 24"><path d="M6.62 10.79a15.05 15.05 0 006.59 6.59l2.2-2.2a1 1 0 011.02-.24 11.72 11.72 0 003.68.59 1 1 0 011 1v3.5a1 1 0 01-1 1A17 17 0 013 4a1 1 0 011-1h3.5a1 1 0 011 1c0 1.25.2 2.48.59 3.68a1 1 0 01-.24 1.02l-2.23 2.09z" /></svg>
-            </button>
+            <div className="relative z-10 w-full h-full flex flex-col justify-between items-center py-12 px-6 text-white">
+              <div className="flex flex-col items-center mt-4 space-y-1">
+                <span className="text-xl font-medium tracking-wide drop-shadow">{appSettings.name}</span>
+                <span className="text-xs text-[#81D4D2] font-mono tracking-widest drop-shadow">{formatSeconds(videoDuration)}</span>
+              </div>
+              <button
+                onClick={() => {
+                  setIsVideoCalling(false);
+                  addCallRecord(`視訊通話 ${formatSeconds(videoDuration)}`, 'user', formatSeconds(videoDuration));
+                }}
+                className="w-16 h-16 rounded-full bg-rose-600 active:scale-95 transition flex items-center justify-center mb-6 shadow-lg"
+              >
+                <svg className="w-7 h-7 fill-white rotate-[135deg]" viewBox="0 0 24 24"><path d="M6.62 10.79a15.05 15.05 0 006.59 6.59l2.2-2.2a1 1 0 011.02-.24 11.72 11.72 0 003.68.59 1 1 0 011 1v3.5a1 1 0 01-1 1A17 17 0 013 4a1 1 0 011-1h3.5a1 1 0 011 1c0 1.25.2 2.48.59 3.68a1 1 0 01-.24 1.02l-2.23 2.09z" /></svg>
+              </button>
+            </div>
           </div>
         )}
 
