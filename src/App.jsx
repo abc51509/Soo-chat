@@ -295,7 +295,7 @@ export default function App() {
     localStorage.setItem('soo_follow_up_queue_v2', JSON.stringify(followUpQueue));
   }, [followUpQueue]);
 
-  // 資料載入（包含 works 與 settings 表，支援放於表格中間區塊的 A/B/C 欄 YYYY,MM,DD 紀念日）
+  // 資料載入（包含 works 與 settings 表，支援放於表格中間區塊的 A/B/C/D 欄 YYYY,MM,DD 紀念日與 anniversary_emoji）
   useEffect(() => {
     Promise.all([
       fetchSheetData('media'),
@@ -324,17 +324,20 @@ export default function App() {
           const colA = getField(r, 'col_0');
           const colB = getField(r, 'col_1');
           const colC = getField(r, 'col_2');
+          const colD = getField(r, 'col_3');
 
-          // 判斷是否為放在中間區塊的紀念日列（A 欄符合 YYYY,MM,DD 格式）
+          // 判斷是否為放在中間區塊的紀念日列（A 欄符合 YYYY,MM,DD 格式，D 欄為 anniversary_emoji）
           const annDateCandidate = getField(r, 'anniversary_date') || (/^\d{4},\d{1,2},\d{1,2}$/.test(colA) ? colA : '');
           if (annDateCandidate && /^\d{4},\d{1,2},\d{1,2}$/.test(annDateCandidate)) {
             const annName = getField(r, 'anniversary_name') || colB;
             const annDisplay = getField(r, 'anniversary_display') || colC || annName;
+            const annEmoji = getField(r, 'anniversary_emoji') || colD;
             if (annName || annDisplay) {
               anniversaryList.push({
                 date: annDateCandidate,
                 name: annName,
-                display: annDisplay
+                display: annDisplay,
+                emoji: annEmoji
               });
             }
             return;
