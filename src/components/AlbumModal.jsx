@@ -306,7 +306,7 @@ export default function AlbumModal({ mediaList = [] }) {
                             {album.photos.length}
                           </span>
                         </div>
-                        <p className="mt-2 px-0.5 text-xs font-medium text-white leading-snug break-words">
+                        <p className="mt-2 px-0.5 h-[50px] line-clamp-3 text-xs font-medium text-white leading-snug break-words">
                           {album.title}
                         </p>
                       </div>
