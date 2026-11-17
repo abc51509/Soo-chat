@@ -10,7 +10,63 @@ const MONTH_ABBR = [
   'Jul.', 'Aug.', 'Sep.', 'Oct.', 'Nov.', 'Dec.'
 ];
 
-export default function CalendarModal({ allMediaEvents = [], typeEmojiMap = {} }) {
+const getField = (obj, ...keys) => {
+  if (!obj) return '';
+  for (const k of keys) {
+    const cleanKey = k.toLowerCase().replace(/[^a-z0-9_]/g, '');
+    if (obj[k]?.trim()) return obj[k].trim();
+    if (obj[cleanKey]?.trim()) return obj[cleanKey].trim();
+  }
+  return '';
+};
+
+const pad2 = (n) => String(n).padStart(2, '0');
+
+const formatYMD = (y, m, d) => `${y},${pad2(m)},${pad2(d)}`;
+
+// 解析 YYYY,MM,DD 或 YYYY/M/D 格式
+const parseDateParts = (raw) => {
+  if (!raw) return null;
+  const parts = String(raw).split(/[,/\-.]+/).map(s => s.trim()).filter(Boolean);
+  if (parts.length < 3) return null;
+  const year = parseInt(parts[0], 10);
+  const month = parseInt(parts[1], 10);
+  const day = parseInt(parts[2], 10);
+  if (isNaN(year) || isNaN(month) || isNaN(day)) return null;
+  return { year, month, day };
+};
+
+// 往前推算 N 個月（自動處理月底天數邊界，例如 5/31 往前 3 個月 -> 2/28 或 2/29）
+const subtractMonths = (year, month, day, monthsToSub) => {
+  let targetMonth = month - monthsToSub;
+  let targetYear = year;
+  while (targetMonth <= 0) {
+    targetMonth += 12;
+    targetYear -= 1;
+  }
+  const maxDaysInTarget = new Date(targetYear, targetMonth, 0).getDate();
+  const targetDay = Math.min(day, maxDaysInTarget);
+  return { year: targetYear, month: targetMonth, day: targetDay };
+};
+
+// 英文序數後綴（1st, 2nd, 3rd, 38th）
+const getOrdinalSuffix = (num) => {
+  const mod100 = num % 100;
+  if (mod100 >= 11 && mod100 <= 13) return `${num}th`;
+  switch (num % 10) {
+    case 1: return `${num}st`;
+    case 2: return `${num}nd`;
+    case 3: return `${num}rd`;
+    default: return `${num}th`;
+  }
+};
+
+export default function CalendarModal({
+  allMediaEvents = [],
+  masterMedia = [],
+  anniversaries = [],
+  typeEmojiMap = {}
+}) {
   const today = useMemo(() => new Date(), []);
   const maxYear = today.getFullYear();
   const maxMonth = today.getMonth(); // 0-based
@@ -67,24 +123,174 @@ export default function CalendarModal({ allMediaEvents = [], typeEmojiMap = {} }
   const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
   const firstDayOfWeek = new Date(viewYear, viewMonth, 1).getDay();
 
-  // 🌟 依年、月純數字比對當前月份行程，並優先依 settings 中的 typeEmojiMap 分配 Emoji
+  // 從 settings 取得對應 type 的 emoji（固定穩定選取，避免重新渲染跳動）
+  const resolveTypeEmoji = (typeKey, seed = 0) => {
+    const cleanKey = (typeKey || '').toLowerCase().trim();
+    const pool = typeEmojiMap[cleanKey];
+    if (pool && pool.length > 0) {
+      return pool[seed % pool.length];
+    }
+    return '✨';
+  };
+
+  // 🌟 整合處理：排除 selfie/gym/car、班機起降、mag/int 雙軌（發行＋往前3個月拍攝）、一般行程、以及每年固定重複紀念日
   const currentMonthNum = viewMonth + 1;
   const activeMonthEvents = useMemo(() => {
-    return (allMediaEvents || [])
-      .filter(ev => ev.year === viewYear && ev.month === currentMonthNum)
-      .map(ev => {
-        const typeKey = (ev.type || ev.status || '').toLowerCase().trim();
-        // 優先從 settings 試算表對應，沒有的話預設 ✨
-        const emojiPool = typeEmojiMap[typeKey] || ['✨'];
-        const randomEmoji = emojiPool[Math.floor(Math.random() * emojiPool.length)];
+    const events = [];
+    const seenKeys = new Set();
 
-        return {
-          ...ev,
-          emoji: randomEmoji
-        };
-      })
-      .sort((a, b) => a.day - b.day);
-  }, [allMediaEvents, viewYear, currentMonthNum, typeEmojiMap]);
+    // 1. 處理 settings 每年固定重複紀念日
+    (anniversaries || []).forEach((ann, idx) => {
+      const parsed = parseDateParts(ann.date);
+      if (!parsed) return;
+      if (parsed.month !== currentMonthNum) return;
+      if (viewYear < parsed.year) return;
+
+      const diffYears = viewYear - parsed.year;
+      const ordinalPrefix = diffYears > 0 ? `${getOrdinalSuffix(diffYears)} ` : '';
+      const displayTitle = `${ordinalPrefix}${ann.display || ann.name || ''}`.trim();
+      const dateStr = formatYMD(viewYear, parsed.month, parsed.day);
+      const dedupeKey = `ann_${dateStr}_${displayTitle}`;
+
+      if (!seenKeys.has(dedupeKey)) {
+        seenKeys.add(dedupeKey);
+        const annEmoji = resolveTypeEmoji('anniversary', idx) !== '✨'
+          ? resolveTypeEmoji('anniversary', idx)
+          : '🎂';
+        events.push({
+          year: viewYear,
+          month: parsed.month,
+          day: parsed.day,
+          rawDate: dateStr,
+          title: displayTitle,
+          emoji: annEmoji
+        });
+      }
+    });
+
+    // 2. 處理 media 分頁行程（若無傳入 masterMedia 則安全退回 allMediaEvents）
+    const sourceRows = (masterMedia && masterMedia.length > 0) ? masterMedia : allMediaEvents;
+
+    sourceRows.forEach((m, idx) => {
+      const rawDate = getField(m, 'date', 'rawDate');
+      const parsed = parseDateParts(rawDate);
+      if (!parsed) return;
+
+      const rawType = getField(m, 'type', 'sub_type', 'subtype', 'category');
+      const typeLower = rawType.toLowerCase().trim();
+
+      // 排除自拍、健身、車子
+      if (['selfie', 'gym', 'car'].includes(typeLower)) return;
+
+      const newsSource = getField(m, 'news_source', 'source');
+      const brand = getField(m, 'brand');
+      const albumName = getField(m, 'album_name');
+      const issue = getField(m, 'issue');
+      const location = getField(m, 'location');
+
+      // ♦️ 班機（起飛 / 降落，兼容 Flight / Filght 拼法與 emoji）
+      const isDeparture =
+        typeLower.includes('🛫') ||
+        typeLower.includes('departure') ||
+        typeLower.includes('takeoff');
+      const isArrival =
+        typeLower.includes('🛬') ||
+        typeLower.includes('arrival') ||
+        typeLower.includes('landing');
+
+      if (isDeparture || isArrival) {
+        if (parsed.year === viewYear && parsed.month === currentMonthNum) {
+          const flightEmoji = isDeparture ? '🛫' : '🛬';
+          const dateStr = formatYMD(parsed.year, parsed.month, parsed.day);
+          const titleText = location || albumName || 'Flight';
+          const dedupeKey = `flight_${flightEmoji}_${dateStr}_${titleText}`;
+
+          if (!seenKeys.has(dedupeKey)) {
+            seenKeys.add(dedupeKey);
+            events.push({
+              year: parsed.year,
+              month: parsed.month,
+              day: parsed.day,
+              rawDate: dateStr,
+              title: titleText,
+              emoji: flightEmoji
+            });
+          }
+        }
+        return;
+      }
+
+      // ♦️ mag / int（一筆拆成兩個日曆行程：原日期 Release + 往前推三個月 Shooting）
+      const isMagOrInt = ['mag', 'magazine', 'int', 'interview'].includes(typeLower);
+      if (isMagOrInt) {
+        // 第 1 種：符合原本日期的發行日
+        if (parsed.year === viewYear && parsed.month === currentMonthNum) {
+          const dateStr = formatYMD(parsed.year, parsed.month, parsed.day);
+          const releaseParts = [newsSource, albumName, issue, 'Release'].filter(Boolean);
+          const releaseTitle = releaseParts.join(' ');
+          const dedupeKey = `mag_rel_${dateStr}_${releaseTitle}`;
+
+          if (!seenKeys.has(dedupeKey)) {
+            seenKeys.add(dedupeKey);
+            events.push({
+              year: parsed.year,
+              month: parsed.month,
+              day: parsed.day,
+              rawDate: dateStr,
+              title: releaseTitle,
+              emoji: resolveTypeEmoji(typeLower, idx)
+            });
+          }
+        }
+
+        // 第 2 種：往前推三個月的拍攝日（優先抓 news_source，沒有才抓 brand）
+        const shootDate = subtractMonths(parsed.year, parsed.month, parsed.day, 3);
+        if (shootDate.year === viewYear && shootDate.month === currentMonthNum) {
+          const shootDateStr = formatYMD(shootDate.year, shootDate.month, shootDate.day);
+          const subject = newsSource || brand || albumName;
+          const shootTitle = [subject, 'Shooting'].filter(Boolean).join(' ');
+          const dedupeKey = `mag_shoot_${shootDateStr}_${shootTitle}`;
+
+          if (!seenKeys.has(dedupeKey)) {
+            seenKeys.add(dedupeKey);
+            events.push({
+              year: shootDate.year,
+              month: shootDate.month,
+              day: shootDate.day,
+              rawDate: shootDateStr,
+              title: shootTitle,
+              emoji: '📷'
+            });
+          }
+        }
+        return;
+      }
+
+      // ♦️ 一般情況（show / official / award 等）：icon date brand album_name location
+      if (parsed.year === viewYear && parsed.month === currentMonthNum) {
+        const dateStr = formatYMD(parsed.year, parsed.month, parsed.day);
+        const generalParts = [brand, albumName, location].filter(Boolean);
+        const generalTitle = generalParts.length > 0
+          ? generalParts.join(' ')
+          : (getField(m, 'news_title', 'caption', 'title') || '行程');
+        const dedupeKey = `gen_${typeLower}_${dateStr}_${generalTitle}`;
+
+        if (!seenKeys.has(dedupeKey)) {
+          seenKeys.add(dedupeKey);
+          events.push({
+            year: parsed.year,
+            month: parsed.month,
+            day: parsed.day,
+            rawDate: dateStr,
+            title: generalTitle,
+            emoji: resolveTypeEmoji(typeLower, idx)
+          });
+        }
+      }
+    });
+
+    return events.sort((a, b) => a.day - b.day);
+  }, [masterMedia, allMediaEvents, anniversaries, viewYear, currentMonthNum, typeEmojiMap]);
 
   return (
     <div
@@ -92,9 +298,9 @@ export default function CalendarModal({ allMediaEvents = [], typeEmojiMap = {} }
       onTouchStart={onTouchStart}
       onTouchEnd={onTouchEnd}
     >
-      {/* 頂部標題列 */}
-      <div className="pt-12 pb-5 px-5 bg-[#4E727A] flex items-center justify-start shadow-md border-b border-[#3D5C63] shrink-0">
-        <span className="font-bold text-xl tracking-wider text-white">CALENDAR</span>
+      {/* 🌟 頂部導航列（Header Bar）統一標準規格：h-[88px] px-5 bg-[#4E727A] pt-14 pb-2.5 flex items-end */}
+      <div className="h-[88px] px-5 bg-[#4E727A] border-b border-[#3D5C63] shadow-md shrink-0 pt-14 pb-2.5 flex items-end justify-start">
+        <span className="font-bold text-xl tracking-wider text-white leading-none">CALENDAR</span>
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 flex flex-col justify-between">
@@ -137,7 +343,7 @@ export default function CalendarModal({ allMediaEvents = [], typeEmojiMap = {} }
             <span>SUN</span><span>MON</span><span>TUE</span><span>WED</span><span>THU</span><span>FRI</span><span>SAT</span>
           </div>
 
-          {/* 日曆格子 (純數字比對 ev.day === dayNum) */}
+          {/* 日曆格子（同日多行程並列顯示多個 emoji，不用顏色區分） */}
           <div className="grid grid-cols-7 gap-1.5">
             {Array.from({ length: firstDayOfWeek }).map((_, i) => (
               <div key={`empty-${i}`} className="aspect-square bg-transparent" />
@@ -155,10 +361,12 @@ export default function CalendarModal({ allMediaEvents = [], typeEmojiMap = {} }
                   <span className="text-[10px] font-mono text-slate-400 leading-none">{dayNum}</span>
                   
                   {dayEvents.length > 0 && (
-                    <div className="flex items-center justify-end self-end">
-                      <span className="text-sm select-none leading-none filter drop-shadow">
-                        {dayEvents[0].emoji}
-                      </span>
+                    <div className="flex flex-wrap items-center justify-end gap-0.5 self-end max-w-full">
+                      {dayEvents.map((ev, eIdx) => (
+                        <span key={eIdx} className="text-xs select-none leading-none filter drop-shadow">
+                          {ev.emoji}
+                        </span>
+                      ))}
                     </div>
                   )}
                 </div>
@@ -179,7 +387,6 @@ export default function CalendarModal({ allMediaEvents = [], typeEmojiMap = {} }
                 <span className="leading-snug">
                   <strong className="text-white font-mono mr-1.5">{ev.rawDate}</strong>
                   <span>{ev.title}</span>
-                  {ev.status && <span className="text-slate-400 ml-1 text-[10.5px]">({ev.status})</span>}
                 </span>
               </div>
             ))
