@@ -90,8 +90,8 @@ const formatAudioUrl = (raw) => {
   return clean.startsWith('audio/') ? `/${clean}` : `/audio/${clean}`;
 };
 
-// 語音氣泡組件
-const AudioBubble = ({ audioSrc }) => {
+// 5️⃣ 語音氣泡組件（聊天室預設收窄 w-[142px]，不影響語音列表）
+const AudioBubble = ({ audioSrc, compact = true }) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const audioRef = useRef(null);
 
@@ -106,10 +106,16 @@ const AudioBubble = ({ audioSrc }) => {
     }
   };
 
+  const waveBars = compact
+    ? [45, 75, 100, 60, 85, 50, 90, 65, 40]
+    : [40, 70, 100, 60, 85, 45, 90, 65, 80, 50, 95, 30];
+
   return (
     <div 
       onClick={togglePlay}
-      className="flex items-center space-x-3 bg-white px-4 py-2.5 rounded-2xl rounded-tl-none shadow-sm cursor-pointer hover:bg-slate-50 transition w-full max-w-[200px] border border-slate-200/60"
+      className={`flex items-center space-x-2.5 bg-white px-3.5 py-2.5 rounded-2xl rounded-tl-none shadow-sm cursor-pointer hover:bg-slate-50 transition border border-slate-200/60 ${
+        compact ? 'w-[142px]' : 'w-full max-w-[200px]'
+      }`}
     >
       <audio ref={audioRef} src={audioSrc} onEnded={() => setIsPlaying(false)} preload="auto" />
       <button type="button" className="w-7 h-7 rounded-full bg-[#5FBDB9] text-white flex items-center justify-center shrink-0 shadow-sm">
@@ -119,14 +125,19 @@ const AudioBubble = ({ audioSrc }) => {
           <svg className="w-3 h-3 fill-current ml-0.5" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
         )}
       </button>
-      <div className="flex-1 flex items-center justify-between space-x-1 h-3 pr-1">
-        {[40, 70, 100, 60, 85, 45, 90, 65, 80, 50, 95, 30].map((h, i) => (
+      <div className="flex-1 flex items-center justify-between space-x-1 h-3 pr-0.5">
+        {waveBars.map((h, i) => (
           <span key={i} className={`w-[2.5px] rounded-full transition-all duration-200 ${isPlaying ? 'bg-[#5FBDB9] animate-pulse' : 'bg-slate-300'}`} style={{ height: `${h}%` }} />
         ))}
       </div>
     </div>
   );
 };
+
+// 專門給 FileModal 語音列表使用的原尺寸包裹元件
+const FileListAudioBubble = ({ audioSrc }) => (
+  <AudioBubble audioSrc={audioSrc} compact={false} />
+);
 
 export default function App() {
   const getCurrentTime = () => {
@@ -145,15 +156,52 @@ export default function App() {
     typeEmojiMap: {}
   });
 
-  const sendNotification = (title, body) => {
-    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+  // 2️⃣ 通知權限狀態追蹤
+  const [notifPermission, setNotifPermission] = useState(() => {
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      return Notification.permission;
+    }
+    return 'denied';
+  });
+
+  const handleRequestNotification = async () => {
+    if (typeof window === 'undefined' || !('Notification' in window)) return;
+    try {
+      const result = await Notification.requestPermission();
+      setNotifPermission(result);
+      if (result === 'granted') {
+        sendNotification(appSettings.name, '通知功能已開啟');
+      }
+    } catch (e) {
+      console.log('請求通知權限失敗:', e);
+    }
+  };
+
+  // 2️⃣ 升級推播發送（相容桌面 PWA Service Worker 與一般瀏覽器）
+  const sendNotification = async (title, body) => {
+    if (typeof window === 'undefined' || !('Notification' in window)) return;
+    if (Notification.permission !== 'granted') return;
+
+    const options = {
+      body,
+      icon: appSettings.avatar,
+      badge: appSettings.avatar
+    };
+
+    try {
+      if ('serviceWorker' in navigator) {
+        const reg = await navigator.serviceWorker.getRegistration();
+        if (reg && reg.showNotification) {
+          await reg.showNotification(title, options);
+          return;
+        }
+      }
+      new Notification(title, options);
+    } catch (e) {
       try {
-        new Notification(title, {
-          body,
-          icon: appSettings.avatar
-        });
-      } catch (e) {
-        console.log('通知失敗:', e);
+        new Notification(title, options);
+      } catch (err) {
+        console.log('通知失敗:', err);
       }
     }
   };
@@ -174,7 +222,7 @@ export default function App() {
   const [dialogueList, setDialogueList] = useState([]);
   const [foodWeights, setFoodWeights] = useState([]);
   const [interviewData, setInterviewData] = useState([]);
-  const [worksData, setWorksData] = useState([]); // 🌟 新增作品列表資料 State
+  const [worksData, setWorksData] = useState([]);
 
   const [followUpQueue, setFollowUpQueue] = useState(() => {
     try {
@@ -208,8 +256,13 @@ export default function App() {
   const messagesEndRef = useRef(null);
 
   useEffect(() => {
-    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default') {
-      Notification.requestPermission().catch(() => {});
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      setNotifPermission(Notification.permission);
+      if (Notification.permission === 'default') {
+        Notification.requestPermission()
+          .then((res) => setNotifPermission(res))
+          .catch(() => {});
+      }
     }
   }, []);
 
@@ -221,7 +274,7 @@ export default function App() {
     localStorage.setItem('soo_follow_up_queue_v2', JSON.stringify(followUpQueue));
   }, [followUpQueue]);
 
-  // 🌟 資料載入（包含 works 與 settings 表）
+  // 資料載入（包含 works 與 settings 表）
   useEffect(() => {
     Promise.all([
       fetchSheetData('media'),
@@ -229,7 +282,7 @@ export default function App() {
       fetchSheetData('food_weights'),
       fetchSheetData('interviews'),
       fetchSheetData('settings'),
-      fetchSheetData('works') // 🌟 新增抓取 works
+      fetchSheetData('works')
     ]).then(([mediaRows, diagRows, foodRows, interviewRows, settingRows, worksRows]) => {
       if (mediaRows.length) setMasterMedia(mediaRows);
       if (diagRows.length) setDialogueList(diagRows);
@@ -581,10 +634,11 @@ export default function App() {
       return;
     }
 
+    // 4️⃣ 回覆精準引用使用者剛剛傳送的訊息 (currentInput)，而不是他自己
     if (followUpQueue.length > 0) {
       const [nextItem, ...remaining] = followUpQueue;
       setFollowUpQueue(remaining);
-      setTimeout(() => sendStaggeredMessages(nextItem.replyText, { replyTo: nextItem.replyTo }), 700);
+      setTimeout(() => sendStaggeredMessages(nextItem.replyText, { replyTo: currentInput }), 700);
       return;
     }
 
@@ -635,8 +689,6 @@ export default function App() {
     }
     return () => clearInterval(t);
   }, [isVideoCalling]);
-
-
 
   // 日曆事件解析
   const allMediaEvents = useMemo(() => {
@@ -768,7 +820,8 @@ export default function App() {
         {callStatus !== 'idle' && (
           <div className="absolute inset-0 bg-slate-950/95 z-50 flex flex-col justify-between items-center py-16 px-6 text-white backdrop-blur-md animate-fade-in">
             <div className="flex flex-col items-center mt-10 space-y-4">
-              <div className="w-40 h-40 rounded-full overflow-hidden ring-4 ring-[#81D4D2]/40 shadow-2xl animate-pulse">
+              {/* 3️⃣ 僅在響鈴中 (ringing) 閃爍頭貼，接通 (connected) 後維持正常靜態 */}
+              <div className={`w-40 h-40 rounded-full overflow-hidden ring-4 ring-[#81D4D2]/40 shadow-2xl ${callStatus === 'ringing' ? 'animate-pulse' : ''}`}>
                 <img src={appSettings.avatar} alt="avatar" className="w-full h-full object-cover" />
               </div>
               <span className="text-2xl font-semibold tracking-wider">{appSettings.name}</span>
@@ -829,7 +882,21 @@ export default function App() {
             <div className="w-14 h-14 rounded-full bg-slate-800/30 overflow-hidden ring-2 ring-white/30 shadow-md shrink-0">
               <img src={appSettings.avatar} alt="avatar" className="w-full h-full object-cover" />
             </div>
-            <span className="font-bold text-lg text-white tracking-wide">{appSettings.name}</span>
+            <div className="flex items-center space-x-1.5">
+              <span className="font-bold text-lg text-white tracking-wide">{appSettings.name}</span>
+              {/* 2️⃣ 尚未開啟通知權限時顯示小鈴鐺開關（點擊主動詢問系統權限） */}
+              {notifPermission !== 'granted' && (
+                <button
+                  onClick={handleRequestNotification}
+                  title="開啟通知"
+                  className="p-1 text-white/60 hover:text-white active:scale-90 transition"
+                >
+                  <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
+                    <path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z" />
+                  </svg>
+                </button>
+              )}
+            </div>
           </div>
 
           <div className="flex items-center space-x-2.5">
@@ -837,11 +904,12 @@ export default function App() {
               <span>清空</span>
               <span className="bg-[#81D4D2] text-[#0F3332] font-bold text-[10.5px] px-1.5 py-0.2 rounded-full font-mono ml-1.5">{messages.length}</span>
             </button>
-            <button onClick={() => triggerIncomingCall('audio')} className="w-9 h-9 rounded-full bg-white/15 active:scale-95 flex items-center justify-center">
-              <svg className="w-4.5 h-4.5 fill-white" viewBox="0 0 24 24"><path d="M6.62 10.79a15.05 15.05 0 006.59 6.59l2.2-2.2a1 1 0 011.02-.24 11.72 11.72 0 003.68.59 1 1 0 011 1v3.5a1 1 0 01-1 1A17 17 0 013 4a1 1 0 011-1h3.5a1 1 0 011 1c0 1.25.2 2.48.59 3.68a1 1 0 01-.24 1.02l-2.23 2.09z" /></svg>
+            {/* 1️⃣ 移除電話、視訊 icon 底下的淺色圓圈 */}
+            <button onClick={() => triggerIncomingCall('audio')} className="p-1.5 active:scale-90 transition flex items-center justify-center">
+              <svg className="w-5 h-5 fill-white" viewBox="0 0 24 24"><path d="M6.62 10.79a15.05 15.05 0 006.59 6.59l2.2-2.2a1 1 0 011.02-.24 11.72 11.72 0 003.68.59 1 1 0 011 1v3.5a1 1 0 01-1 1A17 17 0 013 4a1 1 0 011-1h3.5a1 1 0 011 1c0 1.25.2 2.48.59 3.68a1 1 0 01-.24 1.02l-2.23 2.09z" /></svg>
             </button>
-            <button onClick={() => setIsVideoCalling(true)} className="w-9 h-9 rounded-full bg-white/15 active:scale-95 flex items-center justify-center">
-              <svg className="w-5 h-5 fill-white" viewBox="0 0 24 24"><path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z" /></svg>
+            <button onClick={() => setIsVideoCalling(true)} className="p-1.5 active:scale-90 transition flex items-center justify-center">
+              <svg className="w-5.5 h-5.5 fill-white" viewBox="0 0 24 24"><path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z" /></svg>
             </button>
           </div>
         </div>
@@ -872,7 +940,7 @@ export default function App() {
                     <span className={`text-xs font-medium ${msg.durationText ? 'text-slate-800' : 'text-rose-600'}`}>{msg.statusText}</span>
                   </div>
                 ) : msg.type === 'audio' ? (
-                  <AudioBubble audioSrc={msg.audioSrc} />
+                  <AudioBubble audioSrc={msg.audioSrc} compact={true} />
                 ) : msg.type === 'album_grid' ? (
                   <div className="grid grid-cols-3 gap-1 rounded-xl overflow-hidden bg-white p-1.5 border border-slate-200">
                     {msg.images.map((img, i) => (
@@ -934,7 +1002,7 @@ export default function App() {
             <button onClick={() => { setActiveModal('voices'); setIsPlusMenuOpen(false); }} className="p-2 active:scale-75 transition">
               <svg className="w-6 h-6 fill-white" viewBox="0 0 24 24"><path d="M19 4H5c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm-1 12H6c-.55 0-1-.45-1-1V9c0-.55.45-1 1-1h12c.55 0 1 .45 1 1v6c0 .55-.45 1-1 1zM7.5 11c-.83 0-1.5.67-1.5 1.5S6.67 14 7.5 14s1.5-.67 1.5-1.5S8.33 11 7.5 11zm9 0c-.83 0-1.5.67-1.5 1.5s.67 1.5 1.5 1.5 1.5-.67 1.5-1.5-.67-1.5-1.5-1.5z"/></svg>
             </button>
-            {/* 🌟 3. 作品列表 (WORKS，最中間) */}
+            {/* 3. 作品列表 (WORKS，最中間) */}
             <button onClick={() => { setActiveModal('works'); setIsPlusMenuOpen(false); }} className="p-2 active:scale-75 transition relative group">
               <svg className="w-6 h-6 fill-white" viewBox="0 0 24 24">
                 <path d="M18 4l2 4h-3l-2-4h-2l2 4h-3l-2-4H8l2 4H7L5 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V4h-4z"/>
@@ -967,15 +1035,15 @@ export default function App() {
         </div>
 
         {/* 抽屜模組調用 */}
-       {activeModal === 'album' && (
+        {activeModal === 'album' && (
           <AlbumModal mediaList={masterMedia} />
         )}
 
         {activeModal === 'voices' && (
-          <FileModal dynamicVoiceList={dynamicVoiceList} AudioBubble={AudioBubble} />
+          <FileModal dynamicVoiceList={dynamicVoiceList} AudioBubble={FileListAudioBubble} />
         )}
 
-        {/* 🌟 抽屜 3：作品列表 */}
+        {/* 抽屜 3：作品列表 */}
         {activeModal === 'works' && (
           <WorksModal worksData={worksData} />
         )}
