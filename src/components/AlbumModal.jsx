@@ -14,18 +14,21 @@ export default function AlbumModal({ mediaList = [] }) {
   const [selectedAlbum, setSelectedAlbum] = useState(null);
   const [viewerIndex, setViewerIndex] = useState(null);
 
-  // 相簿封面無縫迴圈捲動控制
+  // 相簿封面無縫迴圈捲動控制（絕對鎖死）
   const shelfRef = useRef(null);
   const isResettingRef = useRef(false);
 
-  // 大圖檢視器純滑動與手勢下滑關閉控制
+  // 第 2 層相簿內頁邊緣滑動返回（先回 ALBUM 封面，再滑一次才回聊天室）
+  const detailTouchStartRef = useRef({ x: 0, y: 0 });
+
+  // 大圖檢視器純滑動與手勢下滑關閉控制（絕對鎖死）
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
   const gestureStartRef = useRef({ x: 0, y: 0 });
   const gestureAxisRef = useRef(null); // 'x' | 'y' | null
   const thumbListRef = useRef(null);
 
-  // 4️⃣ 互斥原則 + 5️⃣ 嚴格命名公式：《news_source》issue-brand-album_name
+  // 互斥原則 + 嚴格命名公式：《news_source》issue-brand-album_name（絕對鎖死）
   const albums = useMemo(() => {
     const groupedMap = new Map();
     const loosePhotos = [];
@@ -68,7 +71,6 @@ export default function AlbumModal({ mediaList = [] }) {
 
     const formalAlbums = [];
     groupedMap.forEach((group) => {
-      // 去重同時維持原始順序
       const uniquePhotos = Array.from(new Set(group.photos));
       if (uniquePhotos.length >= 3) {
         formalAlbums.push({
@@ -77,12 +79,10 @@ export default function AlbumModal({ mediaList = [] }) {
           photos: uniquePhotos,
         });
       } else {
-        // 未滿 3 張歸入其他相片
         loosePhotos.push(...uniquePhotos);
       }
     });
 
-    // 互斥原則：排除所有已成正式相簿的照片 URL
     const formalPhotoSet = new Set(formalAlbums.flatMap((a) => a.photos));
     const otherPhotos = Array.from(new Set(loosePhotos)).filter(
       (url) => !formalPhotoSet.has(url)
@@ -100,7 +100,7 @@ export default function AlbumModal({ mediaList = [] }) {
     return result;
   }, [mediaList]);
 
-  // 1️⃣ 偶數雙排垂直排列（2 列 × N 欄），確保首尾銜接無空白斷層
+  // 偶數雙排垂直排列（2 列 × N 欄）（絕對鎖死）
   const columns = useMemo(() => {
     const cols = [];
     for (let i = 0; i < albums.length; i += 2) {
@@ -109,13 +109,13 @@ export default function AlbumModal({ mediaList = [] }) {
     return cols;
   }, [albums]);
 
-  // 建立三倍無縫循環軌道（左緩衝 + 主軌道 + 右緩衝），支援自由慣性滑動且永不撞牆回彈
+  // 三倍無縫循環軌道（絕對鎖死）
   const loopColumns = useMemo(() => {
     if (columns.length <= 1) return columns;
     return [...columns, ...columns, ...columns];
   }, [columns]);
 
-  // 2️⃣ 預設開啟停留在最左側（主軌道第 1 欄＝最新一本相簿起點）
+  // 預設開啟停留在最左側最新相簿起點（絕對鎖死）
   useEffect(() => {
     if (selectedAlbum !== null) return;
     const el = shelfRef.current;
@@ -135,7 +135,7 @@ export default function AlbumModal({ mediaList = [] }) {
     initPosition();
   }, [columns, selectedAlbum]);
 
-  // 監聽橫向滑動，無縫穿梭於三倍軌道之間（自由停留、不鎖死單頁）
+  // 監聽橫向滑動，無縫穿梭於三倍軌道之間（絕對鎖死）
   const handleShelfScroll = () => {
     const el = shelfRef.current;
     if (!el || columns.length <= 1 || isResettingRef.current) return;
@@ -158,11 +158,34 @@ export default function AlbumModal({ mediaList = [] }) {
     }
   };
 
-  // 3️⃣ 大圖檢視器：縮圖列自動將當前高亮圖片置中
+  // 第 2 層相簿內頁：左邊緣右滑返回第 1 層 ALBUM（攔截事件不穿透回聊天室）
+  const handleDetailTouchStart = (e) => {
+    detailTouchStartRef.current = {
+      x: e.touches[0].clientX,
+      y: e.touches[0].clientY,
+    };
+  };
+
+  const handleDetailTouchEnd = (e) => {
+    const deltaX = e.changedTouches[0].clientX - detailTouchStartRef.current.x;
+    const deltaY = e.changedTouches[0].clientY - detailTouchStartRef.current.y;
+
+    const isEdgeSwipe = detailTouchStartRef.current.x < 45;
+    const isHorizontalSwipe = deltaX > 75 && Math.abs(deltaY) < 40;
+
+    if (isEdgeSwipe && isHorizontalSwipe) {
+      e.stopPropagation();
+      setSelectedAlbum(null);
+      setViewerIndex(null);
+    }
+  };
+
+  // 第 3 層大圖檢視器：縮圖列自動將當前高亮圖片置中
   useEffect(() => {
     if (viewerIndex === null || !thumbListRef.current) return;
     const container = thumbListRef.current;
-    const activeThumb = container.children[viewerIndex];
+    // 子元素包含前後置中墊片，因此實際縮圖索引為 viewerIndex + 1
+    const activeThumb = container.children[viewerIndex + 1];
     if (activeThumb) {
       const targetLeft =
         activeThumb.offsetLeft - container.clientWidth / 2 + activeThumb.clientWidth / 2;
@@ -170,7 +193,7 @@ export default function AlbumModal({ mediaList = [] }) {
     }
   }, [viewerIndex]);
 
-  // 大圖檢視器觸控手勢（左右無縫循環切換 + 大幅度下滑關閉）
+  // 大圖檢視器觸控手勢（左右無縫循環切換 + 大幅度下滑關閉）（絕對鎖死）
   const handleViewerTouchStart = (e) => {
     if (e.touches.length !== 1) return;
     gestureStartRef.current = {
@@ -195,7 +218,6 @@ export default function AlbumModal({ mediaList = [] }) {
     if (gestureAxisRef.current === 'x') {
       setDragOffset({ x: dx, y: 0 });
     } else if (gestureAxisRef.current === 'y') {
-      // 僅允許向下拖曳關閉
       setDragOffset({ x: 0, y: Math.max(0, dy) });
     }
   };
@@ -206,10 +228,8 @@ export default function AlbumModal({ mediaList = [] }) {
     const { x, y } = dragOffset;
 
     if (gestureAxisRef.current === 'y' && y > 95) {
-      // 大幅度下滑超過閾值直接關閉大圖
       setViewerIndex(null);
     } else if (gestureAxisRef.current === 'x' && Math.abs(x) > 45 && total > 1) {
-      // 無縫首尾相連迴圈切換
       if (x < 0) {
         setViewerIndex((prev) => (prev + 1) % total);
       } else {
@@ -234,34 +254,25 @@ export default function AlbumModal({ mediaList = [] }) {
       : 1;
 
   return (
-    <div className="absolute inset-0 bg-[#ECEEF1] z-30 flex flex-col overflow-hidden animate-fade-in">
-      {/* 頂部導航列（維持既有一致 UI） */}
-      <div className="pt-12 pb-3 px-4 bg-[#4E727A] text-white flex items-center justify-between shrink-0 shadow-md border-b border-[#3D5C63]">
+    <div className="absolute inset-0 bg-[#0B1120] z-30 flex flex-col overflow-hidden animate-fade-in select-none">
+      {/* 🌟 頂部導航列（Header Bar）統一標準規格：h-[88px] px-5 bg-[#4E727A] pt-14 pb-2.5 flex items-end */}
+      <div className="h-[88px] px-5 bg-[#4E727A] border-b border-[#3D5C63] shadow-md shrink-0 pt-14 pb-2.5 flex items-end justify-start">
         {selectedAlbum ? (
-          <button
-            onClick={() => {
-              setSelectedAlbum(null);
-              setViewerIndex(null);
-            }}
-            className="flex items-center space-x-1 text-sm font-medium text-white/95 active:scale-95 transition"
-          >
-            <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24">
-              <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z" />
-            </svg>
-            <span>相簿</span>
-          </button>
+          /* 第 2️⃣ 層：不顯示左上返回相簿，相簿名稱直接往左靠齊 */
+          <span className="font-bold text-base tracking-wide text-white leading-none truncate w-full text-left">
+            {selectedAlbum.title}
+          </span>
         ) : (
-          <span className="font-bold text-base tracking-wide">相簿</span>
+          /* 第 1️⃣ 層：固定標題字眼 ALBUM，移除總相本數目 */
+          <span className="font-bold text-xl tracking-wider text-white leading-none">
+            ALBUM
+          </span>
         )}
-
-        <span className="text-xs font-medium text-white/90 truncate max-w-[60%]">
-          {selectedAlbum ? selectedAlbum.title : `${albums.length} 本相簿`}
-        </span>
       </div>
 
       {/* 主內容區 */}
       {!selectedAlbum ? (
-        /* 1️⃣ & 2️⃣ 相簿封面列表：雙排垂直排列 + 無縫迴圈 + 自由慣性滑動（預設停在最左側最新相簿） */
+        /* 第 1️⃣ 層：深色背景、移除下方白底標題方塊改為純白字換行顯示、兩排垂直空隙加倍 (space-y-8) */
         <div className="flex-1 flex flex-col justify-center overflow-hidden py-4">
           {albums.length === 0 ? (
             <div className="text-center text-slate-400 text-xs">尚無相簿資料</div>
@@ -272,34 +283,32 @@ export default function AlbumModal({ mediaList = [] }) {
               className="w-full overflow-x-auto scrollbar-none px-4"
               style={{ WebkitOverflowScrolling: 'touch' }}
             >
-              <div className="inline-flex space-x-3.5">
+              <div className="inline-flex space-x-4 items-start">
                 {loopColumns.map((col, colIdx) => (
                   <div
                     key={`col_${colIdx}`}
-                    className="w-[162px] shrink-0 flex flex-col space-y-3.5"
+                    className="w-[158px] shrink-0 flex flex-col space-y-8"
                   >
                     {col.map((album) => (
                       <div
                         key={`${colIdx}_${album.title}`}
                         onClick={() => setSelectedAlbum(album)}
-                        className="bg-white rounded-2xl overflow-hidden shadow-sm border border-slate-200/80 active:scale-95 transition cursor-pointer flex flex-col"
+                        className="active:scale-95 transition cursor-pointer flex flex-col"
                       >
-                        <div className="w-full aspect-[3/4] bg-slate-200 overflow-hidden relative">
+                        <div className="w-full aspect-[3/4] rounded-2xl bg-slate-800/80 overflow-hidden relative shadow-md border border-white/10">
                           <img
                             src={album.cover}
                             alt={album.title}
                             loading="lazy"
                             className="w-full h-full object-cover"
                           />
-                          <span className="absolute bottom-2 right-2 bg-black/55 backdrop-blur-xs text-white text-[10px] px-2 py-0.5 rounded-full font-mono">
+                          <span className="absolute bottom-2 right-2 bg-black/60 backdrop-blur-xs text-white text-[10px] px-2 py-0.5 rounded-full font-mono">
                             {album.photos.length}
                           </span>
                         </div>
-                        <div className="px-2.5 py-2">
-                          <p className="text-xs font-semibold text-slate-800 truncate">
-                            {album.title}
-                          </p>
-                        </div>
+                        <p className="mt-2 px-0.5 text-xs font-medium text-white leading-snug break-words">
+                          {album.title}
+                        </p>
                       </div>
                     ))}
                   </div>
@@ -309,14 +318,18 @@ export default function AlbumModal({ mediaList = [] }) {
           )}
         </div>
       ) : (
-        /* 相簿內頁：三欄照片網格 */
-        <div className="flex-1 overflow-y-auto p-1.5">
+        /* 第 2️⃣ 層：相簿內頁（三欄網格 + 獨立邊緣滑動回第 1 層 ALBUM） */
+        <div
+          className="flex-1 overflow-y-auto p-1.5"
+          onTouchStart={handleDetailTouchStart}
+          onTouchEnd={handleDetailTouchEnd}
+        >
           <div className="grid grid-cols-3 gap-1">
             {selectedAlbum.photos.map((photoUrl, idx) => (
               <div
                 key={`${photoUrl}_${idx}`}
                 onClick={() => setViewerIndex(idx)}
-                className="aspect-[3/4] bg-slate-200 overflow-hidden cursor-pointer active:opacity-80 transition"
+                className="aspect-[3/4] bg-slate-800 overflow-hidden cursor-pointer active:opacity-80 transition"
               >
                 <img
                   src={photoUrl}
@@ -330,7 +343,7 @@ export default function AlbumModal({ mediaList = [] }) {
         </div>
       )}
 
-      {/* 3️⃣ 全螢幕大圖檢視器（無箭頭純滑動、無縫首尾循環、大幅度下滑關閉、無底部名稱、iPhone 風格縮圖列） */}
+      {/* 第 3️⃣ 層：全螢幕大圖檢視器（移除上方張數、縮圖置中且滑動完全獨立不連動大圖） */}
       {selectedAlbum && viewerIndex !== null && (
         <div
           className="fixed inset-0 z-50 bg-black flex flex-col justify-between select-none"
@@ -339,8 +352,8 @@ export default function AlbumModal({ mediaList = [] }) {
           onTouchMove={handleViewerTouchMove}
           onTouchEnd={handleViewerTouchEnd}
         >
-          {/* 頂部僅保留關閉按鈕與張數計數 */}
-          <div className="pt-12 pb-2 px-4 flex items-center justify-between text-white z-10">
+          {/* 頂部僅保留關閉按鈕，所有數字完全移除 */}
+          <div className="pt-12 pb-2 px-4 flex items-center justify-start text-white z-10">
             <button
               onClick={closeViewer}
               className="w-9 h-9 rounded-full bg-white/15 flex items-center justify-center active:scale-90 transition"
@@ -349,13 +362,9 @@ export default function AlbumModal({ mediaList = [] }) {
                 <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
               </svg>
             </button>
-            <span className="text-xs font-mono text-white/80">
-              {viewerIndex + 1} / {selectedAlbum.photos.length}
-            </span>
-            <div className="w-9" />
           </div>
 
-          {/* 中央大圖展示區（純滑動切換、無左右箭頭、可點擊空白關閉或大幅度下滑關閉） */}
+          {/* 中央大圖展示區 */}
           <div
             onClick={closeViewer}
             className="flex-1 flex items-center justify-center overflow-hidden px-2"
@@ -372,12 +381,19 @@ export default function AlbumModal({ mediaList = [] }) {
             />
           </div>
 
-          {/* 底部 iPhone 風格微型縮圖預覽列（無相簿名稱，當前高亮、點擊跳轉） */}
-          <div className="pb-7 pt-3 px-3 bg-gradient-to-t from-black/90 to-transparent z-10">
+          {/* 底部 iPhone 風格微型縮圖預覽列（置中對齊 + 事件獨立隔離，滑動小圖絕不連動上方大圖） */}
+          <div
+            className="pb-7 pt-3 bg-gradient-to-t from-black/90 to-transparent z-10"
+            onTouchStart={(e) => e.stopPropagation()}
+            onTouchMove={(e) => e.stopPropagation()}
+            onTouchEnd={(e) => e.stopPropagation()}
+          >
             <div
               ref={thumbListRef}
-              className="flex items-center space-x-1.5 overflow-x-auto scrollbar-none py-1 px-2"
+              className="flex items-center space-x-1.5 overflow-x-auto scrollbar-none py-1"
             >
+              {/* 左側置中墊片 */}
+              <div className="shrink-0 w-[calc(50%-22px)]" />
               {selectedAlbum.photos.map((thumbUrl, idx) => {
                 const isActive = idx === viewerIndex;
                 return (
@@ -400,6 +416,8 @@ export default function AlbumModal({ mediaList = [] }) {
                   </button>
                 );
               })}
+              {/* 右側置中墊片 */}
+              <div className="shrink-0 w-[calc(50%-22px)]" />
             </div>
           </div>
         </div>
