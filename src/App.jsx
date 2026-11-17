@@ -79,10 +79,18 @@ const formatVideoSource = (raw) => {
   return { type: 'direct', url: finalPath };
 };
 
+// 1️⃣ 支援多筆音檔分隔隨機挑一首，並完整清洗前後引號與空白
 const formatAudioUrl = (raw) => {
   if (!raw?.trim()) return '';
-  let clean = raw.trim().replace(/^["']|["']$/g, '');
-  if (!clean.endsWith('.mp3') && !clean.endsWith('.wav') && !clean.endsWith('.m4a')) {
+  const candidates = raw
+    .split(/[;,\n]+/)
+    .map(s => s.trim().replace(/^["'「『]+|["'」』]+$/g, '').trim())
+    .filter(Boolean);
+
+  if (!candidates.length) return '';
+  let clean = candidates[Math.floor(Math.random() * candidates.length)];
+
+  if (!/\.(mp3|wav|m4a|ogg)$/i.test(clean)) {
     clean += '.mp3';
   }
   if (clean.startsWith('http')) return clean;
@@ -90,7 +98,7 @@ const formatAudioUrl = (raw) => {
   return clean.startsWith('audio/') ? `/${clean}` : `/audio/${clean}`;
 };
 
-// 5️⃣ 語音氣泡組件（聊天室預設收窄 w-[142px]，不影響語音列表）
+// 語音氣泡組件（聊天室預設收窄 w-[142px]，不影響語音列表）
 const AudioBubble = ({ audioSrc, compact = true }) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const audioRef = useRef(null);
@@ -156,7 +164,7 @@ export default function App() {
     typeEmojiMap: {}
   });
 
-  // 2️⃣ 通知權限狀態追蹤
+  // 通知權限狀態追蹤
   const [notifPermission, setNotifPermission] = useState(() => {
     if (typeof window !== 'undefined' && 'Notification' in window) {
       return Notification.permission;
@@ -177,7 +185,7 @@ export default function App() {
     }
   };
 
-  // 2️⃣ 升級推播發送（相容桌面 PWA Service Worker 與一般瀏覽器）
+  // 升級推播發送（相容桌面 PWA Service Worker 與一般瀏覽器）
   const sendNotification = async (title, body) => {
     if (typeof window === 'undefined' || !('Notification' in window)) return;
     if (Notification.permission !== 'granted') return;
@@ -351,11 +359,11 @@ export default function App() {
 
   const dynamicVoiceList = useMemo(() => {
     return dialogueList
-      .filter(d => (d.type || '').trim().toLowerCase() === 'audio')
+      .filter(d => getField(d, 'type').toLowerCase() === 'audio')
       .map((d, idx) => ({
         id: `voice_${idx}`,
-        title: (d.trigger_content || `音訊 ${idx + 1}`).trim(),
-        src: formatAudioUrl(d.audio_after || d.trigger_content)
+        title: getField(d, 'trigger_content') || `音訊 ${idx + 1}`,
+        src: formatAudioUrl(getField(d, 'audio_after', 'trigger_content'))
       }));
   }, [dialogueList]);
 
@@ -416,11 +424,15 @@ export default function App() {
     }
 
     if (options.audioAfter) {
-      setTimeout(() => sendVoiceMessage({ src: formatAudioUrl(options.audioAfter) }), 600);
+      const resolvedUrl = formatAudioUrl(options.audioAfter);
+      if (resolvedUrl) {
+        setTimeout(() => sendVoiceMessage({ src: resolvedUrl }), 600);
+      }
     }
   };
 
   const sendVoiceMessage = (voiceData) => {
+    if (!voiceData?.src) return;
     setMessages(prev => [
       ...prev,
       {
@@ -449,7 +461,8 @@ export default function App() {
   };
 
   const pickDialogue = (typeKey) => {
-    const pool = dialogueList.filter(d => (d.type || '').trim().toLowerCase() === typeKey.toLowerCase());
+    const target = typeKey.trim().toLowerCase();
+    const pool = dialogueList.filter(d => getField(d, 'type').toLowerCase() === target);
     return pool.length ? pool[Math.floor(Math.random() * pool.length)] : null;
   };
 
@@ -473,17 +486,40 @@ export default function App() {
     sendStaggeredMessages(selected.soo_comment || `去吃${selected.food_name}如何？;我來訂位`);
   };
 
+  // 4️⃣ 完整提取所有 follow_ups / follow_up_1 / follow_up_2 / follow_up_3 欄位
   const extractAllFollowUps = (item, baseTitle = '') => {
     const list = [];
-    if (item.follow_ups) list.push(...item.follow_ups.split(/;|\n/).map(s => s.trim()).filter(Boolean));
-    if (item.follow_up_1?.trim()) list.push(item.follow_up_1.trim());
-    if (item.follow_up_2?.trim()) list.push(item.follow_up_2.trim());
-    if (item.follow_up_3?.trim()) list.push(item.follow_up_3.trim());
+    const rawCombined = getField(item, 'follow_ups', 'followups');
+    if (rawCombined) {
+      list.push(...rawCombined.split(/;|\n/).map(s => s.trim()).filter(Boolean));
+    }
+    const f1 = getField(item, 'follow_up_1', 'followup1');
+    const f2 = getField(item, 'follow_up_2', 'followup2');
+    const f3 = getField(item, 'follow_up_3', 'followup3');
+    if (f1) list.push(f1);
+    if (f2) list.push(f2);
+    if (f3) list.push(f3);
 
     return list.map(text => ({
       replyText: text,
-      replyTo: baseTitle || item.caption || item.trigger_content || ''
+      replyTo: baseTitle || getField(item, 'caption', 'trigger_content') || ''
     }));
+  };
+
+  // 3️⃣ 未接來電後續自動追問邏輯（超時未接 & 手動掛斷共用）
+  const triggerMissedCallFollowUp = () => {
+    setTimeout(() => {
+      const diag = pickDialogue('missed_call');
+      if (diag) {
+        const content = getField(diag, 'trigger_content');
+        const audio = getField(diag, 'audio_after');
+        sendStaggeredMessages(content || '忙完打給我。', { audioAfter: audio });
+        const newQueue = extractAllFollowUps(diag, content);
+        if (newQueue.length) setFollowUpQueue(newQueue);
+      } else {
+        sendStaggeredMessages('忙完打給我。');
+      }
+    }, 800);
   };
 
   const triggerIncomingCall = (type = 'audio') => {
@@ -497,16 +533,7 @@ export default function App() {
         if (current === 'ringing') {
           addCallRecord(type === 'video' ? '未接視訊' : '未接來電', 'assistant');
           sendNotification('未接來電', `${appSettings.name} 剛剛嘗試撥打電話給您`);
-          setTimeout(() => {
-            const diag = pickDialogue('missed_call');
-            if (diag) {
-              sendStaggeredMessages(diag.trigger_content, { audioAfter: diag.audio_after });
-              const newQueue = extractAllFollowUps(diag, diag.trigger_content);
-              if (newQueue.length) setFollowUpQueue(prev => [...prev, ...newQueue]);
-            } else {
-              sendStaggeredMessages('看到打回來。');
-            }
-          }, 800);
+          triggerMissedCallFollowUp();
           return 'idle';
         }
         return current;
@@ -534,17 +561,20 @@ export default function App() {
 
     if (wasRinging) {
       addCallRecord(callType === 'video' ? '未接視訊' : '未接來電', 'assistant');
+      triggerMissedCallFollowUp();
     } else if (isConnected) {
       addCallRecord(`通話時間 ${finalDurationText}`, 'user', finalDurationText);
     }
   };
 
   const triggerManualText = () => {
-    const textDiags = dialogueList.filter(d => (d.type || '').trim().toLowerCase() === 'text');
+    const textDiags = dialogueList.filter(d => getField(d, 'type').toLowerCase() === 'text');
     const picked = textDiags.length ? textDiags[Math.floor(Math.random() * textDiags.length)] : null;
     if (picked) {
-      sendStaggeredMessages(picked.trigger_content, { audioAfter: picked.audio_after });
-      const newQueue = extractAllFollowUps(picked, picked.trigger_content);
+      const content = getField(picked, 'trigger_content');
+      const audio = getField(picked, 'audio_after');
+      sendStaggeredMessages(content, { audioAfter: audio });
+      const newQueue = extractAllFollowUps(picked, content);
       if (newQueue.length) setFollowUpQueue(newQueue);
     }
   };
@@ -555,11 +585,20 @@ export default function App() {
     sendVoiceMessage({ src: picked.src });
   };
 
+  // 2️⃣ & 4️⃣ 照片分類隨機觸發：相容 mag/magazine，且完整綁定該列所有 Follow-ups 與語音
   const triggerCategoryRandom = (catKey) => {
-    const pool = masterMedia.filter(m => (m.category || m.type || '').toLowerCase().trim() === catKey && (m.images || '').trim());
+    const targetAliases = catKey === 'magazine' ? ['magazine', 'mag'] : [catKey];
+
+    const pool = masterMedia.filter(m => {
+      const rowType = getField(m, 'type', 'category').toLowerCase();
+      const hasImgs = getField(m, 'images', 'image').length > 0;
+      return targetAliases.includes(rowType) && hasImgs;
+    });
+
     if (!pool.length) return;
     const item = pool[Math.floor(Math.random() * pool.length)];
-    const imgList = (item.images || '').trim().split(/[\s,]+/).filter(url => url.startsWith('http'));
+    const rawImgs = getField(item, 'images', 'image');
+    const imgList = rawImgs.split(/[\s,]+/).map(u => u.trim()).filter(url => url.startsWith('http'));
 
     if (imgList.length === 1) {
       setMessages(prev => [...prev, { id: `${Date.now()}_photo`, role: 'assistant', type: 'photo', imageUrl: imgList[0], time: getCurrentTime() }]);
@@ -567,8 +606,20 @@ export default function App() {
       setMessages(prev => [...prev, { id: `${Date.now()}_grid`, role: 'assistant', type: 'album_grid', images: imgList, time: getCurrentTime() }]);
     }
 
-    if (item.caption) {
-      setTimeout(() => sendStaggeredMessages(item.caption, { audioAfter: item.audio_after }), 700);
+    const captionText = getField(item, 'caption', 'soo_comment', 'news_summary');
+    const audioAfterRaw = getField(item, 'audio_after', 'audio');
+
+    // 先寫入這張照片專屬的完整 Follow-up 佇列（取代舊殘留，避免亂跳）
+    const newQueue = extractAllFollowUps(item, captionText);
+    setFollowUpQueue(newQueue);
+
+    if (captionText) {
+      setTimeout(() => sendStaggeredMessages(captionText, { audioAfter: audioAfterRaw }), 700);
+    } else if (audioAfterRaw) {
+      const resolvedUrl = formatAudioUrl(audioAfterRaw);
+      if (resolvedUrl) {
+        setTimeout(() => sendVoiceMessage({ src: resolvedUrl }), 700);
+      }
     }
   };
 
@@ -625,7 +676,7 @@ export default function App() {
       localStorage.setItem('soo_awoken_date', todayStr);
       setCallStatus('idle');
       const awakeDiag = pickDialogue('system_awake');
-      sendStaggeredMessages(awakeDiag?.trigger_content || '終於醒了？;水喝了嗎？');
+      sendStaggeredMessages(getField(awakeDiag, 'trigger_content') || '終於醒了？;水喝了嗎？');
       return;
     }
 
@@ -634,7 +685,7 @@ export default function App() {
       return;
     }
 
-    // 4️⃣ 回覆精準引用使用者剛剛傳送的訊息 (currentInput)，而不是他自己
+    // 回覆精準引用使用者剛剛傳送的訊息 (currentInput)，依序消耗完所有 Follow-ups
     if (followUpQueue.length > 0) {
       const [nextItem, ...remaining] = followUpQueue;
       setFollowUpQueue(remaining);
@@ -642,12 +693,14 @@ export default function App() {
       return;
     }
 
-    const textDiags = dialogueList.filter(d => (d.type || '').trim().toLowerCase() === 'text');
+    const textDiags = dialogueList.filter(d => getField(d, 'type').toLowerCase() === 'text');
     const picked = textDiags.length ? textDiags[Math.floor(Math.random() * textDiags.length)] : null;
     setTimeout(() => {
       if (picked) {
-        sendStaggeredMessages(picked.trigger_content, { audioAfter: picked.audio_after });
-        const newQueue = extractAllFollowUps(picked, picked.trigger_content);
+        const content = getField(picked, 'trigger_content');
+        const audio = getField(picked, 'audio_after');
+        sendStaggeredMessages(content, { audioAfter: audio });
+        const newQueue = extractAllFollowUps(picked, content);
         if (newQueue.length) setFollowUpQueue(newQueue);
       }
     }, 800);
@@ -820,7 +873,7 @@ export default function App() {
         {callStatus !== 'idle' && (
           <div className="absolute inset-0 bg-slate-950/95 z-50 flex flex-col justify-between items-center py-16 px-6 text-white backdrop-blur-md animate-fade-in">
             <div className="flex flex-col items-center mt-10 space-y-4">
-              {/* 3️⃣ 僅在響鈴中 (ringing) 閃爍頭貼，接通 (connected) 後維持正常靜態 */}
+              {/* 僅在響鈴中 (ringing) 閃爍頭貼，接通 (connected) 後維持正常靜態 */}
               <div className={`w-40 h-40 rounded-full overflow-hidden ring-4 ring-[#81D4D2]/40 shadow-2xl ${callStatus === 'ringing' ? 'animate-pulse' : ''}`}>
                 <img src={appSettings.avatar} alt="avatar" className="w-full h-full object-cover" />
               </div>
@@ -846,9 +899,9 @@ export default function App() {
           </div>
         )}
 
-        {/* 全螢幕視訊通話 */}
+        {/* 全螢幕視訊通話（5️⃣ 移除 scale-105 並使用 inset-0 w-full h-full object-cover object-center 消除底部黑bar） */}
         {isVideoCalling && (
-          <div className="absolute inset-0 bg-black z-50 flex flex-col justify-between items-center py-12 px-6 text-white animate-fade-in">
+          <div className="absolute inset-0 bg-black z-50 flex flex-col justify-between items-center py-12 px-6 text-white animate-fade-in overflow-hidden">
             <video
               ref={videoPlayerRef}
               src="/video/video_call.mp4"
@@ -858,7 +911,7 @@ export default function App() {
                 setIsVideoCalling(false);
                 addCallRecord(`視訊通話 ${formatSeconds(videoDuration)}`, 'user', formatSeconds(videoDuration));
               }}
-              className="absolute inset-0 w-full h-full object-cover scale-105"
+              className="absolute inset-0 w-full h-full object-cover object-center"
             />
             <div className="z-10 flex flex-col items-center mt-4 space-y-1">
               <span className="text-xl font-medium tracking-wide">{appSettings.name}</span>
@@ -884,7 +937,7 @@ export default function App() {
             </div>
             <div className="flex items-center space-x-1.5">
               <span className="font-bold text-lg text-white tracking-wide">{appSettings.name}</span>
-              {/* 2️⃣ 尚未開啟通知權限時顯示小鈴鐺開關（點擊主動詢問系統權限） */}
+              {/* 尚未開啟通知權限時顯示小鈴鐺開關（點擊主動詢問系統權限） */}
               {notifPermission !== 'granted' && (
                 <button
                   onClick={handleRequestNotification}
@@ -904,7 +957,6 @@ export default function App() {
               <span>清空</span>
               <span className="bg-[#81D4D2] text-[#0F3332] font-bold text-[10.5px] px-1.5 py-0.2 rounded-full font-mono ml-1.5">{messages.length}</span>
             </button>
-            {/* 1️⃣ 移除電話、視訊 icon 底下的淺色圓圈 */}
             <button onClick={() => triggerIncomingCall('audio')} className="p-1.5 active:scale-90 transition flex items-center justify-center">
               <svg className="w-5 h-5 fill-white" viewBox="0 0 24 24"><path d="M6.62 10.79a15.05 15.05 0 006.59 6.59l2.2-2.2a1 1 0 011.02-.24 11.72 11.72 0 003.68.59 1 1 0 011 1v3.5a1 1 0 01-1 1A17 17 0 013 4a1 1 0 011-1h3.5a1 1 0 011 1c0 1.25.2 2.48.59 3.68a1 1 0 01-.24 1.02l-2.23 2.09z" /></svg>
             </button>
